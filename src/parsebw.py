@@ -7,6 +7,7 @@ import struct
 import os
 import math
 from typing import Any
+import traceback
 
 epsilon = 0.00001
 # 允许打印
@@ -14,7 +15,10 @@ allow_print = False
 
 
 def print_(*args, **kwargs):
-    if allow_print:
+    sector = kwargs.get("sector", -1)
+    if "sector" in kwargs:
+        del kwargs["sector"]
+    if allow_print or sector in []:
         print(*args, **kwargs)
 
 
@@ -46,7 +50,7 @@ def unpack(fmat: str, f) -> Any:
         )
 
     if fmat_[-1] == "s":
-        return struct.unpack(fmat, f.read(buffer))[0].decode()
+        return struct.unpack(fmat, f.read(buffer))[0].decode("Latin1")
     return [round2(x) for x in struct.unpack(fmat, f.read(buffer))]
 
 
@@ -54,12 +58,12 @@ def unpack(fmat: str, f) -> Any:
 #     pass
 
 
-def handler8003(mark, f) -> Any:
+def handler8003(mark, f, Info, i) -> Any:
     if mark:
         mark += " "
     address = f"{f.tell():X}"
-    passable = unpack("i", f)[0]
-    if passable:
+    num = unpack("i", f)[0]
+    for j in range(num):
         # 扇区相对索引
         rel_sector_id = unpack("i", f)[0]
         # 顶点数量
@@ -68,13 +72,29 @@ def handler8003(mark, f) -> Any:
         rel_vertices = []
         for k in range(vertex_num):
             rel_vertices.append(unpack("i", f)[0])
-        print_(
-            f"{' ':<{7+4+4}}{mark}8003 {passable}, rel_sector: {rel_sector_id}, rel_vertices: {rel_vertices} - {address}"
-        )
-        return vertex_num
-    else:
-        print_(f"{' ':<{7+4+4}}{mark}8003 {passable} - {address}")
-        return 4
+        msg = f"{' ':<{7+4+4}}{mark}8003 {num}, rel_sector: {rel_sector_id}, rel_vertices: {rel_vertices} - {address}"
+        Info.append(msg)
+        print_(msg, sector=i)
+    if num == 0:
+        msg = f"{' ':<{7+4+4}}{mark}8003 {num} - {address}"
+        Info.append(msg)
+        print_(msg, sector=i)
+    # if passable:
+    #     # 扇区相对索引
+    #     rel_sector_id = unpack("i", f)[0]
+    #     # 顶点数量
+    #     vertex_num = unpack("i", f)[0]
+    #     # 顶点相对索引列表
+    #     rel_vertices = []
+    #     for k in range(vertex_num):
+    #         rel_vertices.append(unpack("i", f)[0])
+    #     msg = f"{' ':<{7+4+4}}{mark}8003 {passable}, rel_sector: {rel_sector_id}, rel_vertices: {rel_vertices} - {address}"
+    #     Info.append(msg)
+    #     print_(msg, sector=i)
+    # else:
+    #     msg = f"{' ':<{7+4+4}}{mark}8003 {passable} - {address}"
+    #     Info.append(msg)
+    #     print_(msg, sector=i)
 
 
 def parse(file):
@@ -85,11 +105,14 @@ def parse(file):
         data = unpack("i", f)[0]
         # 大气
         print(f"## Atmospheres: {data}")
+        Atmos = ([], [])
         for i in range(data):
             name_len = unpack("i", f)[0]
             name = unpack(f"{name_len}s", f)
             rgb = unpack("BBB", f)
             opacity = unpack("f", f)[0]
+            Atmos[0].append(name_len)
+            Atmos[1].append(name)
             # 打印大气信息
             print(f"{name}, RGB: {rgb}, Opacity: {opacity}")
         print("")
@@ -121,9 +144,10 @@ def parse(file):
             factor = unpack("f", f)[0]
             unknown1 = unpack("f", f)[0]
             Unknown2 = unpack("ddd", f)
-            print_(f"{i} - {atmo_name}:")
+            print_(f"{i} - {atmo_name}:", sector=i)
             print_(
-                f"{' ':<7}Ambient RGB: {ambient_rgb}, Factor: {factor}, Unknown1: {unknown1}, Unknown2: {Unknown2}"
+                f"{' ':<7}Ambient RGB: {ambient_rgb}, Factor: {factor}, Unknown1: {unknown1}, Unknown2: {Unknown2}",
+                sector=i,
             )
             # 跳过12个字节
             f.seek(12, 1)
@@ -136,18 +160,22 @@ def parse(file):
             f.seek(12, 1)
             pos = unpack("ddd", f)
             print_(
-                f"{' ':<7}Internal RGB: {internal_rgb}, Factor: {factor}, Unknown1: {unknown1}, Unknown2: {Unknown2}, Position: {pos}"
+                f"{' ':<7}Internal RGB: {internal_rgb}, Factor: {factor}, Unknown1: {unknown1}, Unknown2: {Unknown2}, Position: {pos}",
+                sector=i,
             )
 
             # 面数
             face_num = unpack("i", f)[0]
-            print_(f"{' ':<7}Faces: {face_num}")
+            print_(f"{' ':<7}Faces: {face_num}", sector=i)
             for j in range(face_num):
                 if is_break:
                     break
                 address = f"{f.tell():X}"
                 # 标识符,默认7001
                 id1 = unpack("i", f)[0]
+                if id1 not in (7001, 7002, 7003, 7004, 7005):
+                    print(f"unknown face id: {id1}, Sector: {i}, Face: {j} - {address}")
+                    return
                 # 法向
                 normal = unpack("ddd", f)
                 # 距离
@@ -162,6 +190,19 @@ def parse(file):
                         share_vertices.append(unpack("i", f)[0])
                     # 连接的扇区
                     sector_id = unpack("i", f)[0]
+
+                if id1 == 7005:
+                    # 顶点数量
+                    vertex_num = unpack("i", f)[0]
+                    # 顶点索引列表
+                    share_vertices = []
+                    for k in range(vertex_num):
+                        share_vertices.append(unpack("i", f)[0])
+                    print_(
+                        f"{' ':<{7+4}}{j}: {id1} passable, Normal: {normal}, {distance}, share vertices: {share_vertices} - {address}",
+                        sector=i,
+                    )
+                    continue
 
                 id2 = unpack("i", f)[0]  # 3
                 if id1 != 7004 and id2 != 3:
@@ -178,11 +219,12 @@ def parse(file):
                 v2 = unpack("ddd", f)
                 x = unpack("f", f)[0]
                 y = unpack("f", f)[0]
+                f.seek(8, 1)  # 0
 
-                id4 = unpack("d", f)[0]
                 if id1 == 7002:
                     print_(
-                        f"{' ':<{7+4}}{j}: {id1} passable, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), share vertices: {share_vertices}, Sector: {sector_id} - {address}"
+                        f"{' ':<{7+4}}{j}: {id1} passable, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), share vertices: {share_vertices}, Sector: {sector_id} - {address}",
+                        sector=i,
                     )
                     continue
 
@@ -194,125 +236,101 @@ def parse(file):
                     vertex_list.append(unpack("i", f)[0])
 
                 print_(
-                    f"{' ':<{7+4}}{j}: {id1}, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), Vertexs: {vertex_list} - {address}"
+                    f"{' ':<{7+4}}{j}: {id1}, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), Vertexs: {vertex_list} - {address}",
+                    sector=i,
                 )
 
                 if id1 == 7004:
-                    address1 = 0
-                    try:
-                        #
-                        passable_sectors = unpack("i", f)[0]
-                        print_(f"{' ':<{7+4+4}}passable sectors: {passable_sectors}\n")
-                        for k in range(passable_sectors):
-                            # 顶点数量
-                            vertex_num = unpack("i", f)[0]
-                            # 顶点索引列表
-                            share_vertices = []
-                            for _ in range(vertex_num):
-                                share_vertices.append(unpack("i", f)[0])
-                            # 连接的扇区
-                            sector_id = unpack("i", f)[0]
-                            # 面数
-                            face_num = unpack("i", f)[0]
-                            print_(
-                                f"{' ':<{7+4+4}}{k}: partially passable, Share vertices: {share_vertices}, Sector: {sector_id}, Faces: {face_num}"
-                            )
-                            for k in range(face_num):
-                                normal = unpack("ddd", f)
-                                address = f"{f.tell():X}"
-                                distance = unpack("d", f)[0]
-                                print_(
-                                    f"{' ':<{7+4+4+4}}{k}: Normal: {normal}, {distance} - {address}"
-                                )
-                        # 分割数量
-                        address1 = f"{f.tell():X}"
-                        print_(f"sub {f.tell():X}")
-                        texture_num = 0
-                        vertex_num_parent = 4
-                        while True:
-                            mark1 = unpack("i", f)[0]
-                            if mark1 == 8003:
-                                vertex_num = handler8003("", f)
-                                break
-                            elif mark1 == 8002:
-                                texture_num += 1
-                                mark2 = unpack("i", f)[0]
-                                if mark2 == 8003:
-                                    handler8003(str(mark1), f)
-                                else:
-                                    is_break = True
-                                    print(
-                                        f"Warning: 未知的标记: {mark2} - {f.tell()-4:X}"
-                                    )
-                                    break
-                            elif mark1 == 8001:
-                                sub_num = 0
-                                mark2 = unpack("i", f)[0]
-                                while mark2 == 8001:
-                                    sub_num += 1
-                                    mark2 = unpack("i", f)[0]
-                                if mark2 == 8003:
-                                    vertex_num_parent = handler8003(
-                                        " ".join(("8001",) * (sub_num + 1)), f
-                                    )
-                                    for k in range(sub_num):
-                                        mark1 = unpack("i", f)[0]
-                                        if mark1 == 8003:
-                                            vertex_num = handler8003("", f)
-                                            for k in range(4 - vertex_num):
-                                                # 方向
-                                                direction = unpack("ddd", f)
-                                                # 距离
-                                                distance = unpack("d", f)[0]
-                                                print_(
-                                                    f"{' ':<{7+4+4+4}}direction: {direction}, {distance}"
-                                                )
-                                else:
-                                    is_break = True
-                                    print(
-                                        f"Warning: 未知的标记: {mark2} - {f.tell()-4:X}"
-                                    )
-                                    break
-                        for k in range(texture_num):
-                            address = f"{f.tell():X}"
-                            # 法向
+                    passable_sectors = unpack("i", f)[0]
+                    print_(
+                        f"{' ':<{7+4+4}}passable sectors: {passable_sectors}\n",
+                        sector=i,
+                    )
+                    for k in range(passable_sectors):
+                        # 顶点数量
+                        vertex_num = unpack("i", f)[0]
+                        # 顶点索引列表
+                        share_vertices = []
+                        for _ in range(vertex_num):
+                            share_vertices.append(unpack("i", f)[0])
+                        # 连接的扇区
+                        sector_id = unpack("i", f)[0]
+                        # 面数
+                        face_num = unpack("i", f)[0]
+                        print_(
+                            f"{' ':<{7+4+4}}{k}: partially passable, Share vertices: {share_vertices}, Sector: {sector_id}, Faces: {face_num}",
+                            sector=i,
+                        )
+                        for k in range(face_num):
                             normal = unpack("ddd", f)
-                            # 距离
-                            distance = unpack("d", f)[0]
-
-                            f.seek(8, 1)  # 3 0
-
-                            name_len = unpack("i", f)[0]
-                            # 纹理名称
-                            texture_name = unpack(f"{name_len}s", f)
-                            v1 = unpack("ddd", f)
-                            v2 = unpack("ddd", f)
-                            x = unpack("f", f)[0]
-                            y = unpack("f", f)[0]
-
-                            f.seek(8, 1)  # 0
-                            print_(
-                                f"{' ':<{7+4+4}}Texture: Normal: {normal}, {distance}, {texture_name}, pos: ({x}, {y}) - {address}"
-                            )
-                        for k in range(4 - vertex_num + (4 - vertex_num_parent)):
                             address = f"{f.tell():X}"
-                            mark = unpack("i", f)[0]
-                            f.seek(-4, 1)
-                            if mark in (7001, 7002, 7003, 7004):
-                                break
-                            # 方向
-                            direction = unpack("ddd", f)
-                            # 距离
                             distance = unpack("d", f)[0]
                             print_(
-                                f"{' ':<{7+4+4+4}}direction: {direction}, {distance} - {address}"
+                                f"{' ':<{7+4+4+4}}{k}: Normal: {normal}, {distance} - {address}",
+                                sector=i,
                             )
+
+                    address1 = f"{f.tell():X}"
+                    Info = []
+                    try:
+                        print_(f"sub {f.tell():X}", sector=i)
+                        marks = []
+                        while True:
+                            address = f"{f.tell():X}"
+                            mark1 = unpack("i", f)[0]
+                            if mark1 in (8001, 8002):
+                                marks.append(str(mark1))
+                            elif mark1 == 8003:
+                                vertex_num = handler8003("".join(marks), f, Info, i)
+                                marks = []
+                            elif mark1 in (7001, 7002, 7003, 7004, 7005):
+                                f.seek(-4, 1)  # back 4
+                                break
+                            else:
+                                mark2 = unpack("i", f)[0]
+                                f.seek(-4, 1)
+                                if mark2 in (15001, 15002):
+                                    f.seek(-4, 1)  # back 8
+                                    break
+                                if mark1 in Atmos[0]:
+                                    name = unpack(f"{mark1}s", f)
+                                    f.seek(-mark1, 1)
+                                    if name in Atmos[1]:
+                                        f.seek(-4, 1)
+                                        break
+
+                                f.seek(-4, 1)
+                                # 向量
+                                vector = unpack("ddd", f)
+                                # 距离
+                                distance = unpack("d", f)[0]
+                                mark2 = unpack("ii", f)
+                                if mark2 == [3, 0]:
+                                    name_len = unpack("i", f)[0]
+                                    # 纹理名称
+                                    texture_name = unpack(f"{name_len}s", f)
+                                    v1 = unpack("ddd", f)
+                                    v2 = unpack("ddd", f)
+                                    x = unpack("f", f)[0]
+                                    y = unpack("f", f)[0]
+
+                                    f.seek(8, 1)  # 0
+                                    msg = f"{' ':<{7+4+4}}Texture: Vector: {vector}, {distance}, {texture_name}, pos: ({x}, {y}) - {address}"
+                                    Info.append(msg)
+                                    print_(msg, sector=i)
+                                else:
+                                    msg = f"{' ':<{7+4+4}}Vector: {vector}, {distance} - {address}"
+                                    Info.append(msg)
+                                    print_(msg, sector=i)
+                                    f.seek(-8, 1)  # back
                     except:
                         print(
                             f"Warning: 解析7004失败, Sector: {i}, Face: {j} - {address1}"
                         )
-                        is_break = True
-                        break
+                        for info in Info:
+                            print(info)
+                        print(traceback.format_exc())
+                        return
 
                 elif id1 == 7003:
                     # 顶点数量
@@ -324,15 +342,19 @@ def parse(file):
                     # 连接的扇区
                     sector_id = unpack("i", f)[0]
                     print_(
-                        f"{' ':<{7+4+4}}partially passable, Share vertices: {share_vertices}, Sector: {sector_id}"
+                        f"{' ':<{7+4+4}}partially passable, Share vertices: {share_vertices}, Sector: {sector_id}",
+                        sector=i,
                     )
                     # 面数
                     face_num = unpack("i", f)[0]
                     for k in range(face_num):
                         normal = unpack("ddd", f)
-                        print_(f"distance {f.tell():X}")
+                        print_(f"distance {f.tell():X}", sector=i)
                         distance = unpack("d", f)[0]
-                        print_(f"{' ':<{7+4+4+4}}{k}: Normal: {normal}, {distance}")
+                        print_(
+                            f"{' ':<{7+4+4+4}}{k}: Normal: {normal}, {distance}",
+                            sector=i,
+                        )
 
             print_("")
 
@@ -395,9 +417,4 @@ def parse(file):
             # name = unpack(f"{name_len}s", f)
 
         print("解析成功！")
-
-
-r"""
-parse(r"D:\BLADE\Work\Amagate\.test\Led2.bw")
-parse(r"D:\GOG Galaxy\Games\Blade of Darkness\maps\Chaos_M17\chaos.bw")
-"""
+        return True
