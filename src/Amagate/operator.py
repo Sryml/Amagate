@@ -41,10 +41,32 @@ class OT_RemoveAtmosphere(bpy.types.Operator):
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
+        if (
+            scene_data.atmospheres[scene_data.active_atmosphere].id
+            == scene_data.get_default().atom_id
+        ):
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('Cannot remove default atmosphere')}",
+            )
+            return {"CANCELLED"}
+
         scene_data.atmospheres.remove(scene_data.active_atmosphere)
         if scene_data.active_atmosphere >= len(scene_data.atmospheres):
             scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
         data.AtmosphereProperty.check_duplicate_name(context)
+        return {"FINISHED"}
+
+
+class OT_DefaultAtmosphere(bpy.types.Operator):
+    bl_idname = "amagate.scene_atmo_default"
+    bl_label = "Set as default atmosphere"
+
+    def execute(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data.get_default().atom_id = scene_data.atmospheres[
+            scene_data.active_atmosphere
+        ].id
         return {"FINISHED"}
 
 
@@ -68,7 +90,12 @@ class OT_NewScene(bpy.types.Operator):
         scene = context.scene
         scene.name = name
         scene.amagate_data.is_blade = True  # type: ignore
+
+        scene.amagate_data.set_defaults()  # type: ignore
+
         bpy.ops.amagate.scene_atmo_add()  # type: ignore
+
+        # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
         return {"FINISHED"}
 
 
