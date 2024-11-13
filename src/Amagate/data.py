@@ -13,6 +13,7 @@ from bpy.props import (
     IntVectorProperty,
     PointerProperty,
     StringProperty,
+    EnumProperty,
 )
 
 ############################
@@ -21,34 +22,69 @@ ICONS: Any = None
 ############################
 
 
+def get_atmo_by_id(scene_data, atmo_id) -> Any:
+    for i, atmo in enumerate(scene_data.atmospheres):
+        if atmo.id == atmo_id:
+            return (i, atmo)
+
+
 # 自定义的列表项模板
-class AMAGATE_UI_UL_AtmosphereList(bpy.types.UIList):
+class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
     # bl_idname = "AMAGATE_UI_UL_AtmosphereList"
 
     def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
         scene_data = context.scene.amagate_data  # type: ignore
         atmosphere = item  # 获取大气数据
+        enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
-        row = layout.row(align=True)
-        row.alignment = "LEFT"
-        # split = row.split(factor=0.2)
+        row = layout.row()
+        # row.alignment = "LEFT"
+        split = row.split(factor=0.6)
+        row = split.row()
         # split = row
 
         # col = split.column()
         # col.enabled = False
         # col.label(text=f"ID: {atmosphere.id}")
-        icon = (
-            ICONS["star"].icon_id
-            if atmosphere.id == scene_data.get_default().atom_id
-            else 0
-        )
-        row.label(text="", icon_value=icon)  # icon="CHECKMARK"
+        i = ICONS["star"].icon_id if atmosphere.id == scene_data.defaults.atmo_id else 0
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text="", icon_value=i)  # icon="CHECKMARK"
 
+        col = row.column()
         if atmosphere.id in atmo_duplicate_name_ids:
-            row.alert = True
+            col.alert = True
+        if enabled:
+            col.prop(atmosphere, "name", text="", emboss=False)
+        else:
+            col.label(text=atmosphere.name)
 
-        row.prop(atmosphere, "name", text="", emboss=False)
+        row = split.row()
+        row.enabled = enabled
         row.prop(atmosphere, "color", text="")
+
+
+#############################
+
+
+class Scene_Default_Atmo(bpy.types.PropertyGroup):
+    index: IntProperty(default=0, update=lambda self, context: self.update_target(context))  # type: ignore
+    is_sector: BoolProperty(default=True)  # type: ignore
+    active: BoolProperty(default=False)  # type: ignore
+    readonly: BoolProperty(default=True)  # type: ignore
+
+    def update_target(self, context):
+        if not self.active:
+            return
+
+        scene_data = context.scene.amagate_data  # type: ignore
+        if self.is_sector:
+            pass
+        else:
+            scene_data.defaults.atmo_id = scene_data.atmospheres[self.index].id
+
+
+#############################
 
 
 # 大气属性
@@ -79,7 +115,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         atmo_duplicate_name_ids = duplicate_name_ids
         # print(f"Duplicate Name IDs: {duplicate_name_ids}")
         if duplicate_name_ids:
-            bpy.context.window_manager.popup_menu(
+            bpy.context.window_manager.popup_menu(  # type: ignore
                 lambda self, context: self.layout.label(text="Duplicate Name"),
                 title="Error",
                 icon="ERROR",
@@ -120,14 +156,14 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
-    atom_id: IntProperty(name="Atmosphere", description="", default=1)  # type: ignore
+    atmo_id: IntProperty(name="Atmosphere", description="", default=1)  # type: ignore
     floor_texture: CollectionProperty(type=SectorTextureProperty)  # type: ignore
     ceiling_texture: CollectionProperty(type=SectorTextureProperty)  # type: ignore
     wall_texture: CollectionProperty(type=SectorTextureProperty)  # type: ignore
 
-    flat_light: CollectionProperty(type=SectorLightProperty)  # type: ignore # 平面光
-    external_light: CollectionProperty(type=SectorLightProperty)  # type: ignore # 外部光
-    ambient_light: CollectionProperty(type=SectorLightProperty)  # type: ignore # 环境光
+    flat_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 平面光
+    external_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 外部光
+    ambient_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 环境光
     spot_light: CollectionProperty(type=SectorFocoLightProperty)  # type: ignore # 聚光灯
 
     group: IntProperty(
@@ -143,16 +179,15 @@ class SceneProperty(bpy.types.PropertyGroup):
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
     active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
-    defaults: CollectionProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
+    defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
 
-    def get_default(self):
-        return self.defaults[0]
+    # def get_default(self):
+    #     return self.defaults[0]
 
     def set_defaults(self):
-        self.defaults.add()
-        default = self.defaults[0]
+        defaults = self.defaults
 
-        default.atom_id = 1
+        defaults.atmo_id = 1
 
 
 ##############################

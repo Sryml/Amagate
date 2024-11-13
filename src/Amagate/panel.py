@@ -2,6 +2,7 @@ import bpy
 from bpy.app.translations import pgettext
 
 from . import data
+from . import operator as OP
 
 
 # 场景面板
@@ -25,7 +26,7 @@ class PT_Scene(bpy.types.Panel):
             # col = row.column()
             # col.enabled = False
             # col.prop(scene_data, "is_blade", text="")
-            # layout.operator("amagate.newscene", icon="ADD")
+            # layout.operator(OP.OT_NewScene.bl_idname, icon="ADD")
             # return
 
 
@@ -58,7 +59,7 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
         # row = row.split(factor=0.9)
         col = row.column()
         col.template_list(
-            "AMAGATE_UI_UL_AtmosphereList",
+            "AMAGATE_UI_UL_AtmoList",
             "atmosphere_list",
             scene_data,
             "atmospheres",
@@ -70,10 +71,10 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
 
         # 添加按钮放置在右侧
         col = row.column(align=True)
-        col.operator("amagate.scene_atmo_add", text="", icon="ADD")
-        col.operator("amagate.scene_atmo_remove", text="", icon="X")
+        col.operator(OP.OT_Scene_Atmo_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP.OT_Scene_Atmo_Remove.bl_idname, text="", icon="X")
         col.separator(factor=3)
-        col.operator("amagate.scene_atmo_default", text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
+        col.operator(OP.OT_Scene_Atmo_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
 # 场景面板 -> 默认属性面板
@@ -93,6 +94,34 @@ class PT_Scene_Default(bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+        # layout.use_property_split = True
+        # layout.use_property_decorate = False
+
+        scene_data = context.scene.amagate_data  # type: ignore
+
+        # layout.prop_search(scene_data.defaults, "atmo", scene_data, "atmospheres", text="Atmosphere")
+        atmo_idx, atmo = data.get_atmo_by_id(scene_data, scene_data.defaults.atmo_id)
+
+        row = layout.row()
+        split = row.split(factor=0.7)
+        row = split.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Atmosphere')}:")
+
+        col = row.column()
+        op = col.operator(
+            OP.OT_Scene_Default_Atmo.bl_idname,
+            text=f"{atmo.name}",
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.is_sector = False  # type: ignore
+        op.prop.index = atmo_idx  # type: ignore
+
+        row = split.row()
+        row.enabled = False
+        row.prop(atmo, "color", text="")
 
 
 # 场景面板 -> 新建场景面板
@@ -109,7 +138,20 @@ class PT_Scene_New(bpy.types.Panel):
         layout = self.layout
         layout.separator()
         # 新建场景按钮
-        layout.operator("amagate.newscene", icon="ADD")
+        layout.operator(OP.OT_NewScene.bl_idname, icon="ADD")
+
+        # test
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="RESTRICT_SELECT_ON")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="RESTRICT_SELECT_OFF")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="GP_ONLY_SELECTED")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="GP_SELECT_BETWEEN_STROKES")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SET")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_EXTEND")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SUBTRACT")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_INTERSECT")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_DIFFERENCE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="DOWNARROW_HLT")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="EVENT_DOWN_ARROW")
 
 
 class PT_PanelTest(bpy.types.Panel):
@@ -124,10 +166,10 @@ class PT_PanelTest(bpy.types.Panel):
 
         row = layout.row(align=True)
         row.alignment = "RIGHT"
-        row.operator("amagate.reloadaddon", icon="FILE_REFRESH")  # 添加按钮
+        row.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")  # 添加按钮
         # row = layout.row(align=True)
         # row.alignment = "CENTER"
-        layout.operator("amagate.exportmap", icon="EXPORT")  # 添加按钮
+        layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
 
 
 classes = [

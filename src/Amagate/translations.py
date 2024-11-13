@@ -7,6 +7,7 @@ translations_dict = {
         ("*", "Blade Scene"): "Blade 场景",
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
+        ("*", "Select Atmosphere"): "选择大气",
         ("Operator", "Add Atmosphere"): "添加大气",
         ("Operator", "Remove Atmosphere"): "删除大气",
         ("Operator", "Set as default atmosphere"): "设为默认大气",
