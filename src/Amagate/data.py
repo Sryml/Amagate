@@ -17,7 +17,7 @@ from bpy.props import (
 )
 
 ############################
-atmo_duplicate_name_ids = []
+active_atmo_name = ""
 ICONS: Any = None
 ############################
 
@@ -52,8 +52,6 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
         col.label(text="", icon_value=i)  # icon="CHECKMARK"
 
         col = row.column()
-        if atmosphere.id in atmo_duplicate_name_ids:
-            col.alert = True
         if enabled:
             col.prop(atmosphere, "name", text="", emboss=False)
         else:
@@ -100,26 +98,23 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     id: IntProperty(name="ID", default=1)  # type: ignore
     # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
+    # 正在更新
+    updating: BoolProperty(default=False)  # type: ignore
 
-    @staticmethod
-    def check_duplicate_name(context):
-        global atmo_duplicate_name_ids
-        scene_data = context.scene.amagate_data  # type: ignore
-        items = scene_data.atmospheres
-        if not items:
+    def check_duplicate_name(self, context):
+        global active_atmo_name
+        if self.updating:
             return
 
-        name_counter = Counter(item.name for item in items)
-        # 检查是否有重复名称
-        duplicate_name_ids = [item.id for item in items if name_counter[item.name] > 1]
-        atmo_duplicate_name_ids = duplicate_name_ids
-        # print(f"Duplicate Name IDs: {duplicate_name_ids}")
-        if duplicate_name_ids:
-            bpy.context.window_manager.popup_menu(  # type: ignore
-                lambda self, context: self.layout.label(text="Duplicate Name"),
-                title="Error",
-                icon="ERROR",
-            )
+        scene_data = context.scene.amagate_data  # type: ignore
+        atmos = scene_data.atmospheres
+        for atmo in atmos:
+            if atmo.name == self.name and atmo != self:
+                atmo.updating = True
+                atmo.name = active_atmo_name
+                atmo.updating = False
+                break
+        # active_atmo_name = self.name
 
 
 # 扇区纹理属性
@@ -178,8 +173,13 @@ class SectorProperty(bpy.types.PropertyGroup):
 class SceneProperty(bpy.types.PropertyGroup):
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
-    active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
+    active_atmosphere: IntProperty(name="Atmosphere", default=0, update=lambda self, context: self.update(context))  # type: ignore
     defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
+
+    def update(self, context):
+        global active_atmo_name
+        scene_data = context.scene.amagate_data  # type: ignore
+        active_atmo_name = scene_data.atmospheres[self.active_atmosphere].name
 
     # def get_default(self):
     #     return self.defaults[0]

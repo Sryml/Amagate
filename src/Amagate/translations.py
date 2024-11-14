@@ -10,6 +10,7 @@ translations_dict = {
         ("*", "Select Atmosphere"): "选择大气",
         ("Operator", "Add Atmosphere"): "添加大气",
         ("Operator", "Remove Atmosphere"): "删除大气",
+        ("*", "Hold shift to quickly delete"): "按住 Shift 可快速删除",
         ("Operator", "Set as default atmosphere"): "设为默认大气",
         ("*", "Duplicate Name"): "名称重复",
         ("*", "Non-Blade scene"): "非 Blade 场景",

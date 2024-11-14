@@ -1,5 +1,6 @@
 import bpy
 from bpy.app.translations import pgettext
+from bpy.props import BoolProperty
 
 from . import data
 from . import operator as OP
@@ -77,6 +78,29 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
         col.operator(OP.OT_Scene_Atmo_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
+# 场景面板 -> 纹理面板
+class PT_Scene_Texture(bpy.types.Panel):
+    bl_label = "Textures"
+    bl_idname = "AMAGATE_PT_Scene_Texture"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Amagate"
+    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+
+    @classmethod
+    def poll(cls, context):
+        # 自定义条件，仅在blade场景中显示
+        return context.scene.amagate_data.is_blade  # type: ignore
+
+    def draw(self, context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data  # type: ignore
+
+        # layout.operator(
+        #     OP.OT_Scene_Texture_Add.bl_idname, text="Add Texture", icon="ADD"
+        # )
+
+
 # 场景面板 -> 默认属性面板
 class PT_Scene_Default(bpy.types.Panel):
     bl_label = "Default Properties"
@@ -96,9 +120,9 @@ class PT_Scene_Default(bpy.types.Panel):
         layout = self.layout
         # layout.use_property_split = True
         # layout.use_property_decorate = False
-
         scene_data = context.scene.amagate_data  # type: ignore
 
+        # 大气
         # layout.prop_search(scene_data.defaults, "atmo", scene_data, "atmospheres", text="Atmosphere")
         atmo_idx, atmo = data.get_atmo_by_id(scene_data, scene_data.defaults.atmo_id)
 
@@ -122,6 +146,8 @@ class PT_Scene_Default(bpy.types.Panel):
         row = split.row()
         row.enabled = False
         row.prop(atmo, "color", text="")
+
+        # 纹理
 
 
 # 场景面板 -> 新建场景面板

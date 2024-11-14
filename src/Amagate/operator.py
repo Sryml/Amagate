@@ -38,11 +38,11 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         # 已经使用的ID
         used_ids = set(a.id for a in scene_data.atmospheres)
 
-        new_atmosphere = scene_data.atmospheres.add()
+        new_atmo = scene_data.atmospheres.add()
         id_ = 1
         while id_ in used_ids:
             id_ += 1
-        new_atmosphere.id = id_
+        new_atmo.id = id_
 
         # 给大气命名
         name = f"atmo{id_}"
@@ -50,7 +50,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         while name in names:
             id_ += 1
             name = f"atmo{id_}"
-        new_atmosphere.name = name
+        new_atmo.name = name
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
         return {"FINISHED"}
@@ -59,25 +59,30 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
 class OT_Scene_Atmo_Remove(bpy.types.Operator):
     bl_idname = "amagate.scene_atmo_remove"
     bl_label = "Remove Atmosphere"
+    bl_description = "Hold shift to quickly delete"
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
-        if (
-            scene_data.atmospheres[scene_data.active_atmosphere].id
-            == scene_data.defaults.atmo_id
-        ):
+        active_atmo = scene_data.active_atmosphere
+        if scene_data.atmospheres[active_atmo].id == scene_data.defaults.atmo_id:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Cannot remove default atmosphere')}",
             )
             return {"CANCELLED"}
 
-        scene_data.atmospheres.remove(scene_data.active_atmosphere)
-        if scene_data.active_atmosphere >= len(scene_data.atmospheres):
+        scene_data.atmospheres.remove(active_atmo)
+
+        if active_atmo >= len(scene_data.atmospheres):
             scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
-        data.AtmosphereProperty.check_duplicate_name(context)
         return {"FINISHED"}
+
+    def invoke(self, context, event):
+        if event.shift:
+            return self.execute(context)
+        else:
+            return context.window_manager.invoke_confirm(self, event)  # type: ignore
 
 
 class OT_Scene_Atmo_Default(bpy.types.Operator):
@@ -91,6 +96,34 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
             scene_data.active_atmosphere
         ].id
         return {"FINISHED"}
+
+
+# 场景面板 -> 纹理面板
+class OT_Scene_Texture_Add(bpy.types.Operator):
+    bl_idname = "amagate.scene_texture_add"
+    bl_label = "Select"
+    bl_options = {"INTERNAL"}
+
+    # 属性，用于存储选择的路径
+    # filepath: bpy.props.StringProperty(subtype="FILE_PATH")  # type: ignore
+    # filename: bpy.props.StringProperty()  # type: ignore
+    directory: bpy.props.StringProperty()  # type: ignore
+    files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context):
+        # 处理选中的路径（这里我们将路径打印出来）
+        # print(f"Selected file: {self.filepath}")
+        # print(f"Selected file name: {self.filename}")
+        print(f"Selected file directory: {self.directory}")
+        for file in self.files:
+            print(f"Selected file: {file.name}")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        # 这里通过文件选择器来选择文件或文件夹
+        a = context.window_manager.fileselect_add(self)  # type: ignore # 弹出文件选择框
+        print(a)
+        return {"RUNNING_MODAL"}
 
 
 # 场景面板 -> 默认属性面板
@@ -172,10 +205,10 @@ class OT_ReloadAddon(bpy.types.Operator):
     def execute(self, context):
         base_package = sys.modules[__package__]  # type: ignore
 
-        # bpy.ops.preferences.addon_disable(module=__package__)  # type: ignore
-        base_package.unregister()
-        # bpy.ops.preferences.addon_enable(module=__package__)  # type: ignore
-        base_package.register(reload=True)
+        bpy.ops.preferences.addon_disable(module=__package__)  # type: ignore
+        # base_package.unregister()
+        bpy.ops.preferences.addon_enable(module=__package__)  # type: ignore
+        # base_package.register(reload=True)
         print("插件已热更新！")
         return {"FINISHED"}
 
