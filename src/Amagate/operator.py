@@ -1,4 +1,5 @@
 import sys
+import os
 from typing import Any
 
 import bpy
@@ -98,32 +99,138 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# 场景面板 -> 纹理面板
+# 纹理面板
 class OT_Scene_Texture_Add(bpy.types.Operator):
     bl_idname = "amagate.scene_texture_add"
-    bl_label = "Select"
+    bl_label = "Add Texture"
+    bl_description = "Hold shift to enable overlay"
     bl_options = {"INTERNAL"}
 
-    # 属性，用于存储选择的路径
+    # 过滤文件
+    filter_folder: bpy.props.BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    filter_image: bpy.props.BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    # filter_glob: bpy.props.StringProperty(default="*.jpg;*.png;*.jpeg;*.bmp;*.tga", options={"HIDDEN"})  # type: ignore
+
+    # 相对路径
+    relative_path: bpy.props.BoolProperty(name="Relative Path", default=True)  # type: ignore
+    # 覆盖模式
+    override: bpy.props.BoolProperty(name="Override Mode", default=False)  # type: ignore
     # filepath: bpy.props.StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: bpy.props.StringProperty()  # type: ignore
     directory: bpy.props.StringProperty()  # type: ignore
     files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
+    def get_id(self):
+        # 已经使用的ID
+        used_ids = set(i.amagate_data.id for i in bpy.data.images)  # type: ignore
+        id_ = 1
+        while id_ in used_ids:
+            id_ += 1
+        return id_
+
+    def load_image(self, context, filepath, name=""):
+        scene_data = context.scene.amagate_data  # type: ignore
+        img = bpy.data.images.load(filepath)
+        img_data = img.amagate_data  # type: ignore
+        if name:
+            img.name = name
+
+        img_data.id = self.get_id()
+
     def execute(self, context):
-        # 处理选中的路径（这里我们将路径打印出来）
-        # print(f"Selected file: {self.filepath}")
-        # print(f"Selected file name: {self.filename}")
-        print(f"Selected file directory: {self.directory}")
-        for file in self.files:
-            print(f"Selected file: {file.name}")
+        curr_dir = bpy.path.abspath("//")
+        # 相同驱动器
+        same_drive = (
+            os.path.splitdrive(self.directory)[0] == os.path.splitdrive(curr_dir)[0]
+        )
+        files = [
+            f.name
+            for f in self.files
+            if f.name and os.path.exists(os.path.join(self.directory, f.name))
+        ]
+        if not files:
+            files = [
+                f
+                for f in os.listdir(self.directory)
+                if f.endswith((".jpg", ".png", ".jpeg", ".bmp", ".tga"))
+            ]
+
+        for file in files:
+            name = os.path.splitext(file)[0]
+            filepath = os.path.join(self.directory, file)
+            if same_drive and self.relative_path:
+                filepath = f"//{os.path.relpath(filepath, curr_dir)}"
+
+            img = bpy.data.images.get(name)
+            if img:
+                if self.override:
+                    img.filepath = filepath
+                    img.reload()
+                    if not img.amagate_data.id:  # type: ignore
+                        img.amagate_data.id = self.get_id()  # type: ignore
+            else:
+                self.load_image(context, filepath, name)
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        self.override = event.shift
         # 这里通过文件选择器来选择文件或文件夹
-        a = context.window_manager.fileselect_add(self)  # type: ignore # 弹出文件选择框
-        print(a)
+        context.window_manager.fileselect_add(self)  # type: ignore
         return {"RUNNING_MODAL"}
+
+
+class OT_Scene_Texture_Remove(bpy.types.Operator):
+    bl_idname = "amagate.scene_texture_remove"
+    bl_label = "Remove Texture"
+    bl_description = "Hold shift to quickly delete"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        print(f"{self.__class__.bl_idname}")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        if event.shift:
+            return self.execute(context)
+        else:
+            return context.window_manager.invoke_confirm(self, event)  # type: ignore
+
+
+class OT_Scene_Texture_Reload(bpy.types.Operator):
+    bl_idname = "amagate.scene_texture_reload"
+    bl_label = "Reload Texture"
+    bl_description = "Hold shift to reload all texture"
+    bl_options = {"INTERNAL"}
+
+    reload_all: bpy.props.BoolProperty(name="Reload All", default=False)  # type: ignore
+
+    def execute(self, context):
+        print(f"{self.__class__.bl_idname}")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.reload_all = event.shift
+        self.execute(context)
+        return {"FINISHED"}
+
+
+class OT_Scene_Texture_Package(bpy.types.Operator):
+    bl_idname = "amagate.scene_texture_package"
+    bl_label = "Package Texture"
+    bl_description = "Hold shift to pack all textures"
+    bl_options = {"INTERNAL"}
+
+    # 打包所有
+    pack_all: bpy.props.BoolProperty(name="Pack All", default=False)  # type: ignore
+
+    def execute(self, context):
+        print(f"{self.__class__.bl_idname}")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.pack_all = event.shift
+        self.execute(context)
+        return {"FINISHED"}
 
 
 # 场景面板 -> 默认属性面板
@@ -152,7 +259,7 @@ class OT_Scene_Default_Atmo(bpy.types.Operator):
         )
 
     def execute(self, context):
-        print(f"{self.__class__.__name__}.execute")
+        # print(f"{self.__class__.__name__}.execute")
         # self.report({"INFO"}, "execute")
         # simulate_keypress()
         # bpy.context.window.cursor_warp(10,10)

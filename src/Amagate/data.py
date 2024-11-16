@@ -1,7 +1,7 @@
 import os
 from typing import Any
 
-from collections import Counter
+# from collections import Counter
 
 import bpy
 from bpy.props import (
@@ -17,7 +17,6 @@ from bpy.props import (
 )
 
 ############################
-active_atmo_name = ""
 ICONS: Any = None
 ############################
 
@@ -28,10 +27,11 @@ def get_atmo_by_id(scene_data, atmo_id) -> Any:
             return (i, atmo)
 
 
+############################
+############################
+############################
 # 自定义的列表项模板
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
-    # bl_idname = "AMAGATE_UI_UL_AtmosphereList"
-
     def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
         scene_data = context.scene.amagate_data  # type: ignore
         atmosphere = item  # 获取大气数据
@@ -62,9 +62,54 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
         row.prop(atmosphere, "color", text="")
 
 
-#############################
+class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        flt_flags = [0] * len(items)
+        flt_neworder = []
+
+        for idx, item in enumerate(items):
+            if item.amagate_data.id != 0:
+                flt_flags[idx] = self.bitflag_filter_item
+
+        return flt_flags, flt_neworder
+
+    def draw_item(
+        self,
+        context,
+        layout,
+        data,
+        item: bpy.types.Image,
+        icon,
+        active_data,
+        active_prop,
+    ):
+        scene_data = context.scene.amagate_data  # type: ignore
+        # texture: bpy.types.Image = bpy.data.images.get(item)  # type: ignore
+        texture = item
+        enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
+
+        row = layout.row()
+        i = texture.preview.icon_id if texture.preview else 0
+        row.label(text="", icon_value=i)
+        if enabled:
+            row.prop(texture, "name", text="", emboss=False)
+        else:
+            row.label(text=texture.name)
+        i = "UGLYPACKAGE" if texture.packed_file else "NONE"
+        row.label(text="", icon=i)
 
 
+############################
+############################ Operator Props
+############################
+
+
+class StringCollection(bpy.types.PropertyGroup):
+    value: StringProperty(default="")  # type: ignore
+
+
+# 场景面板 -> 默认属性面板
 class Scene_Default_Atmo(bpy.types.PropertyGroup):
     index: IntProperty(default=0, update=lambda self, context: self.update_target(context))  # type: ignore
     is_sector: BoolProperty(default=True)  # type: ignore
@@ -82,12 +127,29 @@ class Scene_Default_Atmo(bpy.types.PropertyGroup):
             scene_data.defaults.atmo_id = scene_data.atmospheres[self.index].id
 
 
-#############################
+############################
+############################ Object Props
+############################
 
 
 # 大气属性
 class AtmosphereProperty(bpy.types.PropertyGroup):
-    name: StringProperty(name="Atmosphere Name", default="", update=lambda self, context: self.check_duplicate_name(context))  # type: ignore
+    def get_name(self):
+        return self.get("_name", "")
+
+    def set_name(self, value):
+        if value == "":
+            return
+
+        scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
+        atmos = scene_data.atmospheres
+        for atmo in atmos:
+            if atmo.name == value and atmo != self:
+                atmo["_name"] = self.get("_name", "")
+                break
+        self["_name"] = value
+
+    name: StringProperty(name="Atmosphere Name", default="", get=get_name, set=set_name)  # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -98,23 +160,41 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     id: IntProperty(name="ID", default=1)  # type: ignore
     # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
+
+
+"""
+# 纹理属性
+class TextureProperty(bpy.types.PropertyGroup):
+    name: StringProperty(name="Texture Name", default="", update=lambda self, context: self.check_duplicate_name(context))  # type: ignore
+    id: IntProperty(name="ID", default=1)  # type: ignore
     # 正在更新
     updating: BoolProperty(default=False)  # type: ignore
 
     def check_duplicate_name(self, context):
-        global active_atmo_name
+        global active_texture_name
         if self.updating:
             return
 
-        scene_data = context.scene.amagate_data  # type: ignore
-        atmos = scene_data.atmospheres
-        for atmo in atmos:
-            if atmo.name == self.name and atmo != self:
-                atmo.updating = True
-                atmo.name = active_atmo_name
-                atmo.updating = False
+        agate_data = bpy.data.amagate_data  # type: ignore
+        textures = agate_data.textures
+        for texture in textures:
+            if texture.name == self.name and texture != self:
+                texture.updating = True
+                texture.name = active_texture_name
+                texture.updating = False
+
+                # TODO
+                img = bpy.data.images.get(active_texture_name)
+                if img:
+                    img.name = ""
+                img = bpy.data.images.get(self.name)
+                if img:
+                    img.name = texture.name
                 break
-        # active_atmo_name = self.name
+        img = bpy.data.images.get(active_texture_name)
+        if img:
+            img.name = self.name
+"""
 
 
 # 扇区纹理属性
@@ -169,20 +249,51 @@ class SectorProperty(bpy.types.PropertyGroup):
     comment: StringProperty(name="Comment", description="", default="")  # type: ignore
 
 
+# 图像属性
+class ImageProperty(bpy.types.PropertyGroup):
+    id: IntProperty(name="ID", default=0)  # type: ignore
+    # textures: CollectionProperty(type=TextureProperty)  # type: ignore
+    # active_texture: IntProperty(name="Texture", default=0, update=lambda self, context: self.update_texture_name(context))  # type: ignore
+
+    # def update_texture_name(self, context):
+    #     global active_texture_name
+    #     agate_data = bpy.data.amagate_data  # type: ignore
+    #     active_texture_name = agate_data.textures[self.active_texture].name
+
+
 # 场景属性
 class SceneProperty(bpy.types.PropertyGroup):
+    def get_active_texture(self):
+        value = self.get("_active_texture", 0)
+
+        if value >= len(bpy.data.images):
+            return 0
+
+        active_id = self.get("_active_texture_id", 0)
+        curr_id = bpy.data.images[value].amagate_data.id
+        if active_id and curr_id:
+            if curr_id != active_id:
+                for i, img in enumerate(bpy.data.images):
+                    if img.amagate_data.id == active_id:  # type: ignore
+                        value = i
+                        break
+                else:
+                    self["_active_texture_id"] = curr_id
+        return value
+
+    def set_active_texture(self, value):
+        self["_active_texture"] = value
+        self["_active_texture_id"] = bpy.data.images[value].amagate_data.id
+
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
+
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
-    active_atmosphere: IntProperty(name="Atmosphere", default=0, update=lambda self, context: self.update(context))  # type: ignore
+    active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
+
+    # textures: CollectionProperty(type=StringCollection)  # type: ignore
+    active_texture: IntProperty(name="Texture", default=0, set=set_active_texture, get=get_active_texture)  # type: ignore
+
     defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
-
-    def update(self, context):
-        global active_atmo_name
-        scene_data = context.scene.amagate_data  # type: ignore
-        active_atmo_name = scene_data.atmospheres[self.active_atmosphere].name
-
-    # def get_default(self):
-    #     return self.defaults[0]
 
     def set_defaults(self):
         defaults = self.defaults
@@ -190,8 +301,8 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.atmo_id = 1
 
 
-##############################
-##############################
+############################
+############################
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
 classes = [
     cls
@@ -214,12 +325,14 @@ def register():
         bpy.utils.register_class(cls)
     bpy.types.Object.amagate_data = PointerProperty(type=SectorProperty)  # type: ignore
     bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty)  # type: ignore
+    bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty)  # type: ignore
 
 
 def unregister():
     global ICONS
     del bpy.types.Object.amagate_data  # type: ignore
     del bpy.types.Scene.amagate_data  # type: ignore
+    del bpy.types.Image.amagate_data  # type: ignore
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

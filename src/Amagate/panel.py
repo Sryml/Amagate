@@ -78,29 +78,6 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
         col.operator(OP.OT_Scene_Atmo_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
-# 场景面板 -> 纹理面板
-class PT_Scene_Texture(bpy.types.Panel):
-    bl_label = "Textures"
-    bl_idname = "AMAGATE_PT_Scene_Texture"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
-    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
-
-    @classmethod
-    def poll(cls, context):
-        # 自定义条件，仅在blade场景中显示
-        return context.scene.amagate_data.is_blade  # type: ignore
-
-    def draw(self, context):
-        layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
-
-        # layout.operator(
-        #     OP.OT_Scene_Texture_Add.bl_idname, text="Add Texture", icon="ADD"
-        # )
-
-
 # 场景面板 -> 默认属性面板
 class PT_Scene_Default(bpy.types.Panel):
     bl_label = "Default Properties"
@@ -176,8 +153,58 @@ class PT_Scene_New(bpy.types.Panel):
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SUBTRACT")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_INTERSECT")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_DIFFERENCE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="DOWNARROW_HLT")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="EVENT_DOWN_ARROW")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="FILE_TICK")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="PREFERENCES")
+
+
+# 纹理面板
+class PT_Scene_Texture(bpy.types.Panel):
+    bl_label = "Textures"
+    bl_idname = "AMAGATE_PT_Scene_Texture"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "UI"
+    bl_category = "Amagate"
+    # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+
+    @classmethod
+    def poll(cls, context):
+        # 自定义条件，仅在blade场景中显示
+        return context.scene.amagate_data.is_blade  # type: ignore
+
+    def draw(self, context):
+        layout = self.layout
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+
+        # 显示纹理列表
+        row = layout.row(align=True)
+        row.alignment = "LEFT"
+        row.label(
+            text=f"{pgettext('Total')}: {[bool(i.amagate_data.id) for i in bpy.data.images].count(True)}"  # type: ignore
+        )
+
+        row = layout.row(align=True)
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_TextureList",
+            "texture_list",
+            bpy.data,
+            "images",
+            scene_data,
+            "active_texture",
+            rows=3,
+            maxrows=7,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column(align=True)
+        col.operator(OP.OT_Scene_Texture_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP.OT_Scene_Texture_Remove.bl_idname, text="", icon="X")
+        col.operator(OP.OT_Scene_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
+        col.operator(OP.OT_Scene_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
+
+        # TODO: 预览图像
+        # row = layout.row(align=True)
+        # row.template_preview()
 
 
 class PT_PanelTest(bpy.types.Panel):
