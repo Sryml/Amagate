@@ -13,6 +13,7 @@ class PT_Scene(bpy.types.Panel):
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Amagate"
+    # bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context):
         layout = self.layout
@@ -39,7 +40,7 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "Amagate"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
-    bl_options = {"HIDE_HEADER"}
+    # bl_options = {"HIDE_HEADER"}
 
     @classmethod
     def poll(cls, context):
@@ -53,7 +54,7 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
         # 显示大气列表
         row = layout.row(align=True)
         row.alignment = "LEFT"
-        row.label(text=f"{pgettext('Atmospheres')}: {len(scene_data.atmospheres)}")
+        row.label(text=f"{pgettext('Total')}: {len(scene_data.atmospheres)}")
 
         # 创建滚动区域来显示最多 3 个大气项
         row = layout.row(align=True)
@@ -153,8 +154,8 @@ class PT_Scene_New(bpy.types.Panel):
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SUBTRACT")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_INTERSECT")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_DIFFERENCE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="FILE_TICK")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="PREFERENCES")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="PACKAGE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="PACKAGE")
 
 
 # 纹理面板
@@ -165,6 +166,7 @@ class PT_Scene_Texture(bpy.types.Panel):
     bl_region_type = "UI"
     bl_category = "Amagate"
     # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+    # bl_options = {"DEFAULT_CLOSED"}
 
     @classmethod
     def poll(cls, context):

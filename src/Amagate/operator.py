@@ -33,8 +33,8 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
     bl_label = "Add Atmosphere"
     bl_options = {"INTERNAL"}
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: bpy.types.Context):
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
 
         # 已经使用的ID
         used_ids = set(a.id for a in scene_data.atmospheres)
@@ -44,6 +44,11 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         while id_ in used_ids:
             id_ += 1
         new_atmo.id = id_
+
+        # 创建空物体 用来判断引用
+        obj = bpy.data.objects.new(f"{context.scene.name}_atmo_{id_}", None)
+        obj["id"] = id_
+        new_atmo.atmo_obj = obj
 
         # 给大气命名
         name = f"atmo{id_}"
@@ -66,13 +71,24 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
         active_atmo = scene_data.active_atmosphere
-        if scene_data.atmospheres[active_atmo].id == scene_data.defaults.atmo_id:
+        atmo = scene_data.atmospheres[active_atmo]
+        # 不能删除默认大气
+        if atmo.id == scene_data.defaults.atmo_id:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Cannot remove default atmosphere')}",
             )
             return {"CANCELLED"}
 
+        # 不能删除正在使用的大气
+        if atmo.atmo_obj.users > 1:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('Atmosphere is used by sectors')}",
+            )
+            return {"CANCELLED"}
+
+        bpy.data.objects.remove(atmo.atmo_obj)
         scene_data.atmospheres.remove(active_atmo)
 
         if active_atmo >= len(scene_data.atmospheres):
@@ -186,7 +202,28 @@ class OT_Scene_Texture_Remove(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        print(f"{self.__class__.bl_idname}")
+        scene_data = context.scene.amagate_data  # type: ignore
+        idx = scene_data.active_texture
+
+        if idx >= len(bpy.data.images):
+            return {"CANCELLED"}
+
+        img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
+        img_data = img.amagate_data  # type: ignore
+
+        if not img_data.id:
+            return {"CANCELLED"}
+
+        # TODO 检查是否被使用, 也许检查材质的引用
+        if img.users > 1:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('Texture is used by sectors')}",
+            )
+            return {"CANCELLED"}
+
+        bpy.data.images.remove(img)
+
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -205,32 +242,80 @@ class OT_Scene_Texture_Reload(bpy.types.Operator):
     reload_all: bpy.props.BoolProperty(name="Reload All", default=False)  # type: ignore
 
     def execute(self, context):
-        print(f"{self.__class__.bl_idname}")
+        scene_data = context.scene.amagate_data  # type: ignore
+        if self.reload_all:
+            for img in bpy.data.images:
+                if img.amagate_data.id:  # type: ignore
+                    img.reload()
+        else:
+            idx = scene_data.active_texture
+            if idx >= len(bpy.data.images):
+                return {"CANCELLED"}
+
+            img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
+            if img and img.amagate_data.id:  # type: ignore
+                img.reload()
         return {"FINISHED"}
 
     def invoke(self, context, event):
         self.reload_all = event.shift
-        self.execute(context)
-        return {"FINISHED"}
+        return self.execute(context)
 
 
 class OT_Scene_Texture_Package(bpy.types.Operator):
     bl_idname = "amagate.scene_texture_package"
-    bl_label = "Package Texture"
-    bl_description = "Hold shift to pack all textures"
+    bl_label = "Pack/Unpack Texture"
+    bl_description = "Hold shift to pack/unpack all textures"
     bl_options = {"INTERNAL"}
 
-    # 打包所有
-    pack_all: bpy.props.BoolProperty(name="Pack All", default=False)  # type: ignore
+    shift: bpy.props.BoolProperty(default=False)  # type: ignore
+    select_operation: bpy.props.EnumProperty(  # type: ignore
+        name="",
+        description="Select Operation",
+        items=[
+            ("pack_all", "Pack All", ""),
+            ("unpack_all", "Unpack All", ""),
+        ],
+        default="pack_all",  # 默认选项
+    )
+
+    def draw(self, context):
+        layout = self.layout
+        row = layout.row()
+        row.alignment = "CENTER"
+        row.prop(self, "select_operation", text="Select Operation")
 
     def execute(self, context):
-        print(f"{self.__class__.bl_idname}")
+        scene_data = context.scene.amagate_data  # type: ignore
+        # 如果未打开blend文件，则使用原始路径
+        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
+        if self.shift:
+            for img in bpy.data.images:
+                if img.amagate_data.id:  # type: ignore
+                    if self.select_operation == "pack_all":
+                        if not img.packed_file:
+                            img.pack()
+                    else:
+                        if img.packed_file:
+                            img.unpack(method=m)
+        else:
+            idx = scene_data.active_texture
+            if idx >= len(bpy.data.images):
+                return {"CANCELLED"}
+
+            img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
+            if img and img.amagate_data.id:  # type: ignore
+                if img.packed_file:
+                    img.unpack(method=m)
+                else:
+                    img.pack()
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        self.pack_all = event.shift
-        self.execute(context)
-        return {"FINISHED"}
+        self.shift = event.shift
+        if event.shift:
+            return context.window_manager.invoke_props_dialog(self)  # type: ignore
+        return self.execute(context)
 
 
 # 场景面板 -> 默认属性面板

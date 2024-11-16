@@ -111,7 +111,7 @@ class StringCollection(bpy.types.PropertyGroup):
 
 # 场景面板 -> 默认属性面板
 class Scene_Default_Atmo(bpy.types.PropertyGroup):
-    index: IntProperty(default=0, update=lambda self, context: self.update_target(context))  # type: ignore
+    index: IntProperty(name="", default=0, update=lambda self, context: self.update_target(context))  # type: ignore
     is_sector: BoolProperty(default=True)  # type: ignore
     active: BoolProperty(default=False)  # type: ignore
     readonly: BoolProperty(default=True)  # type: ignore
@@ -150,6 +150,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         self["_name"] = value
 
     name: StringProperty(name="Atmosphere Name", default="", get=get_name, set=set_name)  # type: ignore
+    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -160,41 +161,6 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     id: IntProperty(name="ID", default=1)  # type: ignore
     # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
-
-
-"""
-# 纹理属性
-class TextureProperty(bpy.types.PropertyGroup):
-    name: StringProperty(name="Texture Name", default="", update=lambda self, context: self.check_duplicate_name(context))  # type: ignore
-    id: IntProperty(name="ID", default=1)  # type: ignore
-    # 正在更新
-    updating: BoolProperty(default=False)  # type: ignore
-
-    def check_duplicate_name(self, context):
-        global active_texture_name
-        if self.updating:
-            return
-
-        agate_data = bpy.data.amagate_data  # type: ignore
-        textures = agate_data.textures
-        for texture in textures:
-            if texture.name == self.name and texture != self:
-                texture.updating = True
-                texture.name = active_texture_name
-                texture.updating = False
-
-                # TODO
-                img = bpy.data.images.get(active_texture_name)
-                if img:
-                    img.name = ""
-                img = bpy.data.images.get(self.name)
-                if img:
-                    img.name = texture.name
-                break
-        img = bpy.data.images.get(active_texture_name)
-        if img:
-            img.name = self.name
-"""
 
 
 # 扇区纹理属性
@@ -231,6 +197,8 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
+    is_sector: BoolProperty(default=False)  # type: ignore
+    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     atmo_id: IntProperty(name="Atmosphere", description="", default=1)  # type: ignore
     floor_texture: CollectionProperty(type=SectorTextureProperty)  # type: ignore
     ceiling_texture: CollectionProperty(type=SectorTextureProperty)  # type: ignore
@@ -252,13 +220,6 @@ class SectorProperty(bpy.types.PropertyGroup):
 # 图像属性
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
-    # textures: CollectionProperty(type=TextureProperty)  # type: ignore
-    # active_texture: IntProperty(name="Texture", default=0, update=lambda self, context: self.update_texture_name(context))  # type: ignore
-
-    # def update_texture_name(self, context):
-    #     global active_texture_name
-    #     agate_data = bpy.data.amagate_data  # type: ignore
-    #     active_texture_name = agate_data.textures[self.active_texture].name
 
 
 # 场景属性
@@ -290,7 +251,6 @@ class SceneProperty(bpy.types.PropertyGroup):
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
     active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
 
-    # textures: CollectionProperty(type=StringCollection)  # type: ignore
     active_texture: IntProperty(name="Texture", default=0, set=set_active_texture, get=get_active_texture)  # type: ignore
 
     defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
