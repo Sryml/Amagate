@@ -4,13 +4,25 @@ from typing import Any
 
 import bpy
 from bpy.app.translations import pgettext
-from bpy.props import PointerProperty
+from bpy.props import (
+    PointerProperty,
+    CollectionProperty,
+    EnumProperty,
+    BoolProperty,
+    BoolVectorProperty,
+    FloatProperty,
+    FloatVectorProperty,
+    IntProperty,
+    IntVectorProperty,
+    StringProperty,
+)
 
 from . import data
 
-"""
+
 import ctypes
 import time
+
 
 # 定义 Windows API 中的 keybd_event 函数
 def simulate_keypress():
@@ -24,7 +36,6 @@ def simulate_keypress():
 
     # 释放 ESC 键
     ctypes.windll.user32.keybd_event(ESC_KEY_CODE, 0, 2, 0)
-"""
 
 
 ############################
@@ -136,18 +147,18 @@ class OT_Texture_Add(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     # 过滤文件
-    filter_folder: bpy.props.BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
-    filter_image: bpy.props.BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
-    # filter_glob: bpy.props.StringProperty(default="*.jpg;*.png;*.jpeg;*.bmp;*.tga", options={"HIDDEN"})  # type: ignore
+    filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    filter_image: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    # filter_glob: StringProperty(default="*.jpg;*.png;*.jpeg;*.bmp;*.tga", options={"HIDDEN"})  # type: ignore
 
     # 相对路径
-    relative_path: bpy.props.BoolProperty(name="Relative Path", default=True)  # type: ignore
+    relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
     # 覆盖模式
-    override: bpy.props.BoolProperty(name="Override Mode", default=False)  # type: ignore
-    filepath: bpy.props.StringProperty(subtype="FILE_PATH")  # type: ignore
-    # filename: bpy.props.StringProperty()  # type: ignore
-    directory: bpy.props.StringProperty()  # type: ignore
-    files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+    override: BoolProperty(name="Override Mode", default=False)  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # filename: StringProperty()  # type: ignore
+    directory: StringProperty()  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     def get_id(self):
         # 已经使用的ID
@@ -272,7 +283,7 @@ class OT_Texture_Reload(bpy.types.Operator):
     bl_description = "Hold shift to reload all texture"
     bl_options = {"INTERNAL"}
 
-    reload_all: bpy.props.BoolProperty(name="Reload All", default=False)  # type: ignore
+    reload_all: BoolProperty(name="Reload All", default=False)  # type: ignore
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
@@ -301,54 +312,51 @@ class OT_Texture_Package(bpy.types.Operator):
     bl_description = "Hold shift to pack/unpack all textures"
     bl_options = {"INTERNAL"}
 
-    shift: bpy.props.BoolProperty(default=False)  # type: ignore
-    select_operation: bpy.props.EnumProperty(  # type: ignore
-        name="",
-        description="Select Operation",
-        items=[
-            ("pack_all", "Pack All", ""),
-            ("unpack_all", "Unpack All", ""),
-        ],
-        default="pack_all",  # 默认选项
-    )
+    def execute2(self, context):
+        # 如果未打开blend文件，则使用原始路径
+        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
+        selected = self.items[self.index].name
+        for img in bpy.data.images:
+            if img.amagate_data.id and img.name != "NULL":  # type: ignore
+                if selected == "Pack All":
+                    if not img.packed_file:
+                        img.pack()
+                else:
+                    if img.packed_file:
+                        img.unpack(method=m)
+        simulate_keypress()
+
+    ############################
+    items: CollectionProperty(type=data.StringCollection)  # type: ignore
+    index: IntProperty(name="Select Operation", default=0, update=execute2)  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         row = layout.row()
-        row.alignment = "CENTER"
-        row.prop(self, "select_operation", text="Select Operation")
+        row.template_list(
+            "AMAGATE_UI_UL_StrList", "", self, "items", self, "index", rows=2
+        )
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
-        # 如果未打开blend文件，则使用原始路径
         m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
-        if self.shift:
-            for img in bpy.data.images:
-                if img.amagate_data.id and img.name != "NULL":  # type: ignore
-                    if self.select_operation == "pack_all":
-                        if not img.packed_file:
-                            img.pack()
-                    else:
-                        if img.packed_file:
-                            img.unpack(method=m)
-        else:
-            idx = scene_data.active_texture
-            if idx >= len(bpy.data.images):
-                return {"CANCELLED"}
+        idx = scene_data.active_texture
+        if idx >= len(bpy.data.images):
+            return {"CANCELLED"}
 
-            img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
-            if img and img.amagate_data.id and img.name != "NULL":  # type: ignore
-                if img.packed_file:
-                    img.unpack(method=m)
-                else:
-                    img.pack()
+        img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
+        if img and img.amagate_data.id and img.name != "NULL":  # type: ignore
+            if img.packed_file:
+                img.unpack(method=m)
+            else:
+                img.pack()
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        self.shift = event.shift
         if event.shift:
-            # TODO 批量打包弹窗改成弹出列表，点击列表项直接执行对应操作
-            return context.window_manager.invoke_props_dialog(self)  # type: ignore
+            for n in ("Pack All", "Unpack All"):
+                self.items.add().name = n
+            return context.window_manager.invoke_popup(self, width=100)  # type: ignore
         return self.execute(context)
 
 

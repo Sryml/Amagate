@@ -1,6 +1,5 @@
 import bpy
 from bpy.app.translations import pgettext
-from bpy.props import BoolProperty
 from bpy.types import Context
 
 from . import data
@@ -128,7 +127,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         layout.separator()
 
         # 地板 天花板 墙壁
-        for prop in scene_data.default_tex:
+        for i, prop in enumerate(scene_data.default_tex):
             target = prop.target
 
             tex_id = scene_data.defaults["Textures"][target]["id"]
@@ -164,7 +163,12 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
             # row.separator()
             row.prop(prop, "angle", text="Angle")
 
-            layout.separator()
+            if i != len(scene_data.default_tex) - 1:
+                layout.separator()
+
+        layout.separator()
+
+        # 灯光
 
 
 # 场景面板 -> 默认属性面板 -> 地板

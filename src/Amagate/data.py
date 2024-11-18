@@ -11,6 +11,7 @@ from bpy.props import (
     CollectionProperty,
     EnumProperty,
     BoolProperty,
+    BoolVectorProperty,
     FloatProperty,
     FloatVectorProperty,
     IntProperty,
@@ -59,7 +60,26 @@ def ensure_null_texture():
 ############################
 ############################
 ############################
-# 自定义的列表项模板
+
+
+class AMAGATE_UI_UL_StrList(bpy.types.UIList):
+    # def draw_filter(self, context, layout):
+    #     pass
+
+    def draw_item(
+        self,
+        context,
+        layout: bpy.types.UILayout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_prop,
+    ):
+        row = layout.row()
+        row.label(text=item.name)
+
+
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
         scene_data = context.scene.amagate_data  # type: ignore
@@ -151,7 +171,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
 
 class StringCollection(bpy.types.PropertyGroup):
-    value: StringProperty(default="")  # type: ignore
+    name: StringProperty(default="")  # type: ignore
 
 
 # 选择大气
