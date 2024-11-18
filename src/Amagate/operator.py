@@ -27,14 +27,17 @@ def simulate_keypress():
 """
 
 
-# 场景面板 -> 大气面板
+############################
+############################ 场景面板 -> 大气面板
+############################
 class OT_Scene_Atmo_Add(bpy.types.Operator):
     bl_idname = "amagate.scene_atmo_add"
     bl_label = "Add Atmosphere"
     bl_options = {"INTERNAL"}
 
-    def execute(self, context: bpy.types.Context):
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+    @staticmethod
+    def new(scene):
+        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
 
         # 已经使用的ID
         used_ids = set(a.id for a in scene_data.atmospheres)
@@ -46,7 +49,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         new_atmo.id = id_
 
         # 创建空物体 用来判断引用
-        obj = bpy.data.objects.new(f"{context.scene.name}_atmo_{id_}", None)
+        obj = bpy.data.objects.new(f"{scene.name}_atmo_{id_}", None)
         obj["id"] = id_
         new_atmo.atmo_obj = obj
 
@@ -59,6 +62,9 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         new_atmo.name = name
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
+
+    def execute(self, context: bpy.types.Context):
+        self.new(context.scene)
         return {"FINISHED"}
 
 
@@ -71,6 +77,9 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
         active_atmo = scene_data.active_atmosphere
+        if active_atmo >= len(scene_data.atmospheres):
+            return {"CANCELLED"}
+
         atmo = scene_data.atmospheres[active_atmo]
         # 不能删除默认大气
         if atmo.id == scene_data.defaults.atmo_id:
@@ -109,15 +118,19 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
-        scene_data.defaults.atmo_id = scene_data.atmospheres[
-            scene_data.active_atmosphere
-        ].id
+        active_atmo = scene_data.active_atmosphere
+        if active_atmo >= len(scene_data.atmospheres):
+            return {"CANCELLED"}
+
+        scene_data.defaults.atmo_id = scene_data.atmospheres[active_atmo].id
         return {"FINISHED"}
 
 
-# 纹理面板
-class OT_Scene_Texture_Add(bpy.types.Operator):
-    bl_idname = "amagate.scene_texture_add"
+############################
+############################ 纹理面板
+############################
+class OT_Texture_Add(bpy.types.Operator):
+    bl_idname = "amagate.texture_add"
     bl_label = "Add Texture"
     bl_description = "Hold shift to enable overlay"
     bl_options = {"INTERNAL"}
@@ -131,7 +144,7 @@ class OT_Scene_Texture_Add(bpy.types.Operator):
     relative_path: bpy.props.BoolProperty(name="Relative Path", default=True)  # type: ignore
     # 覆盖模式
     override: bpy.props.BoolProperty(name="Override Mode", default=False)  # type: ignore
-    # filepath: bpy.props.StringProperty(subtype="FILE_PATH")  # type: ignore
+    filepath: bpy.props.StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: bpy.props.StringProperty()  # type: ignore
     directory: bpy.props.StringProperty()  # type: ignore
     files: bpy.props.CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
@@ -191,12 +204,13 @@ class OT_Scene_Texture_Add(bpy.types.Operator):
     def invoke(self, context, event):
         self.override = event.shift
         # 这里通过文件选择器来选择文件或文件夹
+        self.filepath = "//"
         context.window_manager.fileselect_add(self)  # type: ignore
         return {"RUNNING_MODAL"}
 
 
-class OT_Scene_Texture_Remove(bpy.types.Operator):
-    bl_idname = "amagate.scene_texture_remove"
+class OT_Texture_Remove(bpy.types.Operator):
+    bl_idname = "amagate.texture_remove"
     bl_label = "Remove Texture"
     bl_description = "Hold shift to quickly delete"
     bl_options = {"INTERNAL"}
@@ -211,10 +225,17 @@ class OT_Scene_Texture_Remove(bpy.types.Operator):
         img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
         img_data = img.amagate_data  # type: ignore
 
-        if not img_data.id:
+        if not img_data.id or img.name == "NULL":
+            # 不能删除特殊纹理
+            if img.name == "NULL":
+                self.report(
+                    {"WARNING"},
+                    f"{pgettext('Warning')}: {pgettext('Cannot remove special texture')}",
+                )
             return {"CANCELLED"}
 
-        # TODO 检查是否被使用, 也许检查材质的引用
+        # 不能删除正在使用的纹理
+        # TODO 也许检查材质的引用
         if img.users > 1:
             self.report(
                 {"WARNING"},
@@ -222,6 +243,18 @@ class OT_Scene_Texture_Remove(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
+        # 不能删除默认纹理
+        default_id = [
+            i["id"] for i in scene_data.defaults["Textures"].values() if i["id"] != 0
+        ]
+        if img_data.id in default_id:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('Cannot remove default texture')}",
+            )
+            return {"CANCELLED"}
+
+        # 删除纹理
         bpy.data.images.remove(img)
 
         return {"FINISHED"}
@@ -233,8 +266,8 @@ class OT_Scene_Texture_Remove(bpy.types.Operator):
             return context.window_manager.invoke_confirm(self, event)  # type: ignore
 
 
-class OT_Scene_Texture_Reload(bpy.types.Operator):
-    bl_idname = "amagate.scene_texture_reload"
+class OT_Texture_Reload(bpy.types.Operator):
+    bl_idname = "amagate.texture_reload"
     bl_label = "Reload Texture"
     bl_description = "Hold shift to reload all texture"
     bl_options = {"INTERNAL"}
@@ -262,8 +295,8 @@ class OT_Scene_Texture_Reload(bpy.types.Operator):
         return self.execute(context)
 
 
-class OT_Scene_Texture_Package(bpy.types.Operator):
-    bl_idname = "amagate.scene_texture_package"
+class OT_Texture_Package(bpy.types.Operator):
+    bl_idname = "amagate.texture_package"
     bl_label = "Pack/Unpack Texture"
     bl_description = "Hold shift to pack/unpack all textures"
     bl_options = {"INTERNAL"}
@@ -291,7 +324,7 @@ class OT_Scene_Texture_Package(bpy.types.Operator):
         m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
         if self.shift:
             for img in bpy.data.images:
-                if img.amagate_data.id:  # type: ignore
+                if img.amagate_data.id and img.name != "NULL":  # type: ignore
                     if self.select_operation == "pack_all":
                         if not img.packed_file:
                             img.pack()
@@ -304,7 +337,7 @@ class OT_Scene_Texture_Package(bpy.types.Operator):
                 return {"CANCELLED"}
 
             img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
-            if img and img.amagate_data.id:  # type: ignore
+            if img and img.amagate_data.id and img.name != "NULL":  # type: ignore
                 if img.packed_file:
                     img.unpack(method=m)
                 else:
@@ -314,21 +347,63 @@ class OT_Scene_Texture_Package(bpy.types.Operator):
     def invoke(self, context, event):
         self.shift = event.shift
         if event.shift:
+            # TODO 批量打包弹窗改成弹出列表，点击列表项直接执行对应操作
             return context.window_manager.invoke_props_dialog(self)  # type: ignore
         return self.execute(context)
 
 
+class OT_Texture_Select(bpy.types.Operator):
+    bl_idname = "amagate.texture_select"
+    bl_label = "Select Texture"
+    bl_description = "Select NULL for sky"
+    bl_options = {"INTERNAL"}
+
+    prop: PointerProperty(type=data.Texture_Select)  # type: ignore
+
+    # @classmethod
+    # def description(cls, context, properties):
+    #     # 根据上下文或属性动态返回描述
+    #     if properties.prop.target == "Sector":  # type: ignore
+    #         # 选择NULL表示天空
+    #         return pgettext("Select NULL for sky")
+    #     return ""
+
+    def draw(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        layout = self.layout
+        col = layout.column()
+
+        col.template_list(
+            "AMAGATE_UI_UL_TextureList",
+            "texture_list",
+            bpy.data,
+            "images",
+            self.prop,
+            "index",
+            maxrows=14,
+        )
+
+    def execute(self, context):
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=200)  # type: ignore
+
+
+############################
+############################
+############################
+
+
 # 场景面板 -> 默认属性面板
-class OT_Scene_Default_Atmo(bpy.types.Operator):
-    bl_idname = "amagate.scene_default_atmo"
+class OT_Atmo_Select(bpy.types.Operator):
+    bl_idname = "amagate.atmo_select"
     bl_label = "Select Atmosphere"
     bl_options = {"INTERNAL"}
 
-    prop: PointerProperty(type=data.Scene_Default_Atmo)  # type: ignore
+    prop: PointerProperty(type=data.Atmo_Select)  # type: ignore
 
     def draw(self, context):
-        self.prop.active = True
-
         scene_data = context.scene.amagate_data  # type: ignore
         layout = self.layout
         col = layout.column()
@@ -367,6 +442,7 @@ class OT_NewScene(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
+        # 获取场景名
         name = "Blade Scene"
         num = 0
         names = set(s.name for s in bpy.data.scenes)
@@ -374,16 +450,18 @@ class OT_NewScene(bpy.types.Operator):
             num += 1
             name = f"Blade Scene {num}"
 
-        bpy.ops.scene.new()
-        scene = context.scene  # type: ignore
-        scene.name = name
+        # 创建新场景
+        # bpy.ops.scene.new()
+        scene = bpy.data.scenes.new(name)
+
+        # 初始化场景数据
         scene.amagate_data.is_blade = True  # type: ignore
-
-        scene.amagate_data.set_defaults()  # type: ignore
-
-        bpy.ops.amagate.scene_atmo_add()  # type: ignore
+        OT_Scene_Atmo_Add.new(scene)
+        scene.amagate_data.init()  # type: ignore
 
         # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
+
+        context.window.scene = scene  # type: ignore
         return {"FINISHED"}
 
 
@@ -417,6 +495,10 @@ class OT_ExportMap(bpy.types.Operator):
         self.report({"INFO"}, "Export Success")
         return {"FINISHED"}
 
+
+############################
+############################
+############################
 
 classes = [
     cls

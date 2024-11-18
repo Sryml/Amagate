@@ -1,19 +1,35 @@
 import bpy
 from bpy.app.translations import pgettext
 from bpy.props import BoolProperty
+from bpy.types import Context
 
 from . import data
 from . import operator as OP
 
 
-# 场景面板
-class PT_Scene(bpy.types.Panel):
-    bl_label = "Blade Scene"
-    bl_idname = "AMAGATE_PT_Scene"
+class N_Panel:
     bl_space_type = "VIEW_3D"
     bl_region_type = "UI"
     bl_category = "Amagate"
+
+    @classmethod
+    def poll(cls, context):
+        # 自定义条件，仅在blade场景中显示
+        return context.scene.amagate_data.is_blade  # type: ignore
+
+
+# 场景面板
+class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
+    bl_label = "Blade Scene"
     # bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
@@ -33,19 +49,10 @@ class PT_Scene(bpy.types.Panel):
 
 
 # 场景面板 -> 大气面板
-class PT_Scene_Atmosphere(bpy.types.Panel):
+class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
     bl_label = "Atmosphere"
-    bl_idname = "AMAGATE_PT_Scene_Atmosphere"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"HIDE_HEADER"}
-
-    @classmethod
-    def poll(cls, context):
-        # 自定义条件，仅在blade场景中显示
-        return context.scene.amagate_data.is_blade  # type: ignore
 
     def draw(self, context):
         layout = self.layout
@@ -80,25 +87,16 @@ class PT_Scene_Atmosphere(bpy.types.Panel):
 
 
 # 场景面板 -> 默认属性面板
-class PT_Scene_Default(bpy.types.Panel):
+class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
     bl_label = "Default Properties"
-    bl_idname = "AMAGATE_PT_Scene_Default"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     bl_options = {"DEFAULT_CLOSED"}  # 默认折叠
-
-    @classmethod
-    def poll(cls, context):
-        # 自定义条件，仅在blade场景中显示
-        return context.scene.amagate_data.is_blade  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         # layout.use_property_split = True
         # layout.use_property_decorate = False
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
 
         # 大气
         # layout.prop_search(scene_data.defaults, "atmo", scene_data, "atmospheres", text="Atmosphere")
@@ -113,30 +111,98 @@ class PT_Scene_Default(bpy.types.Panel):
         col.label(text=f"{pgettext('Atmosphere')}:")
 
         col = row.column()
+        name = "None" if not atmo else atmo.name
         op = col.operator(
-            OP.OT_Scene_Default_Atmo.bl_idname,
-            text=f"{atmo.name}",
+            OP.OT_Atmo_Select.bl_idname,
+            text=name,
             icon="DOWNARROW_HLT",
         )  # COLLAPSEMENU
-        op.prop.is_sector = False  # type: ignore
-        op.prop.index = atmo_idx  # type: ignore
+        op.prop.target = "Scene"  # type: ignore
+        op.prop["_index"] = atmo_idx  # type: ignore
 
-        row = split.row()
-        row.enabled = False
-        row.prop(atmo, "color", text="")
+        if atmo:
+            row = split.row()
+            row.enabled = False
+            row.prop(atmo, "color", text="")
 
-        # 纹理
+        layout.separator()
+
+        # 地板 天花板 墙壁
+        for prop in scene_data.default_tex:
+            target = prop.target
+
+            tex_id = scene_data.defaults["Textures"][target]["id"]
+            tex_idx, tex = data.get_texture_by_id(tex_id)
+            box = layout.box()
+
+            row = box.row()
+
+            col = row.column()
+            col.alignment = "LEFT"
+            col.label(text=f"{pgettext(target, 'Property')}:")
+
+            col = row.column()
+            name = "None" if not tex else tex.name
+            op = col.operator(
+                OP.OT_Texture_Select.bl_idname, text=name, icon="DOWNARROW_HLT"
+            )
+            op.prop.target = target  # type: ignore
+            op.prop["_index"] = tex_idx  # type: ignore
+
+            if tex and tex.preview:
+                col = row.column()
+                col.label(text="", icon_value=tex.preview.icon_id)
+
+            row = box.row()
+            # row.prop(scene_data.defaults.texture, "pos", index=-1, text="")
+            row.prop(prop, "pos", index=0, text="X")
+            # row.separator()
+            row.prop(prop, "pos", index=1, text="Y")
+
+            row = box.row()
+            row.prop(prop, "zoom", text="Zoom")
+            # row.separator()
+            row.prop(prop, "angle", text="Angle")
+
+            layout.separator()
+
+
+# 场景面板 -> 默认属性面板 -> 地板
+"""
+class AMAGATE_PT_Scene_Default_Floor(N_Panel, bpy.types.Panel):
+    bl_label = ""
+    bl_parent_id = "AMAGATE_PT_Scene_Default"  # 设置父面板
+    bl_options = {"HIDE_HEADER"}
+
+    def __init__(self):
+        super().__init__()
+        # 为标题设置带上下文的翻译
+        self.bl_label = pgettext("Floor", "Property")
+
+    # def draw_header(self, context: Context | None):
+    #     layout = self.layout
+    #     layout.label(text="Floor", text_ctxt="Property")
+
+    def draw(self, context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data  # type: ignore
+"""
+
+
+# 场景面板 -> 默认属性面板 -> 天花板
+# 场景面板 -> 默认属性面板 -> 墙壁
+# 场景面板 -> 默认属性面板 -> 灯光
 
 
 # 场景面板 -> 新建场景面板
-class PT_Scene_New(bpy.types.Panel):
+class AMAGATE_PT_Scene_New(N_Panel, bpy.types.Panel):
     bl_label = "New Scene"
-    bl_idname = "AMAGATE_PT_Scene_New"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     bl_options = {"HIDE_HEADER"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
 
     def draw(self, context):
         layout = self.layout
@@ -159,29 +225,25 @@ class PT_Scene_New(bpy.types.Panel):
 
 
 # 纹理面板
-class PT_Scene_Texture(bpy.types.Panel):
+class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
     bl_label = "Textures"
-    bl_idname = "AMAGATE_PT_Scene_Texture"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
     # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"DEFAULT_CLOSED"}
 
-    @classmethod
-    def poll(cls, context):
-        # 自定义条件，仅在blade场景中显示
-        return context.scene.amagate_data.is_blade  # type: ignore
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
         scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        images = bpy.data.images
 
         # 显示纹理列表
         row = layout.row(align=True)
         row.alignment = "LEFT"
         row.label(
-            text=f"{pgettext('Total')}: {[bool(i.amagate_data.id) for i in bpy.data.images].count(True)}"  # type: ignore
+            text=f"{pgettext('Total')}: {[bool(i.amagate_data.id) for i in images].count(True)}"  # type: ignore
         )
 
         row = layout.row(align=True)
@@ -193,28 +255,31 @@ class PT_Scene_Texture(bpy.types.Panel):
             "images",
             scene_data,
             "active_texture",
-            rows=3,
+            rows=4,
             maxrows=7,
         )
 
         # 添加按钮放置在右侧
         col = row.column(align=True)
-        col.operator(OP.OT_Scene_Texture_Add.bl_idname, text="", icon="ADD")
-        col.operator(OP.OT_Scene_Texture_Remove.bl_idname, text="", icon="X")
-        col.operator(OP.OT_Scene_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
-        col.operator(OP.OT_Scene_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
+        col.operator(OP.OT_Texture_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP.OT_Texture_Remove.bl_idname, text="", icon="X")
+        col.separator(factor=3)
+        col.operator(OP.OT_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
+        col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
+        # TODO 设为默认按钮，点击弹出列表项
 
         # TODO: 预览图像
         # row = layout.row(align=True)
         # row.template_preview()
 
 
-class PT_PanelTest(bpy.types.Panel):
+class AMAGATE_PT_Test(N_Panel, bpy.types.Panel):
     bl_label = "Test"
-    bl_idname = "AMAGATE_PT_PanelTest"
-    bl_space_type = "VIEW_3D"
-    bl_region_type = "UI"
-    bl_category = "Amagate"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
 
     def draw(self, context):
         layout = self.layout
@@ -226,6 +291,10 @@ class PT_PanelTest(bpy.types.Panel):
         # row.alignment = "CENTER"
         layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
 
+
+############################
+############################
+############################
 
 classes = [
     cls
