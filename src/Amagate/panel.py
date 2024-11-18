@@ -168,34 +168,45 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
         layout.separator()
 
-        # 灯光
+        # 环境光
+        box = layout.box()
 
+        row = box.row()
+        split = row.split(factor=0.5)
+        row = split.row()
+        row.alignment = "RIGHT"
+        row.label(text=f"{pgettext('Ambient Light')}:")
+        split.prop(scene_data.defaults.ambient_light, "color", text="")
 
-# 场景面板 -> 默认属性面板 -> 地板
-"""
-class AMAGATE_PT_Scene_Default_Floor(N_Panel, bpy.types.Panel):
-    bl_label = ""
-    bl_parent_id = "AMAGATE_PT_Scene_Default"  # 设置父面板
-    bl_options = {"HIDE_HEADER"}
+        layout.separator()
 
-    def __init__(self):
-        super().__init__()
-        # 为标题设置带上下文的翻译
-        self.bl_label = pgettext("Floor", "Property")
+        # 外部光
+        box = layout.box()
 
-    # def draw_header(self, context: Context | None):
-    #     layout = self.layout
-    #     layout.label(text="Floor", text_ctxt="Property")
+        row = box.row()
+        split = row.split(factor=0.5)
+        row = split.row()
+        row.alignment = "RIGHT"
+        row.label(text=f"{pgettext('External Light')}:")
+        split.prop(scene_data.defaults.external_light, "color", text="")
 
-    def draw(self, context):
-        layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
-"""
+        row = box.row()
+        row.prop(scene_data.defaults.external_light, "vector", text="")
 
+        layout.separator()
 
-# 场景面板 -> 默认属性面板 -> 天花板
-# 场景面板 -> 默认属性面板 -> 墙壁
-# 场景面板 -> 默认属性面板 -> 灯光
+        # 平面光
+        box = layout.box()
+
+        row = box.row()
+        split = row.split(factor=0.5)
+        row = split.row()
+        row.alignment = "RIGHT"
+        row.label(text=f"{pgettext('Flat Light')}:")
+        split.prop(scene_data.defaults.flat_light, "color", text="")
+
+        row = box.row()
+        row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
 # 场景面板 -> 新建场景面板

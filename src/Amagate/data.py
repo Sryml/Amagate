@@ -326,6 +326,7 @@ class SectorLightProperty(bpy.types.PropertyGroup):
         size=3,
         min=0.0,
         max=1.0,
+        default=(0.784, 0.784, 0.784),
     )  # type: ignore
     vector: FloatVectorProperty(
         name="Vector",

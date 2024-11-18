@@ -22,6 +22,9 @@ translations_dict = {
         ("Property", "Floor"): "地板",
         ("Property", "Ceiling"): "天花板",
         ("Property", "Wall"): "墙壁",
+        ("*", "Ambient Light"): "环境光",
+        ("*", "External Light"): "外部光",
+        ("*", "Flat Light"): "平面光",
         # 纹理面板
         ("Operator", "Add Texture"): "添加纹理",
         ("*", "Hold shift to enable overlay"): "按住 Shift 启用覆盖",

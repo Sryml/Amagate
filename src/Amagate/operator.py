@@ -324,6 +324,7 @@ class OT_Texture_Package(bpy.types.Operator):
                 else:
                     if img.packed_file:
                         img.unpack(method=m)
+        # XXX 也许不起作用
         simulate_keypress()
 
     ############################
