@@ -28,9 +28,9 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
     def poll(cls, context):
         return True
 
-    def __init__(self):
-        super().__init__()
-        data.ensure_null_texture()
+    # def __init__(self):
+    #     super().__init__()
+    #     data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
@@ -249,9 +249,9 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
     # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"DEFAULT_CLOSED"}
 
-    def __init__(self):
-        super().__init__()
-        data.ensure_null_texture()
+    # def __init__(self):
+    #     super().__init__()
+    #     data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
@@ -329,9 +329,9 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
     bl_label = "Sector"
     # bl_options = {"DEFAULT_CLOSED"}
 
-    def __init__(self):
-        super().__init__()
-        data.ensure_null_texture()
+    # def __init__(self):
+    #     super().__init__()
+    #     data.ensure_null_texture()
 
     @classmethod
     def poll(cls, context: Context):

@@ -32,6 +32,21 @@ def region_redraw(target):
             region.tag_redraw()  # 刷新该区域
 
 
+def get_id(used_ids, start_id=1) -> int:
+    id_ = start_id
+    while id_ in used_ids:
+        id_ += 1
+    return id_
+
+
+def get_name(used_names, f, id_) -> str:
+    name = f.format(id_)
+    while name in used_names:
+        id_ += 1
+        name = f.format(id_)
+    return name
+
+
 def get_atmo_by_id(scene_data, atmo_id) -> tuple[int, AtmosphereProperty]:
     if atmo_id != 0:
         for i, atmo in enumerate(scene_data.atmospheres):
@@ -188,6 +203,10 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 
 
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
+    def __init__(self) -> None:
+        super().__init__()
+        ensure_null_texture()
+
     def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
         scene_data = context.scene.amagate_data  # type: ignore
         atmosphere = item  # 获取大气数据
@@ -283,6 +302,10 @@ class StringCollection(bpy.types.PropertyGroup):
 
 # 选择大气
 class Atmo_Select(bpy.types.PropertyGroup):
+    index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
+    target: StringProperty(default="Sector")  # type: ignore
+    readonly: BoolProperty(default=True)  # type: ignore
+
     def get_index(self):
         return self.get("_index", 0)
 
@@ -296,14 +319,13 @@ class Atmo_Select(bpy.types.PropertyGroup):
             scene_data.defaults.atmo_id = scene_data.atmospheres[value].id
         region_redraw("UI")
 
-    ############################
-    index: IntProperty(name="", default=0, get=get_index, set=set_index)  # type: ignore
-    target: StringProperty(default="Sector")  # type: ignore
-    readonly: BoolProperty(default=True)  # type: ignore
-
 
 # 选择纹理
 class Texture_Select(bpy.types.PropertyGroup):
+    index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
+    target: StringProperty(default="Sector")  # type: ignore
+    readonly: BoolProperty(default=True)  # type: ignore
+
     def get_index(self):
         return self.get("_index", 0)
 
@@ -317,11 +339,6 @@ class Texture_Select(bpy.types.PropertyGroup):
             ].amagate_data.id
         region_redraw("UI")
 
-    ############################
-    index: IntProperty(name="", default=0, get=get_index, set=set_index)  # type: ignore
-    target: StringProperty(default="Sector")  # type: ignore
-    readonly: BoolProperty(default=True)  # type: ignore
-
 
 ############################
 ############################ Object Props
@@ -330,6 +347,19 @@ class Texture_Select(bpy.types.PropertyGroup):
 
 # 大气属性
 class AtmosphereProperty(bpy.types.PropertyGroup):
+    name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
+    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=4,  # RGBA
+        min=0.0,
+        max=1.0,
+        default=(0.0, 0.0, 0.0, 0.02),
+    )  # type: ignore
+    id: IntProperty(name="ID", default=0)  # type: ignore
+    # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
+
     def get_name(self):
         return self.get("_name", "")
 
@@ -345,26 +375,28 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
                 break
         self["_name"] = value
 
-    ############################
-    name: StringProperty(name="Atmosphere Name", default="", get=get_name, set=set_name)  # type: ignore
-    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
-    color: FloatVectorProperty(
-        name="Color",
-        subtype="COLOR",
-        size=4,  # RGBA
-        min=0.0,
-        max=1.0,
-        default=(0.0, 0.0, 0.0, 0.02),
-    )  # type: ignore
-    id: IntProperty(name="ID", default=1)  # type: ignore
-    # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
-
 
 # 纹理属性
 class TextureProperty(bpy.types.PropertyGroup):
     # id: IntProperty(name="ID", default=0)  # type: ignore
     # x: FloatProperty(name="X", default=0.0)  # type: ignore
     # y: FloatProperty(name="Y", default=0.0)  # type: ignore
+
+    target: StringProperty(default="Sector")  # type: ignore
+    pos: FloatVectorProperty(
+        name="Position",
+        subtype="XYZ",
+        size=2,
+        step=10,
+        set=lambda self, value: self.set_pos(value),
+        get=lambda self: self.get_pos(),
+        # min=-1.0,
+        # max=1.0,
+    )  # type: ignore
+    zoom: FloatProperty(name="Zoom", default=10.0, set=lambda self, value: self.set_zoom(value), get=lambda self: self.get_zoom())  # type: ignore
+    angle: FloatProperty(name="Angle", default=0.0, set=lambda self, value: self.set_angle(value), get=lambda self: self.get_angle())  # type: ignore
+    ############################
+
     def get_pos(self):
         if self.target != "Sector":
             scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
@@ -408,21 +440,6 @@ class TextureProperty(bpy.types.PropertyGroup):
             scene_data.defaults["Textures"][self.target]["angle"] = value
         else:
             self["_angle"] = value
-
-    ############################
-    target: StringProperty(default="Sector")  # type: ignore
-    pos: FloatVectorProperty(
-        name="Position",
-        subtype="XYZ",
-        size=2,
-        step=10,
-        set=set_pos,
-        get=get_pos,
-        # min=-1.0,
-        # max=1.0,
-    )  # type: ignore
-    zoom: FloatProperty(name="Zoom", default=10.0, set=set_zoom, get=get_zoom)  # type: ignore
-    angle: FloatProperty(name="Angle", default=0.0, set=set_angle, get=get_angle)  # type: ignore
 
 
 # 扇区灯光属性
@@ -485,13 +502,17 @@ class SectorProperty(bpy.types.PropertyGroup):
 
             # 判断是否朝上或朝下
             if face_normal.z > 0:  # z 方向为正，面朝上，地板
-                self["Textures"][str(face_index)] = scene_data.defaults["Textures"]["Floor"]
+                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
+                    "Floor"
+                ]
             elif face_normal.z < 0:  # z 方向为负，面朝下，天花板
                 self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
                     "Ceiling"
                 ]
             else:
-                self["Textures"][str(face_index)] = scene_data.defaults["Textures"]["Wall"]
+                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
+                    "Wall"
+                ]
 
         self.atmo_id = scene_data.defaults.atmo_id
         self.atmo_obj = get_atmo_by_id(scene_data, self.atmo_id)[1].atmo_obj
@@ -505,7 +526,6 @@ class SectorProperty(bpy.types.PropertyGroup):
         self.flat_light.color = scene_data.defaults.flat_light.color
 
 
-
 # 图像属性
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
@@ -513,6 +533,21 @@ class ImageProperty(bpy.types.PropertyGroup):
 
 # 场景属性
 class SceneProperty(bpy.types.PropertyGroup):
+    is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
+    id: IntProperty(name="ID", default=0)  # type: ignore
+
+    atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
+    active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
+
+    active_texture: IntProperty(name="Texture", default=0, set=lambda self, value: self.set_active_texture(value), get=lambda self: self.get_active_texture())  # type: ignore
+
+    defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
+
+    # 布局属性
+    default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
+    sector_tex: PointerProperty(type=TextureProperty)  # type: ignore
+    ############################
+
     def get_active_texture(self):
         value = self.get("_active_texture", 0)
 
@@ -536,20 +571,6 @@ class SceneProperty(bpy.types.PropertyGroup):
         self["_active_texture_id"] = bpy.data.images[value].amagate_data.id
 
     ############################
-    is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
-
-    atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
-    active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
-
-    active_texture: IntProperty(name="Texture", default=0, set=set_active_texture, get=get_active_texture)  # type: ignore
-
-    defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
-
-    # 布局属性
-    default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
-    sector_tex: PointerProperty(type=TextureProperty)  # type: ignore
-    ############################
-
     def init(self):
         defaults = self.defaults
 
@@ -611,7 +632,7 @@ def register():
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
     # 注册保存前回调函数
-    bpy.app.handlers.save_pre.append(check_before_save)
+    # bpy.app.handlers.save_pre.append(check_before_save)
 
 
 def unregister():
@@ -628,4 +649,4 @@ def unregister():
     bpy.utils.previews.remove(ICONS)
     ICONS = None
 
-    bpy.app.handlers.save_pre.remove(check_before_save)
+    # bpy.app.handlers.save_pre.remove(check_before_save)

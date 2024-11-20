@@ -51,27 +51,23 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
     def new(scene):
         scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
 
-        # 已经使用的ID
-        used_ids = set(a.id for a in scene_data.atmospheres)
+        # 获取可用 ID
+        used_ids = tuple(a.id for a in scene_data.atmospheres)
+        id_ = data.get_id(used_ids)
+        # 获取可用名称
+        used_names = tuple(a.name for a in scene_data.atmospheres)
 
         new_atmo = scene_data.atmospheres.add()
-        id_ = 1
-        while id_ in used_ids:
-            id_ += 1
         new_atmo.id = id_
+        new_atmo["_name"] = data.get_name(used_names, "atmo{}", id_)
 
         # 创建空物体 用来判断引用
-        obj = bpy.data.objects.new(f"{scene.name}_atmo_{id_}", None)
+        name = f"AGate.BS{scene_data.id}_ATMO_{id_}"
+        obj = bpy.data.objects.get(name)
+        if not (obj and obj.type == "EMPTY"):
+            obj = bpy.data.objects.new(name, None)
         obj["id"] = id_
         new_atmo.atmo_obj = obj
-
-        # 给大气命名
-        name = f"atmo{id_}"
-        names = set(a.name for a in scene_data.atmospheres)
-        while name in names:
-            id_ += 1
-            name = f"atmo{id_}"
-        new_atmo.name = name
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
 
@@ -185,22 +181,21 @@ class OT_NewScene(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        # 获取场景名
-        name = "Blade Scene"
-        num = 0
-        names = set(s.name for s in bpy.data.scenes)
-        while name in names:
-            num += 1
-            name = f"Blade Scene {num}"
+        used_ids = tuple(i.amagate_data.id for i in bpy.data.scenes)  # type: ignore
+        id_ = data.get_id(used_ids)
+        used_names = tuple(i.name for i in bpy.data.scenes)
+        name = data.get_name(used_names, "Blade Scene {}", id_)
 
         # 创建新场景
         # bpy.ops.scene.new()
         scene = bpy.data.scenes.new(name)
+        scene_data = scene.amagate_data  # type: ignore
+        scene_data.id = id_
 
         # 初始化场景数据
-        scene.amagate_data.is_blade = True  # type: ignore
+        scene_data.is_blade = True  # type: ignore
         OT_Scene_Atmo_Add.new(scene)
-        scene.amagate_data.init()  # type: ignore
+        scene_data.init()  # type: ignore
 
         # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
 
@@ -231,14 +226,6 @@ class OT_Texture_Add(bpy.types.Operator):
     directory: StringProperty()  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
-    def get_id(self):
-        # 已经使用的ID
-        used_ids = set(i.amagate_data.id for i in bpy.data.images)  # type: ignore
-        id_ = 1
-        while id_ in used_ids:
-            id_ += 1
-        return id_
-
     def load_image(self, context, filepath, name=""):
         scene_data = context.scene.amagate_data  # type: ignore
         img = bpy.data.images.load(filepath)
@@ -246,7 +233,8 @@ class OT_Texture_Add(bpy.types.Operator):
         if name:
             img.name = name
 
-        img_data.id = self.get_id()
+        used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
+        img_data.id = data.get_id(used_ids)
 
     def execute(self, context):
         curr_dir = bpy.path.abspath("//")
@@ -278,7 +266,8 @@ class OT_Texture_Add(bpy.types.Operator):
                     img.filepath = filepath
                     img.reload()
                     if not img.amagate_data.id:  # type: ignore
-                        img.amagate_data.id = self.get_id()  # type: ignore
+                        used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
+                        img.amagate_data.id = data.get_id(used_ids)  # type: ignore
             else:
                 self.load_image(context, filepath, name)
         return {"FINISHED"}
@@ -384,24 +373,9 @@ class OT_Texture_Package(bpy.types.Operator):
     bl_description = "Hold shift to pack/unpack all textures"
     bl_options = {"INTERNAL"}
 
-    def execute2(self, context):
-        # 如果未打开blend文件，则使用原始路径
-        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
-        selected = self.items[self.index].name
-        for img in bpy.data.images:
-            if img.amagate_data.id and img.name != "NULL":  # type: ignore
-                if selected == "Pack All":
-                    if not img.packed_file:
-                        img.pack()
-                else:
-                    if img.packed_file:
-                        img.unpack(method=m)
-        # XXX 也许不起作用
-        simulate_keypress()
-
-    ############################
     items: CollectionProperty(type=data.StringCollection)  # type: ignore
-    index: IntProperty(name="Select Operation", default=0, update=execute2)  # type: ignore
+    index: IntProperty(name="Select Operation", default=3, update=lambda self, context: OT_Texture_Package.execute2(self, context))  # type: ignore
+    ############################
 
     def draw(self, context):
         layout = self.layout
@@ -424,6 +398,22 @@ class OT_Texture_Package(bpy.types.Operator):
             else:
                 img.pack()
         return {"FINISHED"}
+
+    @staticmethod
+    def execute2(this, context):
+        # 如果未打开blend文件，则使用原始路径
+        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
+        selected = this.items[this.index].name
+        for img in bpy.data.images:
+            if img.amagate_data.id and img.name != "NULL":  # type: ignore
+                if selected == "Pack All":
+                    if not img.packed_file:
+                        img.pack()
+                else:
+                    if img.packed_file:
+                        img.unpack(method=m)
+        # XXX 也许不起作用
+        simulate_keypress()
 
     def invoke(self, context, event):
         if event.shift:
@@ -488,12 +478,12 @@ class OT_Sector_Convert(bpy.types.Operator):
         if not original_selection:
             return {"CANCELLED"}
 
-        mesh_objects = [obj for obj in original_selection if obj.type == 'MESH']
+        mesh_objects = [obj for obj in original_selection if obj.type == "MESH"]
         if not mesh_objects:
             return {"CANCELLED"}
 
         # 选择所有 MESH 对象
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         for obj in mesh_objects:
             obj.select_set(True)  # 选择 MESH 对象
 
@@ -505,7 +495,7 @@ class OT_Sector_Convert(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         # 恢复选择
-        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_all(action="DESELECT")
         for obj in original_selection:
             obj.select_set(True)
 
@@ -545,8 +535,6 @@ class OT_ExportMap(bpy.types.Operator):
         # self.report({'WARNING'}, "Export Failed")
         self.report({"INFO"}, "Export Success")
         return {"FINISHED"}
-
-
 
 
 ############################
