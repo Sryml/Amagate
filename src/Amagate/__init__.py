@@ -27,12 +27,14 @@ def register():
     operator.register()
     panel.register()
     translations.register()
+    data.register_shortcuts()
 
     loaded = True
     print("Amagate register")
 
 
 def unregister():
+    data.unregister_shortcuts()
     translations.unregister()
     panel.unregister()
     operator.unregister()

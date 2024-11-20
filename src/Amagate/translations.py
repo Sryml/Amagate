@@ -3,6 +3,7 @@ import bpy
 translations_dict = {
     "zh_HANS": {
         (None, "Amagate"): "阿门",
+        ("*", "Amagate Data"): "Amagate 数据",
         ("*", "Blade Scene"): "Blade 场景",
         # ("*", "Duplicate Name"): "名称重复",
         ("*", "Non-Blade scene"): "非 Blade 场景",
@@ -42,6 +43,10 @@ translations_dict = {
         ("*", "Unpack All"): "全部解包",
         # 扇区面板
         ("*", "Select NULL for sky"): "选择 NULL 作为天空",
+        ("*", "Sector"): "扇区",
+        ("*", "Selected sector"): "选中的扇区",
+        ("Operator", "Convert to Sector"): "转换为扇区",
+        ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         #
         ("Operator", "Export Map"): "导出地图",
     },

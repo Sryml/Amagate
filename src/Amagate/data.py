@@ -6,6 +6,7 @@ from typing import Any
 # from collections import Counter
 
 import bpy
+from bpy.types import Context
 from bpy.props import (
     PointerProperty,
     CollectionProperty,
@@ -18,6 +19,7 @@ from bpy.props import (
     IntVectorProperty,
     StringProperty,
 )
+import rna_keymap_ui
 
 ############################
 ICONS: Any = None
@@ -58,7 +60,112 @@ def ensure_null_texture():
 
 
 ############################
+############################ 偏好设置
 ############################
+
+addon_keymaps = []
+
+
+class AmagatePreferences(bpy.types.AddonPreferences):
+    bl_idname = __package__  # type: ignore
+
+    # 用于保存面板的展开状态
+    fold_state: BoolProperty(name="Fold State", default=True)  # type: ignore
+    is_user_modified: BoolProperty(default=False)  # type: ignore
+
+    def __init__(self):
+        super().__init__()
+        # self.fold_state = False
+
+    def draw(self, context: Context):
+        self.is_user_modified = False
+        layout = self.layout
+        wm = context.window_manager
+        kc = wm.keyconfigs.user
+        km = kc.keymaps["3D View"]
+        keymap_items = [
+            kmi for kmi in km.keymap_items if kmi.idname.startswith("amagate.")
+        ]
+        if len(keymap_items) < 1:
+            self.is_user_modified = True
+        else:
+            for kmi in keymap_items:
+                if kmi.is_user_modified:
+                    self.is_user_modified = True
+
+        row = layout.row()
+        col = row.column()
+        col.alignment = "LEFT"
+        col.prop(
+            self,
+            "fold_state",
+            text="",
+            icon="TRIA_DOWN" if self.fold_state else "TRIA_RIGHT",
+            emboss=False,
+        )
+        row.label(text="Keymap")
+        # if self.is_user_modified:
+        #     col = row.column()
+        #     col.alignment = "RIGHT"
+        #     col.operator("preferences.keymap_restore", text="Restore")
+
+        if self.fold_state and keymap_items:
+            box = layout.box()
+            split = box.split()
+            col = split.column()
+            for kmi in keymap_items:
+                col.context_pointer_set("keymap", km)
+                rna_keymap_ui.draw_kmi([], kc, km, kmi, col, 0)
+
+
+def register_shortcuts():
+    global addon_keymaps
+    # preferences = bpy.context.preferences.addons[__package__].preferences  # type: ignore
+
+    wm = bpy.context.window_manager  # type: ignore
+    kc = wm.keyconfigs.addon
+
+    if kc:
+        # shortcut_key = preferences.shortcut_key
+
+        km = kc.keymaps.get("3D View")
+        if km is None:
+            km = kc.keymaps.new(
+                name="3D View", space_type="VIEW_3D", region_type="WINDOW"
+            )
+        kmi = km.keymap_items.new(
+            idname="amagate.sector_convert",
+            type="ONE",
+            value="PRESS",
+            ctrl=True,
+            alt=True,
+        )
+        # kmi.properties.name = "test"
+        kmi.active = True
+        addon_keymaps.append((km, kmi))
+
+
+def unregister_shortcuts():
+    global addon_keymaps
+    for km, kmi in addon_keymaps:
+        km.keymap_items.remove(kmi)
+    addon_keymaps.clear()
+
+
+############################
+############################ 保存前回调
+############################
+
+
+# 定义检查函数
+def check_before_save(scene: bpy.types.Scene):
+    img = bpy.data.images.get("NULL")
+    if img:
+        img.use_fake_user = True
+
+
+############################
+############################ 模板列表
 ############################
 
 
@@ -344,16 +451,17 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
-    is_sector: BoolProperty(default=False)  # type: ignore
-    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    # is_sector: BoolProperty(default=False)  # type: ignore
     atmo_id: IntProperty(name="Atmosphere", description="", default=1)  # type: ignore
+    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     # floor_texture: CollectionProperty(type=TextureProperty)  # type: ignore
     # ceiling_texture: CollectionProperty(type=TextureProperty)  # type: ignore
     # wall_texture: CollectionProperty(type=TextureProperty)  # type: ignore
 
-    flat_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 平面光
-    external_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 外部光
     ambient_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 环境光
+    external_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 外部光
+    flat_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 平面光
+
     spot_light: CollectionProperty(type=SectorFocoLightProperty)  # type: ignore # 聚光灯
 
     group: IntProperty(
@@ -361,7 +469,41 @@ class SectorProperty(bpy.types.PropertyGroup):
         description="",
         default=0,  # 默认值为0
     )  # type: ignore
-    comment: StringProperty(name="Comment", description="", default="")  # type: ignore
+    comment: StringProperty(name="Comment", description="", default="astra9")  # type: ignore
+
+    def init(self):
+        scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
+
+        self["Textures"] = {}
+        obj = self.id_data
+        mesh = obj.data
+
+        # 遍历网格的面
+        for face in mesh.polygons:  # polygons 代表面
+            face_index = face.index  # 面的索引
+            face_normal = face.normal  # 面的法线方向（Vector）
+
+            # 判断是否朝上或朝下
+            if face_normal.z > 0:  # z 方向为正，面朝上，地板
+                self["Textures"][str(face_index)] = scene_data.defaults["Textures"]["Floor"]
+            elif face_normal.z < 0:  # z 方向为负，面朝下，天花板
+                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
+                    "Ceiling"
+                ]
+            else:
+                self["Textures"][str(face_index)] = scene_data.defaults["Textures"]["Wall"]
+
+        self.atmo_id = scene_data.defaults.atmo_id
+        self.atmo_obj = get_atmo_by_id(scene_data, self.atmo_id)[1].atmo_obj
+
+        self.ambient_light.color = scene_data.defaults.ambient_light.color
+        self.ambient_light.vector = scene_data.defaults.ambient_light.vector
+
+        self.external_light.color = scene_data.defaults.external_light.color
+        self.external_light.vector = scene_data.defaults.external_light.vector
+
+        self.flat_light.color = scene_data.defaults.flat_light.color
+
 
 
 # 图像属性
@@ -424,6 +566,21 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop.target = i
 
 
+# 物体属性
+class ObjectProperty(bpy.types.PropertyGroup):
+    SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
+
+    def get_sector_data(self):
+        if not self.SectorData:
+            return None
+        return self.SectorData[0]
+
+    def set_sector_data(self):
+        if not self.SectorData:
+            self.SectorData.add()
+            return self.SectorData[0]
+
+
 ############################
 ############################
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
@@ -444,11 +601,17 @@ def register():
     icons_dir = os.path.join(os.path.dirname(__file__), "icons")
     ICONS.load("star", os.path.join(icons_dir, "star.png"), "IMAGE")
 
+    bpy.utils.register_class(AmagatePreferences)
+
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Object.amagate_data = PointerProperty(type=SectorProperty)  # type: ignore
-    bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty)  # type: ignore
-    bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty)  # type: ignore
+
+    bpy.types.Object.amagate_data = PointerProperty(type=ObjectProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
+
+    # 注册保存前回调函数
+    bpy.app.handlers.save_pre.append(check_before_save)
 
 
 def unregister():
@@ -456,8 +619,13 @@ def unregister():
     del bpy.types.Object.amagate_data  # type: ignore
     del bpy.types.Scene.amagate_data  # type: ignore
     del bpy.types.Image.amagate_data  # type: ignore
+
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
+    bpy.utils.unregister_class(AmagatePreferences)
+
     bpy.utils.previews.remove(ICONS)
     ICONS = None
+
+    bpy.app.handlers.save_pre.remove(check_before_save)

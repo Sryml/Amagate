@@ -4,6 +4,7 @@ from typing import Any
 
 import bpy
 from bpy.app.translations import pgettext
+from bpy.types import Context
 from bpy.props import (
     PointerProperty,
     CollectionProperty,
@@ -74,7 +75,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
 
-    def execute(self, context: bpy.types.Context):
+    def execute(self, context: Context):
         self.new(context.scene)
         return {"FINISHED"}
 
@@ -134,6 +135,76 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
             return {"CANCELLED"}
 
         scene_data.defaults.atmo_id = scene_data.atmospheres[active_atmo].id
+        return {"FINISHED"}
+
+
+# 场景面板 -> 默认属性面板
+class OT_Atmo_Select(bpy.types.Operator):
+    bl_idname = "amagate.atmo_select"
+    bl_label = "Select Atmosphere"
+    bl_options = {"INTERNAL"}
+
+    prop: PointerProperty(type=data.Atmo_Select)  # type: ignore
+
+    def draw(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        layout = self.layout
+        col = layout.column()
+
+        col.template_list(
+            "AMAGATE_UI_UL_AtmoList",
+            "atmosphere_list",
+            scene_data,
+            "atmospheres",
+            self.prop,
+            "index",
+            maxrows=14,
+        )
+
+    def execute(self, context):
+        # print(f"{self.__class__.__name__}.execute")
+        # self.report({"INFO"}, "execute")
+        # simulate_keypress()
+        # bpy.context.window.cursor_warp(10,10)
+
+        # move_back = lambda: bpy.context.window.cursor_warp(self.mouse[0], self.mouse[1])
+        # bpy.app.timers.register(move_back, first_interval=0.01)
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        # self.mouse = event.mouse_x, event.mouse_y
+        # print(self.mouse)
+        return context.window_manager.invoke_popup(self, width=200)  # type: ignore
+
+
+# 场景面板 -> 新建场景
+class OT_NewScene(bpy.types.Operator):
+    bl_idname = "amagate.newscene"
+    bl_label = "New Scene"
+    bl_description = "Create a new Blade Scene"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        # 获取场景名
+        name = "Blade Scene"
+        num = 0
+        names = set(s.name for s in bpy.data.scenes)
+        while name in names:
+            num += 1
+            name = f"Blade Scene {num}"
+
+        # 创建新场景
+        # bpy.ops.scene.new()
+        scene = bpy.data.scenes.new(name)
+
+        # 初始化场景数据
+        scene.amagate_data.is_blade = True  # type: ignore
+        OT_Scene_Atmo_Add.new(scene)
+        scene.amagate_data.init()  # type: ignore
+
+        # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
+
+        context.window.scene = scene  # type: ignore
         return {"FINISHED"}
 
 
@@ -255,6 +326,7 @@ class OT_Texture_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除默认纹理
+        # FIXME 这里需要判断是否被其它场景使用
         default_id = [
             i["id"] for i in scene_data.defaults["Textures"].values() if i["id"] != 0
         ]
@@ -400,77 +472,47 @@ class OT_Texture_Select(bpy.types.Operator):
 
 
 ############################
-############################
+############################ 扇区面板
 ############################
 
 
-# 场景面板 -> 默认属性面板
-class OT_Atmo_Select(bpy.types.Operator):
-    bl_idname = "amagate.atmo_select"
-    bl_label = "Select Atmosphere"
+# 转换为扇区
+class OT_Sector_Convert(bpy.types.Operator):
+    bl_idname = "amagate.sector_convert"
+    bl_label = "Convert to Sector"
+    bl_description = "Convert selected objects to sector"
     bl_options = {"INTERNAL"}
 
-    prop: PointerProperty(type=data.Atmo_Select)  # type: ignore
+    def execute(self, context: Context):
+        original_selection = context.selected_objects
+        if not original_selection:
+            return {"CANCELLED"}
 
-    def draw(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
-        layout = self.layout
-        col = layout.column()
+        mesh_objects = [obj for obj in original_selection if obj.type == 'MESH']
+        if not mesh_objects:
+            return {"CANCELLED"}
 
-        col.template_list(
-            "AMAGATE_UI_UL_AtmoList",
-            "atmosphere_list",
-            scene_data,
-            "atmospheres",
-            self.prop,
-            "index",
-            maxrows=14,
-        )
+        # 选择所有 MESH 对象
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in mesh_objects:
+            obj.select_set(True)  # 选择 MESH 对象
 
-    def execute(self, context):
-        # print(f"{self.__class__.__name__}.execute")
-        # self.report({"INFO"}, "execute")
-        # simulate_keypress()
-        # bpy.context.window.cursor_warp(10,10)
+        bpy.ops.object.mode_set(mode="EDIT")
+        # 全选所有面
+        bpy.ops.mesh.select_all(action="SELECT")
+        # 调整法线一致性
+        bpy.ops.mesh.normals_make_consistent(inside=True)
+        bpy.ops.object.mode_set(mode="OBJECT")
 
-        # move_back = lambda: bpy.context.window.cursor_warp(self.mouse[0], self.mouse[1])
-        # bpy.app.timers.register(move_back, first_interval=0.01)
-        return {"FINISHED"}
+        # 恢复选择
+        bpy.ops.object.select_all(action='DESELECT')
+        for obj in original_selection:
+            obj.select_set(True)
 
-    def invoke(self, context, event):
-        # self.mouse = event.mouse_x, event.mouse_y
-        # print(self.mouse)
-        return context.window_manager.invoke_popup(self, width=200)  # type: ignore
-
-
-# 场景面板 -> 新建场景
-class OT_NewScene(bpy.types.Operator):
-    bl_idname = "amagate.newscene"
-    bl_label = "New Scene"
-    bl_description = "Create a new Blade Scene"
-    bl_options = {"INTERNAL"}
-
-    def execute(self, context):
-        # 获取场景名
-        name = "Blade Scene"
-        num = 0
-        names = set(s.name for s in bpy.data.scenes)
-        while name in names:
-            num += 1
-            name = f"Blade Scene {num}"
-
-        # 创建新场景
-        # bpy.ops.scene.new()
-        scene = bpy.data.scenes.new(name)
-
-        # 初始化场景数据
-        scene.amagate_data.is_blade = True  # type: ignore
-        OT_Scene_Atmo_Add.new(scene)
-        scene.amagate_data.init()  # type: ignore
-
-        # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
-
-        context.window.scene = scene  # type: ignore
+        for obj in mesh_objects:
+            if not obj.amagate_data.get_sector_data():  # type: ignore
+                sector_data = obj.amagate_data.set_sector_data()  # type: ignore
+                sector_data.init()
         return {"FINISHED"}
 
 
@@ -503,6 +545,8 @@ class OT_ExportMap(bpy.types.Operator):
         # self.report({'WARNING'}, "Export Failed")
         self.report({"INFO"}, "Export Success")
         return {"FINISHED"}
+
+
 
 
 ############################

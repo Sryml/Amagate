@@ -17,7 +17,9 @@ class N_Panel:
         return context.scene.amagate_data.is_blade  # type: ignore
 
 
-# 场景面板
+############################
+############################ 场景面板
+############################
 class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
     bl_label = "Blade Scene"
     # bl_options = {"DEFAULT_CLOSED"}
@@ -233,13 +235,15 @@ class AMAGATE_PT_Scene_New(N_Panel, bpy.types.Panel):
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SET")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_EXTEND")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SUBTRACT")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_INTERSECT")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_DIFFERENCE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="PACKAGE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="PACKAGE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="CUBE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="META_CUBE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="MESH_CUBE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="MATCUBE")
 
 
-# 纹理面板
+############################
+############################ 纹理面板
+############################
 class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
     bl_label = "Textures"
     # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
@@ -288,9 +292,81 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
         # row.template_preview()
 
 
-class AMAGATE_PT_Test(N_Panel, bpy.types.Panel):
-    bl_label = "Test"
-    bl_options = {"DEFAULT_CLOSED"}
+############################
+############################ 扇区面板
+############################
+class AMAGATE_PT_Sector_E(N_Panel, bpy.types.Panel):
+    bl_label = "Sector"
+
+    @classmethod
+    def poll(cls, context: Context):
+        if not context.scene.amagate_data.is_blade:  # type: ignore
+            return False
+
+        for obj in context.selected_objects:
+            if obj.amagate_data.get_sector_data():  # type: ignore
+                return False
+        return True
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+        sectors = 0
+        for obj in context.selected_objects:
+            if obj.amagate_data.get_sector_data():  # type: ignore
+                sectors += 1
+
+        col = layout.column(align=True)
+        # 扇区数量
+        col.label(
+            text=f"{pgettext('Selected sector')}: {sectors} / {len(context.selected_objects)}"
+        )
+
+        col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+
+
+class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
+    bl_label = "Sector"
+    # bl_options = {"DEFAULT_CLOSED"}
+
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
+
+    @classmethod
+    def poll(cls, context: Context):
+        if not context.scene.amagate_data.is_blade:  # type: ignore
+            return False
+
+        for obj in context.selected_objects:
+            if obj.amagate_data.get_sector_data():  # type: ignore
+                return True
+        return False
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+
+        sectors = 0
+        for obj in context.selected_objects:
+            if obj.amagate_data.get_sector_data():  # type: ignore
+                sectors += 1
+
+        col = layout.column(align=True)
+        # 扇区数量
+        col.label(
+            text=f"{pgettext('Selected sector')}: {sectors} / {len(context.selected_objects)}"
+        )
+
+        col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+
+
+############################
+############################ 工具面板
+############################
+class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
+    bl_label = "Tools"
+    # bl_options = {"DEFAULT_CLOSED"}
 
     @classmethod
     def poll(cls, context):
