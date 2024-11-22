@@ -9,6 +9,10 @@ translations_dict = {
         ("*", "Non-Blade scene"): "非 Blade 场景",
         ("*", "Non-Sector"): "非扇区",
         ("*", "Hold shift to quickly delete"): "按住 Shift 可快速删除",
+        ("*", "Amagate Auto Generated"): "Amagate 自动生成",
+        ("*", "Sector Collection"): "扇区集合",
+        ("*", "Ghost Sector Collection"): "虚拟扇区集合",
+        ("*", "Entity Collection"): "实体集合",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
@@ -18,6 +22,12 @@ translations_dict = {
         ("*", "Cannot remove default atmosphere"): "不能删除默认大气",
         ("*", "Atmosphere is used by sectors"): "该大气被扇区使用中",
         ("Operator", "Set as default atmosphere"): "设为默认大气",
+        # 外部光面板
+        ("Operator", "Add External Light"): "添加外部光",
+        ("Operator", "Remove External Light"): "删除外部光",
+        ("Operator", "Set as default external light"): "设为默认外部光",
+        ("*", "Cannot remove default external light"): "不能删除默认外部光",
+        ("*", "External light is used by objects"): "该外部光被物体使用中",
         # 默认面板
         ("*", "Default Properties"): "默认属性",
         ("Property", "Floor"): "地板",

@@ -28,9 +28,9 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
     def poll(cls, context):
         return True
 
-    # def __init__(self):
-    #     super().__init__()
-    #     data.ensure_null_texture()
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
@@ -85,6 +85,41 @@ class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
         col.operator(OP.OT_Scene_Atmo_Remove.bl_idname, text="", icon="X")
         col.separator(factor=3)
         col.operator(OP.OT_Scene_Atmo_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
+
+
+# 场景面板 -> 外部光面板
+class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
+    bl_label = "External Light"
+    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+    # bl_options = {"HIDE_HEADER"}
+
+    def draw(self, context):
+        layout = self.layout
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+
+        row = layout.row(align=True)
+        row.alignment = "LEFT"
+        row.label(text=f"{pgettext('Total')}: {len(scene_data.externals)}")
+
+        row = layout.row(align=True)
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_ExternalLight",
+            "",
+            scene_data,
+            "externals",
+            scene_data,
+            "active_external",
+            rows=3,
+            maxrows=3,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column(align=True)
+        col.operator(OP.OT_Scene_External_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP.OT_Scene_External_Remove.bl_idname, text="", icon="X")
+        col.separator(factor=3)
+        col.operator(OP.OT_Scene_External_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
 # 场景面板 -> 默认属性面板
@@ -234,11 +269,11 @@ class AMAGATE_PT_Scene_New(N_Panel, bpy.types.Panel):
         # layout.operator(OP.OT_NewScene.bl_idname, icon="GP_SELECT_BETWEEN_STROKES")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SET")
         # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_EXTEND")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SUBTRACT")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="CUBE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="META_CUBE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="MESH_CUBE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="MATCUBE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="LIGHT_SUN")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="LIGHTPROBE_SPHERE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SURFACE_NSPHERE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="SPHERECURVE")
+        # layout.operator(OP.OT_NewScene.bl_idname, icon="MAT_SPHERE_SKY")
 
 
 ############################
@@ -249,9 +284,9 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
     # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"DEFAULT_CLOSED"}
 
-    # def __init__(self):
-    #     super().__init__()
-    #     data.ensure_null_texture()
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
 
     def draw(self, context):
         layout = self.layout
@@ -329,9 +364,9 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
     bl_label = "Sector"
     # bl_options = {"DEFAULT_CLOSED"}
 
-    # def __init__(self):
-    #     super().__init__()
-    #     data.ensure_null_texture()
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
 
     @classmethod
     def poll(cls, context: Context):

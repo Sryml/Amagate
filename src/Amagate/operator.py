@@ -17,6 +17,7 @@ from bpy.props import (
     IntVectorProperty,
     StringProperty,
 )
+from mathutils import *
 
 from . import data
 
@@ -62,7 +63,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         new_atmo["_name"] = data.get_name(used_names, "atmo{}", id_)
 
         # 创建空物体 用来判断引用
-        name = f"AGate.BS{scene_data.id}_ATMO_{id_}"
+        name = f"ATMO_{id_}{data.get_scene_suffix(scene)}"
         obj = bpy.data.objects.get(name)
         if not (obj and obj.type == "EMPTY"):
             obj = bpy.data.objects.new(name, None)
@@ -134,7 +135,6 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# 场景面板 -> 默认属性面板
 class OT_Atmo_Select(bpy.types.Operator):
     bl_idname = "amagate.atmo_select"
     bl_label = "Select Atmosphere"
@@ -173,6 +173,123 @@ class OT_Atmo_Select(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
 
 
+############################
+############################ 场景面板 -> 外部光面板
+############################
+class OT_Scene_External_Add(bpy.types.Operator):
+    bl_idname = "amagate.scene_external_add"
+    bl_label = "Add External Light"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def new(cls, scene):
+        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+
+        # 获取可用 ID
+        used_ids = tuple(a.id for a in scene_data.externals)
+        id_ = data.get_id(used_ids)
+        # 获取可用名称
+        used_names = tuple(a.name for a in scene_data.externals)
+
+        new_item = scene_data.externals.add()
+        new_item.id = id_
+        new_item["_name"] = data.get_name(used_names, "Sun{}", id_)
+        # new_item.sync_obj(scene)
+        new_item["_color"] = (0.784, 0.784, 0.392)
+        new_item["_vector"] = (-1, 0, -1)
+        new_item.sync_obj(None, scene)
+
+        scene_data.active_external = len(scene_data.externals) - 1
+
+    def execute(self, context: Context):
+        self.new(context.scene)
+        return {"FINISHED"}
+
+
+class OT_Scene_External_Remove(bpy.types.Operator):
+    bl_idname = "amagate.scene_external_remove"
+    bl_label = "Remove External Light"
+    bl_description = "Hold shift to quickly delete"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        active_idx = scene_data.active_external
+        externals = scene_data.externals
+        if active_idx >= len(externals):
+            return {"CANCELLED"}
+
+        item = externals[active_idx]
+        # 不能删除默认外部光
+        if item.id == scene_data.defaults.external_id:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('Cannot remove default external light')}",
+            )
+            return {"CANCELLED"}
+
+        # 不能删除正在使用的外部光
+        if item.obj.users - len(item.obj.users_collection) > 1:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Warning')}: {pgettext('External light is used by objects')}",
+            )
+            return {"CANCELLED"}
+
+        bpy.data.objects.remove(item.obj)
+        externals.remove(active_idx)
+
+        if active_idx >= len(externals):
+            scene_data.active_external = len(externals) - 1
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        if event.shift:
+            return self.execute(context)
+        else:
+            return context.window_manager.invoke_confirm(self, event)  # type: ignore
+
+
+class OT_Scene_External_Default(bpy.types.Operator):
+    bl_idname = "amagate.scene_external_default"
+    bl_label = "Set as default external light"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        active_idx = scene_data.active_external
+        if active_idx >= len(scene_data.externals):
+            return {"CANCELLED"}
+
+        scene_data.defaults.external_id = scene_data.externals[active_idx].id
+        return {"FINISHED"}
+
+
+class OT_Scene_External_Set(bpy.types.Operator):
+    bl_idname = "amagate.scene_external_set"
+    bl_label = "Set External Light"
+    bl_options = {"INTERNAL"}
+
+    id: IntProperty(name="ID")  # type: ignore
+
+    def execute(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+
+        return {"FINISHED"}
+
+    # TODO
+    def draw(self, context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data  # type: ignore
+        light = data.get_external_by_id(scene_data, self.id)[1]
+        col = layout.column()
+        col.prop(light, "vector", text="")
+        col.prop(light, "vector2", text="")
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=100)  # type: ignore
+
+
 # 场景面板 -> 新建场景
 class OT_NewScene(bpy.types.Operator):
     bl_idname = "amagate.newscene"
@@ -189,17 +306,27 @@ class OT_NewScene(bpy.types.Operator):
         # 创建新场景
         # bpy.ops.scene.new()
         scene = bpy.data.scenes.new(name)
-        scene_data = scene.amagate_data  # type: ignore
-        scene_data.id = id_
+        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
 
         # 初始化场景数据
+        scene_data.id = id_
         scene_data.is_blade = True  # type: ignore
+
+        data.ensure_collection(data.AG_COLL, scene)
+        data.ensure_collection(data.S_COLL, scene)
+        data.ensure_collection(data.GS_COLL, scene)
+        data.ensure_collection(data.E_COLL, scene)
+
+        data.ensure_null_object()
+
         OT_Scene_Atmo_Add.new(scene)
+        OT_Scene_External_Add.new(scene)
         scene_data.init()  # type: ignore
 
         # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
 
         context.window.scene = scene  # type: ignore
+        bpy.ops.ed.undo_push(message="Create Blade Scene")
         return {"FINISHED"}
 
 
