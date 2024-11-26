@@ -205,40 +205,55 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
         layout.separator()
 
-        # 环境光
         box = layout.box()
+        # 外部光
+        idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
+
+        row = box.row()
+        split = row.split(factor=0.7)
+        row = split.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('External Light')}:")
+
+        col = row.column()
+        name = "None" if not item else item.name
+        op = col.operator(
+            OP.OT_External_Select.bl_idname,
+            text=name,
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.target = "Scene"  # type: ignore
+        op.prop["_index"] = idx  # type: ignore
+
+        if item:
+            row = split.row()
+            row.prop(item, "color_readonly", text="")
+
+        box.separator(type="LINE")
+        # layout.separator()
+
+        # 环境光
+        # box = layout.box()
 
         row = box.row()
         split = row.split(factor=0.5)
         row = split.row()
-        row.alignment = "RIGHT"
+        row.alignment = "LEFT"
         row.label(text=f"{pgettext('Ambient Light')}:")
         split.prop(scene_data.defaults.ambient_light, "color", text="")
 
-        layout.separator()
-
-        # 外部光
-        box = layout.box()
-
-        row = box.row()
-        split = row.split(factor=0.5)
-        row = split.row()
-        row.alignment = "RIGHT"
-        row.label(text=f"{pgettext('External Light')}:")
-        split.prop(scene_data.defaults.external_light, "color", text="")
-
-        row = box.row()
-        row.prop(scene_data.defaults.external_light, "vector", text="")
-
-        layout.separator()
+        box.separator(type="LINE")
+        # layout.separator()
 
         # 平面光
-        box = layout.box()
+        # box = layout.box()
 
         row = box.row()
         split = row.split(factor=0.5)
         row = split.row()
-        row.alignment = "RIGHT"
+        row.alignment = "LEFT"
         row.label(text=f"{pgettext('Flat Light')}:")
         split.prop(scene_data.defaults.flat_light, "color", text="")
 
@@ -246,34 +261,36 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
-# 场景面板 -> 新建场景面板
-class AMAGATE_PT_Scene_New(N_Panel, bpy.types.Panel):
-    bl_label = "New Scene"
+# 场景面板 -> 初始化场景面板
+class AMAGATE_PT_InitScene(N_Panel, bpy.types.Panel):
+    bl_label = "Initialize Scene"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     bl_options = {"HIDE_HEADER"}
 
     @classmethod
     def poll(cls, context):
-        return True
+        return not context.scene.amagate_data.is_blade  # type: ignore
 
     def draw(self, context):
         layout = self.layout
         layout.separator()
         # 新建场景按钮
-        layout.operator(OP.OT_NewScene.bl_idname, icon="ADD")
+        layout.operator(
+            OP.OT_InitScene.bl_idname, icon_value=data.ICONS["blade"].icon_id
+        )
 
         # test
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="RESTRICT_SELECT_ON")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="RESTRICT_SELECT_OFF")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="GP_ONLY_SELECTED")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="GP_SELECT_BETWEEN_STROKES")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_SET")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SELECT_EXTEND")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="LIGHT_SUN")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="LIGHTPROBE_SPHERE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SURFACE_NSPHERE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="SPHERECURVE")
-        # layout.operator(OP.OT_NewScene.bl_idname, icon="MAT_SPHERE_SKY")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="RESTRICT_SELECT_ON")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="RESTRICT_SELECT_OFF")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="GP_ONLY_SELECTED")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="GP_SELECT_BETWEEN_STROKES")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="SELECT_SET")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="SELECT_EXTEND")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="LIGHT_SUN")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="LIGHTPROBE_SPHERE")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="SURFACE_NSPHERE")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="SPHERECURVE")
+        # layout.operator(OP.OT_InitScene.bl_idname, icon="MAT_SPHERE_SKY")
 
 
 ############################

@@ -13,6 +13,9 @@ translations_dict = {
         ("*", "Sector Collection"): "扇区集合",
         ("*", "Ghost Sector Collection"): "虚拟扇区集合",
         ("*", "Entity Collection"): "实体集合",
+        # 初始化场景面板
+        ("Operator", "Initialize Scene"): "初始化场景",
+        ("*", "Initialize or switch to Blade scene"): "初始化或切换到 Blade 场景",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
@@ -23,6 +26,7 @@ translations_dict = {
         ("*", "Atmosphere is used by sectors"): "该大气被扇区使用中",
         ("Operator", "Set as default atmosphere"): "设为默认大气",
         # 外部光面板
+        ("Operator", "Set External Light"): "设置外部光",
         ("Operator", "Add External Light"): "添加外部光",
         ("Operator", "Remove External Light"): "删除外部光",
         ("Operator", "Set as default external light"): "设为默认外部光",

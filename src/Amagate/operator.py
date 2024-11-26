@@ -17,7 +17,7 @@ from bpy.props import (
     IntVectorProperty,
     StringProperty,
 )
-from mathutils import *
+from mathutils import *  # type: ignore
 
 from . import data
 
@@ -57,23 +57,19 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         id_ = data.get_id(used_ids)
         # 获取可用名称
         used_names = tuple(a.name for a in scene_data.atmospheres)
+        name = data.get_name(used_names, "atmo{}", id_)
 
-        new_atmo = scene_data.atmospheres.add()
-        new_atmo.id = id_
-        new_atmo["_name"] = data.get_name(used_names, "atmo{}", id_)
+        item = scene_data.atmospheres.add()
+        item.id = id_
+        item["_name"] = name
 
-        # 创建空物体 用来判断引用
-        name = f"ATMO_{id_}{data.get_scene_suffix(scene)}"
-        obj = bpy.data.objects.get(name)
-        if not (obj and obj.type == "EMPTY"):
-            obj = bpy.data.objects.new(name, None)
-        obj["id"] = id_
-        new_atmo.atmo_obj = obj
+        # item.ensure_obj(scene)
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
 
     def execute(self, context: Context):
         self.new(context.scene)
+        bpy.ops.ed.undo_push(message="Add Atmosphere")
         return {"FINISHED"}
 
 
@@ -99,18 +95,20 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的大气
-        if atmo.atmo_obj.users > 1:
+        # if atmo.ensure_obj(fix_link=True).users > 1:
+        if next((i for i in atmo.users_obj if i.obj), None):
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Atmosphere is used by sectors')}",
             )
             return {"CANCELLED"}
 
-        bpy.data.objects.remove(atmo.atmo_obj)
+        # bpy.data.objects.remove(atmo.obj)
         scene_data.atmospheres.remove(active_atmo)
 
         if active_atmo >= len(scene_data.atmospheres):
             scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
+        bpy.ops.ed.undo_push(message="Remove Atmosphere")
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -132,6 +130,7 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
             return {"CANCELLED"}
 
         scene_data.defaults.atmo_id = scene_data.atmospheres[active_atmo].id
+        bpy.ops.ed.undo_push(message="Set as default atmosphere")
         return {"FINISHED"}
 
 
@@ -191,13 +190,12 @@ class OT_Scene_External_Add(bpy.types.Operator):
         # 获取可用名称
         used_names = tuple(a.name for a in scene_data.externals)
 
-        new_item = scene_data.externals.add()
-        new_item.id = id_
-        new_item["_name"] = data.get_name(used_names, "Sun{}", id_)
-        # new_item.sync_obj(scene)
-        new_item["_color"] = (0.784, 0.784, 0.392)
-        new_item["_vector"] = (-1, 0, -1)
-        new_item.sync_obj(None, scene)
+        item = scene_data.externals.add()
+        item.id = id_
+        item["_name"] = data.get_name(used_names, "Sun{}", id_)
+        item["_color"] = (0.784, 0.784, 0.392)
+        item["_vector"] = (-1, 0, -1)
+        item.update_obj()
 
         scene_data.active_external = len(scene_data.externals) - 1
 
@@ -229,14 +227,14 @@ class OT_Scene_External_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的外部光
-        if item.obj.users - len(item.obj.users_collection) > 1:
+        if next((i for i in item.users_obj if i.obj), None):
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('External light is used by objects')}",
             )
             return {"CANCELLED"}
 
-        bpy.data.objects.remove(item.obj)
+        bpy.data.lights.remove(item.obj)
         externals.remove(active_idx)
 
         if active_idx >= len(externals):
@@ -290,29 +288,59 @@ class OT_Scene_External_Set(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=100)  # type: ignore
 
 
-# 场景面板 -> 新建场景
-class OT_NewScene(bpy.types.Operator):
-    bl_idname = "amagate.newscene"
-    bl_label = "New Scene"
-    bl_description = "Create a new Blade Scene"
+class OT_External_Select(bpy.types.Operator):
+    bl_idname = "amagate.external_select"
+    bl_label = "Select External Light"
     bl_options = {"INTERNAL"}
 
+    prop: PointerProperty(type=data.External_Select)  # type: ignore
+
+    def draw(self, context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        layout = self.layout
+        col = layout.column()
+
+        col.template_list(
+            "AMAGATE_UI_UL_ExternalLight",
+            "",
+            scene_data,
+            "externals",
+            self.prop,
+            "index",
+            maxrows=14,
+        )
+
     def execute(self, context):
-        used_ids = tuple(i.amagate_data.id for i in bpy.data.scenes)  # type: ignore
-        id_ = data.get_id(used_ids)
-        used_names = tuple(i.name for i in bpy.data.scenes)
-        name = data.get_name(used_names, "Blade Scene {}", id_)
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        return context.window_manager.invoke_popup(self, width=200)  # type: ignore
+
+
+# 场景面板 -> 初始化场景
+class OT_InitScene(bpy.types.Operator):
+    bl_idname = "amagate.initscene"
+    bl_label = "Initialize Scene"
+    bl_description = "Initialize or switch to Blade scene"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        for i in bpy.data.scenes:
+            if i.amagate_data.is_blade:  # type: ignore
+                context.window.scene = i
+                return {"CANCELLED"}
 
         # 创建新场景
+        name = "Blade Scene"
         # bpy.ops.scene.new()
-        scene = bpy.data.scenes.new(name)
+        scene = bpy.data.scenes.new("")
+        scene.rename(name, mode="ALWAYS")
+        context.window.scene = scene
         scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
 
         # 初始化场景数据
-        scene_data.id = id_
-        scene_data.is_blade = True  # type: ignore
-
-        data.ensure_collection(data.AG_COLL, scene)
+        scene_data.id = 1
+        data.ensure_collection(data.AG_COLL, scene, hide_select=True)
         data.ensure_collection(data.S_COLL, scene)
         data.ensure_collection(data.GS_COLL, scene)
         data.ensure_collection(data.E_COLL, scene)
@@ -325,9 +353,35 @@ class OT_NewScene(bpy.types.Operator):
 
         # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
 
-        context.window.scene = scene  # type: ignore
-        bpy.ops.ed.undo_push(message="Create Blade Scene")
+        scene_data.is_blade = True  # type: ignore
+        split_editor(context)
+
+        bpy.ops.ed.undo_push(message="Initialize Scene")
         return {"FINISHED"}
+
+
+def split_editor(context: Context):
+    area = next(a for a in context.screen.areas if a.type == "VIEW_3D")
+    bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
+
+    # 找到新创建的区域
+    new_area = next(
+        a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
+    )
+    if data.DEBUG:
+        # For DEBUG
+        new_area.type = "CONSOLE"
+        # window_region = next((r for r in new_area.regions if r.type == 'WINDOW'), None)
+        # 第二次拆分
+        with context.temp_override(area=new_area):  # , region=window_region
+            bpy.ops.screen.area_split(direction="HORIZONTAL", factor=0.75)
+
+        # 找到新创建的区域
+        # new_area = next(a for a in context.screen.areas if a != new_area and a.type == 'CONSOLE')
+        new_area.type = "VIEW_3D"
+
+    with context.temp_override(area=new_area):
+        bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
 
 
 ############################
@@ -628,7 +682,8 @@ class OT_Sector_Convert(bpy.types.Operator):
 
         for obj in mesh_objects:
             if not obj.amagate_data.get_sector_data():  # type: ignore
-                sector_data = obj.amagate_data.set_sector_data()  # type: ignore
+                obj.amagate_data.set_sector_data()  # type: ignore
+                sector_data = obj.amagate_data.get_sector_data()  # type: ignore
                 sector_data.init()
         return {"FINISHED"}
 

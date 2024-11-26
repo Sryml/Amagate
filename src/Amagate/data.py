@@ -29,6 +29,8 @@ AG_COLL = "Amagate Auto Generated"
 S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
+
+DEBUG = False
 ############################
 
 
@@ -73,7 +75,7 @@ def get_atmo_by_id(scene_data, atmo_id) -> tuple[int, AtmosphereProperty]:
     return (0, None)  # type: ignore
 
 
-def get_external_by_id(scene_data, external_id) -> tuple[int, SectorLightProperty]:
+def get_external_by_id(scene_data, external_id) -> tuple[int, ExternalLightProperty]:
     if external_id != 0:
         for i, external in enumerate(scene_data.externals):
             if external.id == external_id:
@@ -109,13 +111,16 @@ def ensure_null_object() -> bpy.types.Object:
 
 
 # 确保集合
-def ensure_collection(name, scene):
+def ensure_collection(name, scene=None, hide_select=False) -> bpy.types.Collection:
+    if not scene:
+        scene = bpy.context.scene
     collections = bpy.data.collections
     name = f"{pgettext(name)}{get_scene_suffix(scene)}"
     coll = collections.get(name)
     if not coll:
         coll = collections.new(name)
         scene.collection.children.link(coll)
+        coll.hide_select = hide_select
     return coll
 
 
@@ -255,7 +260,6 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
     def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
         scene_data = context.scene.amagate_data  # type: ignore
-        atmosphere = item  # 获取大气数据
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
@@ -266,21 +270,21 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
 
         # col = split.column()
         # col.enabled = False
-        # col.label(text=f"ID: {atmosphere.id}")
-        i = ICONS["star"].icon_id if atmosphere.id == scene_data.defaults.atmo_id else 0
+        # col.label(text=f"ID: {item.id}")
+        i = ICONS["star"].icon_id if item.id == scene_data.defaults.atmo_id else 0
         col = row.column()
         col.alignment = "LEFT"
         col.label(text="", icon_value=i)  # icon="CHECKMARK"
 
         col = row.column()
         if enabled:
-            col.prop(atmosphere, "name", text="", emboss=False)
+            col.prop(item, "name", text="", emboss=False)
         else:
-            col.label(text=atmosphere.name)
+            col.label(text=item.name)
 
         row = split.row()
         row.enabled = enabled
-        row.prop(atmosphere, "color", text="")
+        row.prop(item, "color", text="")
 
 
 class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
@@ -322,8 +326,8 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
             ).id = light.id  # type: ignore
 
         row = split.row()
-        row.enabled = enabled
-        row.prop(light, "color", text="")
+        color = "color" if enabled else "color_readonly"
+        row.prop(light, color, text="")
 
 
 class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
@@ -403,9 +407,35 @@ class Atmo_Select(bpy.types.PropertyGroup):
 
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
         if self.target == "Sector":
-            pass
+            sectors = [obj for obj in bpy.context.selected_objects if obj.amagate_data.get_sector_data()]  # type: ignore
+            for s in sectors:
+                sector_data = s.amagate_data.get_sector_data()  # type: ignore
+                sector_data.atmo_id = scene_data.atmospheres[value].id
         elif self.target == "Scene":
             scene_data.defaults.atmo_id = scene_data.atmospheres[value].id
+        region_redraw("UI")
+
+
+# 选择外部光
+class External_Select(bpy.types.PropertyGroup):
+    index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
+    target: StringProperty(default="Sector")  # type: ignore
+    readonly: BoolProperty(default=True)  # type: ignore
+
+    def get_index(self):
+        return self.get("_index", 0)
+
+    def set_index(self, value):
+        self["_index"] = value
+
+        scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
+        if self.target == "Sector":
+            sectors = [obj for obj in bpy.context.selected_objects if obj.amagate_data.get_sector_data()]  # type: ignore
+            for s in sectors:
+                sector_data = s.amagate_data.get_sector_data()  # type: ignore
+                sector_data.external_id = scene_data.externals[value].id
+        elif self.target == "Scene":
+            scene_data.defaults.external_id = scene_data.externals[value].id
         region_redraw("UI")
 
 
@@ -434,11 +464,15 @@ class Texture_Select(bpy.types.PropertyGroup):
 ############################
 
 
+class ObjectCollection(bpy.types.PropertyGroup):
+    obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+
+
 # 大气属性
 class AtmosphereProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
-    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    users_obj: CollectionProperty(type=ObjectCollection)  # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -463,6 +497,26 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
                 atmo["_name"] = self.get("_name", "")
                 break
         self["_name"] = value
+
+    # 确保引用对象存在
+    # def ensure_obj(self, scene: bpy.types.Scene, fix_link=False):
+    #     if not self.obj:
+    #         name = f"AG.atmo{self.id}{get_scene_suffix(scene)}"
+    #         obj = bpy.data.objects.get(name)
+    #         if not (obj and obj.type == "EMPTY"):
+    #             obj = bpy.data.objects.new(name, None)
+    #         obj["id"] = self.id
+    #         self.obj = obj
+
+    #         # 引用对象被意外删除，进行自动修复
+    #         if fix_link:
+    #             for i in bpy.context.scene.objects:
+    #                 sec_data = i.amagate_data.get_sector_data() # type: ignore
+    #                 if sec_data and sec_data.atmo_id == self.id:
+    #                     sec_data.atmo_obj = obj
+    #             print("Fixed atmo reference link")
+
+    #     return self.obj
 
 
 # 纹理属性
@@ -531,11 +585,12 @@ class TextureProperty(bpy.types.PropertyGroup):
             self["_angle"] = value
 
 
-# 扇区灯光属性
-class SectorLightProperty(bpy.types.PropertyGroup):
+# 外部光属性
+class ExternalLightProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     name: StringProperty(name="Light Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
-    obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    obj: PointerProperty(type=bpy.types.Light)  # type: ignore
+    users_obj: CollectionProperty(type=ObjectCollection)  # type: ignore
 
     color: FloatVectorProperty(
         name="Color",
@@ -546,7 +601,13 @@ class SectorLightProperty(bpy.types.PropertyGroup):
         default=(0.784, 0.784, 0.784),
         get=lambda self: self.get("_color", (0.784, 0.784, 0.784)),
         set=lambda self, value: self.set_dict("_color", value),
-        update=lambda self, context: self.sync_obj(context),
+        update=lambda self, context: self.update_obj(context),
+    )  # type: ignore
+    color_readonly: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        get=lambda self: self.get("_color", (0.784, 0.784, 0.784)),
+        set=lambda self, value: None,
     )  # type: ignore
     vector: FloatVectorProperty(
         name="Direction",
@@ -557,7 +618,7 @@ class SectorLightProperty(bpy.types.PropertyGroup):
         max=1.0,
         get=lambda self: self.get("_vector", (0.0, 0.0, -1.0)),
         set=lambda self, value: self.set_dict("_vector", value),
-        update=lambda self, context: self.sync_obj(context),
+        update=lambda self, context: self.update_obj(context),
     )  # type: ignore
     vector2: FloatVectorProperty(
         name="Direction",
@@ -568,7 +629,7 @@ class SectorLightProperty(bpy.types.PropertyGroup):
         max=1.0,
         get=lambda self: self.get("_vector", (0.0, 0.0, -1.0)),
         set=lambda self, value: self.set_dict("_vector", value),
-        update=lambda self, context: self.sync_obj(context),
+        update=lambda self, context: self.update_obj(context),
     )  # type: ignore
 
     def set_dict(self, key, value):
@@ -589,56 +650,98 @@ class SectorLightProperty(bpy.types.PropertyGroup):
                 break
         self["_name"] = value
 
-    def sync_obj(self, context, scene: bpy.types.Scene = None):  # type: ignore
-        scene = scene or context.scene
-        name = f"AG.Sun{self.id}{get_scene_suffix(scene)}"
-        light_data = bpy.data.lights.get(name)
-        if not (light_data and light_data.type == "SUN"):
-            light_data = bpy.data.lights.new("", type="SUN")
-            light_data.rename(name, mode="ALWAYS")
-        light_data.color = self.color  # 设置颜色
+    # TODO 每删除10个扇区触发一次clean
+    def clean(self, lst=None):
+        if not lst:
+            lst = [i for i, item in enumerate(self.users_obj) if not item.obj]
+        for i in reversed(lst):
+            self.users_obj.remove(i)
+
+    def ensure_obj(self):
+        if not self.obj:
+            name = f"AG.Sun{self.id}"
+            light_data = bpy.data.lights.get(name)
+            if not (light_data and light_data.type == "SUN"):
+                light_data = bpy.data.lights.new("", type="SUN")
+                light_data.rename(name, mode="ALWAYS")
+            self.obj = light_data
+
+        return self.obj
+
+    def sync_users(self, rotation_euler):
+        items_to_remove = []
+        for i, d in enumerate(self.users_obj):
+            sec = d.obj
+            if not sec:
+                items_to_remove.append(i)
+            else:
+                sec.amagate_data.get_sector_data().ensure_external_obj(
+                    self, rotation_euler
+                )
+
+        if items_to_remove:
+            self.clean(items_to_remove)
+
+    def update_obj(self, context=None):
+        self.ensure_obj()
+        self.obj.color = self.color  # 设置颜色
+        rotation_euler = self.vector.to_track_quat("-Z", "Z").to_euler()
+        self.sync_users(rotation_euler)
         # light_data.energy = self.energy  # 设置能量
 
-        objects = bpy.data.objects
-        # 创建灯光对象
-        sunlight = objects.get(name)
-        if not (sunlight and sunlight.data == light_data):
-            sunlight = objects.new("", object_data=light_data)
-            sunlight.rename(name, mode="ALWAYS")
-        # 应用方向向量到旋转
-        sunlight.rotation_euler = self.vector.to_track_quat("-Z", "Z").to_euler()
-        link2coll(sunlight, ensure_collection(AG_COLL, scene))
 
-        # 创建灯光链接集合
-        collections = bpy.data.collections
-        name = f"Light Linking for {sunlight.name}"
-        lightlink_coll = collections.get(name)
-        if not lightlink_coll:
-            lightlink_coll = collections.new(name)
-        sunlight.light_linking.receiver_collection = lightlink_coll
-        sunlight.light_linking.blocker_collection = lightlink_coll
-        link2coll(ensure_null_object(), lightlink_coll)
+# 环境光属性
+class AmbientLightProperty(bpy.types.PropertyGroup):
+    color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(0.784, 0.784, 0.784),
+    )  # type: ignore
 
-        self.obj = sunlight
+
+# 平面光属性
+class FlatLightProperty(bpy.types.PropertyGroup):
+    color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(0.784, 0.784, 0.784),
+    )  # type: ignore
+    vector: FloatVectorProperty(
+        name="Direction",
+        subtype="XYZ",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+        min=-1.0,
+        max=1.0,
+    )  # type: ignore
 
 
 class SectorFocoLightProperty(bpy.types.PropertyGroup):
     # 可添加多个，保存数据块名称
     name: StringProperty(name="Name", default="")  # type: ignore
+    # TODO
 
 
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
+    id: IntProperty(name="ID", default=0)  # type: ignore
     # is_sector: BoolProperty(default=False)  # type: ignore
     atmo_id: IntProperty(name="Atmosphere", description="", default=1)  # type: ignore
-    atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    # atmo_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     # floor_texture: CollectionProperty(type=TextureProperty)  # type: ignore
     # ceiling_texture: CollectionProperty(type=TextureProperty)  # type: ignore
     # wall_texture: CollectionProperty(type=TextureProperty)  # type: ignore
 
-    ambient_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 环境光
+    ambient_light: PointerProperty(type=AmbientLightProperty)  # type: ignore # 环境光
     external_id: IntProperty(name="External Light", description="", default=1)  # type: ignore
-    flat_light: PointerProperty(type=SectorLightProperty)  # type: ignore # 平面光
+    external_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    flat_light: PointerProperty(type=FlatLightProperty)  # type: ignore # 平面光
 
     spot_light: CollectionProperty(type=SectorFocoLightProperty)  # type: ignore # 聚光灯
 
@@ -649,8 +752,52 @@ class SectorProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     comment: StringProperty(name="Comment", description="", default="")  # type: ignore
 
+    def ensure_external_obj(self, external=None, rotation_euler=None):
+        scene_data = bpy.context.scene.amagate_data  # type: ignore
+        if not external:
+            external = get_external_by_id(scene_data, self.external_id)[1]
+        if not external:
+            # 不存在的external_id
+            print("Error: external_id {self.external_id} does not exist")
+            return
+        light_data = external.obj
+        if not light_data:
+            return
+
+        if not self.external_obj:
+            name = f"AG - Sector{self.id}.Sun{self.external_id}"
+            light = bpy.data.objects.new(name, object_data=light_data)
+            self.external_obj = light
+
+            light.hide_select = True
+            # self.id_data.users_collection[0].objects.link(light)
+            # light.parent = self.id_data
+            link2coll(light, ensure_collection(AG_COLL, hide_select=True))
+            # 创建灯光链接集合
+            collections = bpy.data.collections
+            name = f"{name}.Linking"
+            lightlink_coll = collections.get(name)
+            if lightlink_coll:
+                collections.remove(lightlink_coll)
+            lightlink_coll = collections.new(name)
+            light.light_linking.receiver_collection = lightlink_coll
+            light.light_linking.blocker_collection = lightlink_coll
+            link2coll(ensure_null_object(), lightlink_coll)
+
+            if not rotation_euler:
+                rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
+
+        if rotation_euler:
+            self.external_obj.rotation_euler = rotation_euler
+
+        return self.external_obj
+
     def init(self):
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
+
+        used_ids = tuple(a.amagate_data.get_sector_data().id for a in bpy.context.scene.objects if a.amagate_data.get_sector_data())  # type: ignore
+        id_ = get_id(used_ids)
+        self.id = id_
 
         self["Textures"] = {}
         obj = self.id_data
@@ -676,15 +823,18 @@ class SectorProperty(bpy.types.PropertyGroup):
                 ]
 
         self.atmo_id = scene_data.defaults.atmo_id
-        self.atmo_obj = get_atmo_by_id(scene_data, self.atmo_id)[1].atmo_obj
+        get_atmo_by_id(scene_data, self.atmo_id)[1].users_obj.add().obj = obj
 
-        self.ambient_light.color = scene_data.defaults.ambient_light.color
-        self.ambient_light.vector = scene_data.defaults.ambient_light.vector
+        # self.ambient_light.color = scene_data.defaults.ambient_light.color
+        # self.ambient_light.vector = scene_data.defaults.ambient_light.vector
 
-        self.external_light.color = scene_data.defaults.external_light.color
-        self.external_light.vector = scene_data.defaults.external_light.vector
+        self.external_id = scene_data.defaults.external_id
+        self.ensure_external_obj()
+        get_external_by_id(scene_data, self.external_id)[1].users_obj.add().obj = obj
+        # self.external_light.color = scene_data.defaults.external_light.color
+        # self.external_light.vector = scene_data.defaults.external_light.vector
 
-        self.flat_light.color = scene_data.defaults.flat_light.color
+        # self.flat_light.color = scene_data.defaults.flat_light.color
 
 
 # 图像属性
@@ -706,7 +856,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
 
     # 外部光
-    externals: CollectionProperty(type=SectorLightProperty)  # type: ignore
+    externals: CollectionProperty(type=ExternalLightProperty)  # type: ignore
     active_external: IntProperty(name="External Light", default=0)  # type: ignore
 
     active_texture: IntProperty(name="Texture", default=0, set=lambda self, value: self.set_active_texture(value), get=lambda self: self.get_active_texture())  # type: ignore
@@ -745,6 +895,7 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults = self.defaults
 
         defaults.atmo_id = 1
+        defaults.external_id = 1
         defaults["Textures"] = {
             "Floor": {"id": 0, "pos": (0.0, 0.0), "zoom": 10.0, "angle": 0.0},
             "Ceiling": {"id": 0, "pos": (0.0, 0.0), "zoom": 10.0, "angle": 0.0},
@@ -762,14 +913,14 @@ class ObjectProperty(bpy.types.PropertyGroup):
     SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
 
     def get_sector_data(self):
-        if not self.SectorData:
+        if len(self.SectorData) == 0:
             return None
         return self.SectorData[0]
 
     def set_sector_data(self):
         if not self.SectorData:
             self.SectorData.add()
-            return self.SectorData[0]
+            # return self.SectorData[0]
 
 
 ############################
@@ -791,6 +942,7 @@ def register():
     ICONS = bpy.utils.previews.new()
     icons_dir = os.path.join(os.path.dirname(__file__), "icons")
     ICONS.load("star", os.path.join(icons_dir, "star.png"), "IMAGE")
+    ICONS.load("blade", os.path.join(icons_dir, "blade.png"), "IMAGE")
 
     bpy.utils.register_class(AmagatePreferences)
 
