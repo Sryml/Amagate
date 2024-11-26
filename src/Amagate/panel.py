@@ -1,9 +1,20 @@
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+
 import bpy
 from bpy.app.translations import pgettext
-from bpy.types import Context
+
+# from bpy.types import Context
 
 from . import data
 from . import operator as OP
+
+if TYPE_CHECKING:
+    import bpy_stub as bpy
+
+    Context = bpy.__Context
+    Object = bpy.__Object
+    Image = bpy.__Image
 
 
 class N_Panel:

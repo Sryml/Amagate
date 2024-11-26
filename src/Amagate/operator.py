@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import sys
 import os
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import bpy
 from bpy.app.translations import pgettext
-from bpy.types import Context
 from bpy.props import (
     PointerProperty,
     CollectionProperty,
@@ -20,6 +21,13 @@ from bpy.props import (
 from mathutils import *  # type: ignore
 
 from . import data
+
+if TYPE_CHECKING:
+    import bpy_stub as bpy
+
+    Context = bpy.__Context
+    Object = bpy.__Object
+    Image = bpy.__Image
 
 
 import ctypes
@@ -48,9 +56,10 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
     bl_label = "Add Atmosphere"
     bl_options = {"INTERNAL"}
 
-    @staticmethod
-    def new(scene):
-        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+    undo: BoolProperty(default=True)  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
 
         # 获取可用 ID
         used_ids = tuple(a.id for a in scene_data.atmospheres)
@@ -66,10 +75,9 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         # item.ensure_obj(scene)
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Add Atmosphere")
 
-    def execute(self, context: Context):
-        self.new(context.scene)
-        bpy.ops.ed.undo_push(message="Add Atmosphere")
         return {"FINISHED"}
 
 
@@ -78,6 +86,8 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
     bl_label = "Remove Atmosphere"
     bl_description = "Hold shift to quickly delete"
     bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
@@ -108,7 +118,8 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
 
         if active_atmo >= len(scene_data.atmospheres):
             scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
-        bpy.ops.ed.undo_push(message="Remove Atmosphere")
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Remove Atmosphere")
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -123,6 +134,8 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
     bl_label = "Set as default atmosphere"
     bl_options = {"INTERNAL"}
 
+    undo: BoolProperty(default=True)  # type: ignore
+
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
         active_atmo = scene_data.active_atmosphere
@@ -130,13 +143,15 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
             return {"CANCELLED"}
 
         scene_data.defaults.atmo_id = scene_data.atmospheres[active_atmo].id
-        bpy.ops.ed.undo_push(message="Set as default atmosphere")
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Set as default atmosphere")
         return {"FINISHED"}
 
 
 class OT_Atmo_Select(bpy.types.Operator):
     bl_idname = "amagate.atmo_select"
     bl_label = "Select Atmosphere"
+    bl_description = "Select Atmosphere"
     bl_options = {"INTERNAL"}
 
     prop: PointerProperty(type=data.Atmo_Select)  # type: ignore
@@ -180,9 +195,31 @@ class OT_Scene_External_Add(bpy.types.Operator):
     bl_label = "Add External Light"
     bl_options = {"INTERNAL"}
 
-    @classmethod
-    def new(cls, scene):
-        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+    undo: BoolProperty(default=True)  # type: ignore
+
+    # @classmethod
+    # def new(cls, scene):
+    #     scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+
+    #     # 获取可用 ID
+    #     used_ids = tuple(a.id for a in scene_data.externals)
+    #     id_ = data.get_id(used_ids)
+    #     # 获取可用名称
+    #     used_names = tuple(a.name for a in scene_data.externals)
+
+    #     item = scene_data.externals.add()
+    #     item.id = id_
+    #     item["_name"] = data.get_name(used_names, "Sun{}", id_)
+    #     item["_color"] = (0.784, 0.784, 0.392)
+    #     item["_vector"] = (-1, 0, -1)
+    #     item.update_obj()
+
+    #     scene_data.active_external = len(scene_data.externals) - 1
+    #     if self.undo:
+    #         bpy.ops.ed.undo_push(message="Add External Light")
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
 
         # 获取可用 ID
         used_ids = tuple(a.id for a in scene_data.externals)
@@ -198,9 +235,8 @@ class OT_Scene_External_Add(bpy.types.Operator):
         item.update_obj()
 
         scene_data.active_external = len(scene_data.externals) - 1
-
-    def execute(self, context: Context):
-        self.new(context.scene)
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Add External Light")
         return {"FINISHED"}
 
 
@@ -209,6 +245,8 @@ class OT_Scene_External_Remove(bpy.types.Operator):
     bl_label = "Remove External Light"
     bl_description = "Hold shift to quickly delete"
     bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context):
         scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
@@ -239,6 +277,9 @@ class OT_Scene_External_Remove(bpy.types.Operator):
 
         if active_idx >= len(externals):
             scene_data.active_external = len(externals) - 1
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Remove External Light")
+
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -253,6 +294,8 @@ class OT_Scene_External_Default(bpy.types.Operator):
     bl_label = "Set as default external light"
     bl_options = {"INTERNAL"}
 
+    undo: BoolProperty(default=True)  # type: ignore
+
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
         active_idx = scene_data.active_external
@@ -260,6 +303,9 @@ class OT_Scene_External_Default(bpy.types.Operator):
             return {"CANCELLED"}
 
         scene_data.defaults.external_id = scene_data.externals[active_idx].id
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Set as default external light")
+
         return {"FINISHED"}
 
 
@@ -322,7 +368,7 @@ class OT_InitScene(bpy.types.Operator):
     bl_idname = "amagate.initscene"
     bl_label = "Initialize Scene"
     bl_description = "Initialize or switch to Blade scene"
-    bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL", "UNDO"}
 
     def execute(self, context: Context):
         for i in bpy.data.scenes:
@@ -347,16 +393,16 @@ class OT_InitScene(bpy.types.Operator):
 
         data.ensure_null_object()
 
-        OT_Scene_Atmo_Add.new(scene)
-        OT_Scene_External_Add.new(scene)
-        scene_data.init()  # type: ignore
+        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
+        bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
+        scene_data.init()
 
         # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
 
-        scene_data.is_blade = True  # type: ignore
+        scene_data.is_blade = True
         split_editor(context)
 
-        bpy.ops.ed.undo_push(message="Initialize Scene")
+        # bpy.ops.ed.undo_push(message="Initialize Scene")
         return {"FINISHED"}
 
 
@@ -391,7 +437,7 @@ class OT_Texture_Add(bpy.types.Operator):
     bl_idname = "amagate.texture_add"
     bl_label = "Add Texture"
     bl_description = "Hold shift to enable overlay"
-    bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL", "UNDO"}
 
     # 过滤文件
     filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
@@ -407,17 +453,17 @@ class OT_Texture_Add(bpy.types.Operator):
     directory: StringProperty()  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
-    def load_image(self, context, filepath, name=""):
-        scene_data = context.scene.amagate_data  # type: ignore
-        img = bpy.data.images.load(filepath)
-        img_data = img.amagate_data  # type: ignore
+    def load_image(self, context: Context, filepath, name=""):
+        scene_data = context.scene.amagate_data
+        img = bpy.data.images.load(filepath)  # type: Image # type: ignore
+        img_data = img.amagate_data
         if name:
             img.name = name
 
         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
         img_data.id = data.get_id(used_ids)
 
-    def execute(self, context):
+    def execute(self, context: Context):
         curr_dir = bpy.path.abspath("//")
         # 相同驱动器
         same_drive = (
@@ -465,7 +511,7 @@ class OT_Texture_Remove(bpy.types.Operator):
     bl_idname = "amagate.texture_remove"
     bl_label = "Remove Texture"
     bl_description = "Hold shift to quickly delete"
-    bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL", "UNDO"}
 
     def execute(self, context):
         scene_data = context.scene.amagate_data  # type: ignore
@@ -474,7 +520,7 @@ class OT_Texture_Remove(bpy.types.Operator):
         if idx >= len(bpy.data.images):
             return {"CANCELLED"}
 
-        img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
+        img: Image = bpy.data.images[idx]  # type: ignore
         img_data = img.amagate_data  # type: ignore
 
         if not img_data.id or img.name == "NULL":
@@ -659,7 +705,9 @@ class OT_Sector_Convert(bpy.types.Operator):
         if not original_selection:
             return {"CANCELLED"}
 
-        mesh_objects = [obj for obj in original_selection if obj.type == "MESH"]
+        mesh_objects = [
+            obj for obj in original_selection if obj.type == "MESH"
+        ]  # type: list[Object] # type: ignore
         if not mesh_objects:
             return {"CANCELLED"}
 
@@ -681,9 +729,9 @@ class OT_Sector_Convert(bpy.types.Operator):
             obj.select_set(True)
 
         for obj in mesh_objects:
-            if not obj.amagate_data.get_sector_data():  # type: ignore
-                obj.amagate_data.set_sector_data()  # type: ignore
-                sector_data = obj.amagate_data.get_sector_data()  # type: ignore
+            if not obj.amagate_data.get_sector_data():
+                obj.amagate_data.set_sector_data()
+                sector_data = obj.amagate_data.get_sector_data()
                 sector_data.init()
         return {"FINISHED"}
 

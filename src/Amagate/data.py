@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import os
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 # from collections import Counter
 
 import bpy
 from bpy.app.translations import pgettext
-from bpy.types import Context
+
+# from bpy.types import Context
 from bpy.props import (
     PointerProperty,
     CollectionProperty,
@@ -21,6 +22,13 @@ from bpy.props import (
     StringProperty,
 )
 import rna_keymap_ui
+
+if TYPE_CHECKING:
+    import bpy_stub as bpy
+
+    Context = bpy.__Context
+    Object = bpy.__Object
+    Image = bpy.__Image
 
 ############################
 ICONS: Any = None
@@ -88,7 +96,7 @@ def get_texture_by_id(texture_id) -> tuple[int, bpy.types.Image]:
         for i, texture in enumerate(bpy.data.images):
             if texture.amagate_data.id == texture_id:  # type: ignore
                 return (i, texture)
-    return (0, None)  # type: ignore
+    return (-1, None)  # type: ignore
 
 
 # 确保NULL纹理存在
@@ -403,6 +411,9 @@ class Atmo_Select(bpy.types.PropertyGroup):
         return self.get("_index", 0)
 
     def set_index(self, value):
+        if self["_index"] == value:
+            return
+
         self["_index"] = value
 
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
@@ -415,6 +426,8 @@ class Atmo_Select(bpy.types.PropertyGroup):
             scene_data.defaults.atmo_id = scene_data.atmospheres[value].id
         region_redraw("UI")
 
+        bpy.ops.ed.undo_push(message="Select Atmosphere")
+
 
 # 选择外部光
 class External_Select(bpy.types.PropertyGroup):
@@ -426,6 +439,9 @@ class External_Select(bpy.types.PropertyGroup):
         return self.get("_index", 0)
 
     def set_index(self, value):
+        if self["_index"] == value:
+            return
+
         self["_index"] = value
 
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
@@ -438,6 +454,8 @@ class External_Select(bpy.types.PropertyGroup):
             scene_data.defaults.external_id = scene_data.externals[value].id
         region_redraw("UI")
 
+        bpy.ops.ed.undo_push(message="Select External Light")
+
 
 # 选择纹理
 class Texture_Select(bpy.types.PropertyGroup):
@@ -449,6 +467,9 @@ class Texture_Select(bpy.types.PropertyGroup):
         return self.get("_index", 0)
 
     def set_index(self, value):
+        if self["_index"] == value:
+            return
+
         self["_index"] = value
 
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
@@ -457,6 +478,8 @@ class Texture_Select(bpy.types.PropertyGroup):
                 value
             ].amagate_data.id
         region_redraw("UI")
+
+        bpy.ops.ed.undo_push(message="Select Texture")
 
 
 ############################
@@ -847,7 +870,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
 
-    amagate_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
+    # amagate_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
     sector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
     ghostsector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
     entity_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore

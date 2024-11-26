@@ -20,12 +20,14 @@ translations_dict = {
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
         ("*", "Select Atmosphere"): "选择大气",
+        ("Operator", "Select Atmosphere"): "选择大气",
         ("Operator", "Add Atmosphere"): "添加大气",
         ("Operator", "Remove Atmosphere"): "删除大气",
         ("*", "Cannot remove default atmosphere"): "不能删除默认大气",
         ("*", "Atmosphere is used by sectors"): "该大气被扇区使用中",
         ("Operator", "Set as default atmosphere"): "设为默认大气",
         # 外部光面板
+        ("Operator", "Select External Light"): "选择外部光",
         ("Operator", "Set External Light"): "设置外部光",
         ("Operator", "Add External Light"): "添加外部光",
         ("Operator", "Remove External Light"): "删除外部光",
@@ -41,6 +43,7 @@ translations_dict = {
         ("*", "External Light"): "外部光",
         ("*", "Flat Light"): "平面光",
         # 纹理面板
+        ("Operator", "Select Texture"): "选择纹理",
         ("Operator", "Add Texture"): "添加纹理",
         ("*", "Hold shift to enable overlay"): "按住 Shift 启用覆盖",
         ("*", "Override Mode"): "覆盖模式",
