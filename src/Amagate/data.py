@@ -894,24 +894,13 @@ class SceneProperty(bpy.types.PropertyGroup):
     def get_active_texture(self):
         value = self.get("_active_texture", 0)
 
-        if value >= len(bpy.data.images):
-            return 0
+        if value >= len(bpy.data.images) or bpy.data.images[value].amagate_data.id == 0:
+            value = next((i for i, img in enumerate(bpy.data.images) if img.amagate_data.id != 0), 0)  # type: ignore
 
-        active_id = self.get("_active_texture_id", 0)
-        curr_id = bpy.data.images[value].amagate_data.id
-        if active_id and curr_id:
-            if curr_id != active_id:
-                for i, img in enumerate(bpy.data.images):
-                    if img.amagate_data.id == active_id:  # type: ignore
-                        value = i
-                        break
-                else:
-                    self["_active_texture_id"] = curr_id
         return value
 
     def set_active_texture(self, value):
         self["_active_texture"] = value
-        self["_active_texture_id"] = bpy.data.images[value].amagate_data.id
 
     ############################
     def init(self):

@@ -542,11 +542,15 @@ class OT_Texture_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除默认纹理
-        # FIXME 这里需要判断是否被其它场景使用
-        default_id = [
-            i["id"] for i in scene_data.defaults["Textures"].values() if i["id"] != 0
-        ]
-        if img_data.id in default_id:
+        has_default = next(
+            (
+                True
+                for i in scene_data.defaults["Textures"].values()
+                if i["id"] == img_data.id
+            ),
+            None,
+        )
+        if has_default:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Cannot remove default texture')}",
@@ -555,6 +559,11 @@ class OT_Texture_Remove(bpy.types.Operator):
 
         # 删除纹理
         bpy.data.images.remove(img)
+        # 更新索引
+        new_idx = next((i for i in range(idx, len(bpy.data.images)) if bpy.data.images[i].amagate_data.id != 0), None)  # type: ignore
+        if new_idx is None:
+            new_idx = next(i for i in range(idx - 1, -1, -1) if bpy.data.images[i].amagate_data.id != 0)  # type: ignore
+        scene_data.active_texture = new_idx
 
         return {"FINISHED"}
 
