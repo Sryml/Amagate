@@ -60,6 +60,28 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
             # return
 
 
+# 场景面板 -> 新建面板
+# class AMAGATE_PT_NewScene(N_Panel, bpy.types.Panel):
+#     bl_label = "New"
+#     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+#     bl_options = {"HIDE_HEADER"}
+
+#     @classmethod
+#     def poll(cls, context):
+#         return True
+#         # return not context.scene.amagate_data.is_blade  # type: ignore
+
+#     def draw(self, context):
+#         layout = self.layout
+#         layout.separator()
+#         # 新建场景按钮
+#         op = layout.operator(
+#             OP.OT_NewScene.bl_idname, text="New Map", icon_value=data.ICONS["blade"].icon_id
+#         )
+#         op.target = "init"  # type: ignore
+#         op.execute_type = 0  # type: ignore
+
+
 # 场景面板 -> 大气面板
 class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
     bl_label = "Atmosphere"
@@ -272,38 +294,6 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
-# 场景面板 -> 初始化场景面板
-class AMAGATE_PT_InitScene(N_Panel, bpy.types.Panel):
-    bl_label = "Initialize Scene"
-    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
-    bl_options = {"HIDE_HEADER"}
-
-    @classmethod
-    def poll(cls, context):
-        return not context.scene.amagate_data.is_blade  # type: ignore
-
-    def draw(self, context):
-        layout = self.layout
-        layout.separator()
-        # 新建场景按钮
-        layout.operator(
-            OP.OT_InitScene.bl_idname, icon_value=data.ICONS["blade"].icon_id
-        )
-
-        # test
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="RESTRICT_SELECT_ON")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="RESTRICT_SELECT_OFF")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="GP_ONLY_SELECTED")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="GP_SELECT_BETWEEN_STROKES")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="SELECT_SET")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="SELECT_EXTEND")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="LIGHT_SUN")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="LIGHTPROBE_SPHERE")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="SURFACE_NSPHERE")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="SPHERECURVE")
-        # layout.operator(OP.OT_InitScene.bl_idname, icon="MAT_SPHERE_SKY")
-
-
 ############################
 ############################ 纹理面板
 ############################
@@ -437,6 +427,13 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
 
     def draw(self, context):
         layout = self.layout
+
+        row = layout.row(align=True)
+        op = row.operator(
+            OP.OT_New.bl_idname, text="New Map", icon_value=data.ICONS["blade"].icon_id
+        )
+        op.target = "new"  # type: ignore
+        op.execute_type = 0  # type: ignore
 
         row = layout.row(align=True)
         row.alignment = "RIGHT"

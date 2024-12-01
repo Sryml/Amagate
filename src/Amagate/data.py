@@ -37,6 +37,7 @@ AG_COLL = "Amagate Auto Generated"
 S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
+C_COLL = "Camera Collection"
 
 DEBUG = False
 ############################

@@ -363,73 +363,6 @@ class OT_External_Select(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
 
 
-# 场景面板 -> 初始化场景
-class OT_InitScene(bpy.types.Operator):
-    bl_idname = "amagate.initscene"
-    bl_label = "Initialize Scene"
-    bl_description = "Initialize or switch to Blade scene"
-    bl_options = {"INTERNAL", "UNDO"}
-
-    def execute(self, context: Context):
-        for i in bpy.data.scenes:
-            if i.amagate_data.is_blade:  # type: ignore
-                context.window.scene = i
-                return {"CANCELLED"}
-
-        # 创建新场景
-        name = "Blade Scene"
-        # bpy.ops.scene.new()
-        scene = bpy.data.scenes.new("")
-        scene.rename(name, mode="ALWAYS")
-        context.window.scene = scene
-        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
-
-        # 初始化场景数据
-        scene_data.id = 1
-        data.ensure_collection(data.AG_COLL, scene, hide_select=True)
-        data.ensure_collection(data.S_COLL, scene)
-        data.ensure_collection(data.GS_COLL, scene)
-        data.ensure_collection(data.E_COLL, scene)
-
-        data.ensure_null_object()
-
-        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
-        bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
-        scene_data.init()
-
-        # TODO 添加默认摄像机 添加默认扇区 划分界面布局 调整视角
-
-        scene_data.is_blade = True
-        split_editor(context)
-
-        # bpy.ops.ed.undo_push(message="Initialize Scene")
-        return {"FINISHED"}
-
-
-def split_editor(context: Context):
-    area = next(a for a in context.screen.areas if a.type == "VIEW_3D")
-    bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
-
-    # 找到新创建的区域
-    new_area = next(
-        a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
-    )
-    if data.DEBUG:
-        # For DEBUG
-        new_area.type = "CONSOLE"
-        # window_region = next((r for r in new_area.regions if r.type == 'WINDOW'), None)
-        # 第二次拆分
-        with context.temp_override(area=new_area):  # , region=window_region
-            bpy.ops.screen.area_split(direction="HORIZONTAL", factor=0.75)
-
-        # 找到新创建的区域
-        # new_area = next(a for a in context.screen.areas if a != new_area and a.type == 'CONSOLE')
-        new_area.type = "VIEW_3D"
-
-    with context.temp_override(area=new_area):
-        bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
-
-
 ############################
 ############################ 纹理面板
 ############################
@@ -453,8 +386,8 @@ class OT_Texture_Add(bpy.types.Operator):
     directory: StringProperty()  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
-    def load_image(self, context: Context, filepath, name=""):
-        scene_data = context.scene.amagate_data
+    @staticmethod
+    def load_image(context: Context, filepath, name=""):
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img_data = img.amagate_data
         if name:
@@ -707,7 +640,7 @@ class OT_Sector_Convert(bpy.types.Operator):
     bl_idname = "amagate.sector_convert"
     bl_label = "Convert to Sector"
     bl_description = "Convert selected objects to sector"
-    bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL", "UNDO"}
 
     def execute(self, context: Context):
         original_selection = context.selected_objects
@@ -743,6 +676,166 @@ class OT_Sector_Convert(bpy.types.Operator):
                 sector_data = obj.amagate_data.get_sector_data()
                 sector_data.init()
         return {"FINISHED"}
+
+
+############################
+############################ 工具面板
+############################
+
+
+# 新文件
+class OT_New(bpy.types.Operator):
+    bl_idname = "amagate.new"
+    bl_label = "New"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    target: StringProperty(default="new")  # type: ignore
+    execute_type: IntProperty(default=0)  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        if properties.execute_type != 0:  # type: ignore
+            return ""
+        if properties.target == "new":  # type: ignore
+            return pgettext("New Blade Map")
+        elif properties.target == "import":  # type: ignore
+            return pgettext("Import Blade scene from *.bw file")
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data  # type: ignore
+
+        row = layout.row()
+        row.label(text="Save changes before closing?")
+
+        row = layout.row()
+        row.operator(OT_New.bl_idname, text="Save").execute_type = 1  # type: ignore
+        row.operator(OT_New.bl_idname, text="Don't Save").execute_type = 2  # type: ignore
+        row.operator(OT_New.bl_idname, text="Cancel").execute_type = 3  # type: ignore
+
+    @staticmethod
+    def timer_func(target):
+        def warp():
+            operators = {"new": "initmap", "import": "# TODO"}
+            getattr(bpy.ops.amagate, operators[target])()  # type: ignore
+
+        return warp
+
+    def execute(self, context):
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        if self.execute_type == 0:
+            if bpy.data.is_dirty:
+                return context.window_manager.invoke_popup(self)
+        elif self.execute_type == 1:  # Save
+            # simulate_keypress()
+            ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
+            if ret != {"FINISHED"}:
+                return ret
+        elif self.execute_type == 2:  # Don't Save
+            # simulate_keypress()
+            pass
+        elif self.execute_type == 3:  # Cancel
+            simulate_keypress()
+            return {"CANCELLED"}
+
+        bpy.ops.wm.read_homefile(app_template="")
+        bpy.app.timers.register(self.timer_func(self.target), first_interval=0.05)
+        return {"FINISHED"}
+
+
+# 初始化地图
+class OT_InitMap(bpy.types.Operator):
+    bl_idname = "amagate.initmap"
+    bl_label = "Initialize Map"
+    bl_description = ""
+    bl_options = {"INTERNAL", "UNDO"}
+
+    def execute(self, context: Context):
+        # 清空场景
+        bpy.ops.object.select_all(action="SELECT")
+        bpy.ops.object.delete(use_global=True)
+        for d in (
+            bpy.data.meshes,
+            bpy.data.lights,
+            bpy.data.cameras,
+            bpy.data.collections,
+        ):
+            for _ in range(len(d)):
+                d.remove(d[-1])  # type: ignore
+        old_scene = context.window.scene
+
+        # 创建新场景
+        name = "Blade Scene"
+        # bpy.ops.scene.new()
+        scene = bpy.data.scenes.new("")
+        scene.rename(name, mode="ALWAYS")
+        context.window.scene = scene
+        bpy.data.scenes.remove(old_scene)
+        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+
+        # 初始化场景数据
+        scene_data.id = 1
+        ## 创建集合
+        data.ensure_collection(data.AG_COLL, scene, hide_select=True)
+        data.ensure_collection(data.S_COLL, scene)
+        data.ensure_collection(data.GS_COLL, scene)
+        data.ensure_collection(data.E_COLL, scene)
+        data.ensure_collection(data.C_COLL, scene)
+        ## 加载纹理
+        data.ensure_null_object()
+        filepath = os.path.join(os.path.dirname(__file__), "textures", "wall_01.jpg")
+        OT_Texture_Add.load_image(context, filepath, "wall_01")
+        ## 创建默认数据
+        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
+        bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
+        ##
+        scene_data.init()
+
+        # TODO 添加默认摄像机 添加默认扇区 调整视角
+
+        scene_data.is_blade = True
+        split_editor(context)
+
+        # bpy.ops.ed.undo_push(message="Initialize Scene")
+        return {"FINISHED"}
+
+
+def split_editor(context: Context):
+    area = next(a for a in context.screen.areas if a.type == "VIEW_3D")
+    with context.temp_override(area=area):
+        bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
+        # 调整工作区域属性
+        area.spaces[0].shading.type = "MATERIAL"  # type: ignore
+        bpy.ops.view3d.toggle_xray()
+
+    # 找到新创建的区域
+    new_area = next(
+        a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
+    )
+    if data.DEBUG:
+        # For DEBUG
+        new_area.type = "CONSOLE"
+        # window_region = next((r for r in new_area.regions if r.type == 'WINDOW'), None)
+        # 第二次拆分
+        with context.temp_override(area=new_area):  # , region=window_region
+            bpy.ops.screen.area_split(direction="HORIZONTAL", factor=0.75)
+
+        # 找到新创建的区域
+        # new_area = next(a for a in context.screen.areas if a != new_area and a.type == 'CONSOLE')
+        new_area.type = "VIEW_3D"
+
+    # 调整渲染区域属性
+    new_area.spaces[0].shading.type = "RENDERED"  # type: ignore
+    new_area.spaces[0].overlay.show_extras = False  # type: ignore
+    new_area.spaces[0].overlay.show_floor = False  # type: ignore
+    new_area.spaces[0].overlay.show_axis_x = False  # type: ignore
+    new_area.spaces[0].overlay.show_axis_y = False  # type: ignore
+    new_area.spaces[0].overlay.show_cursor = False  # type: ignore
+    with context.temp_override(area=new_area):
+        bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
 
 
 # 重载插件

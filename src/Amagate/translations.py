@@ -5,7 +5,6 @@ translations_dict = {
         (None, "Amagate"): "阿门",
         ("*", "Amagate Data"): "Amagate 数据",
         ("*", "Blade Scene"): "Blade 场景",
-        # ("*", "Duplicate Name"): "名称重复",
         ("*", "Non-Blade scene"): "非 Blade 场景",
         ("*", "Non-Sector"): "非扇区",
         ("*", "Hold shift to quickly delete"): "按住 Shift 可快速删除",
@@ -13,9 +12,9 @@ translations_dict = {
         ("*", "Sector Collection"): "扇区集合",
         ("*", "Ghost Sector Collection"): "虚拟扇区集合",
         ("*", "Entity Collection"): "实体集合",
-        # 初始化场景面板
-        ("Operator", "Initialize Scene"): "初始化场景",
-        ("*", "Initialize or switch to Blade scene"): "初始化或切换到 Blade 场景",
+        ("*", "Camera Collection"): "摄像机集合",
+        ("Operator", "Don't Save"): "不保存",
+        ("Operator", "Cancel"): "取消",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
@@ -66,6 +65,9 @@ translations_dict = {
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         #
         ("Operator", "Export Map"): "导出地图",
+        # 工具面板
+        ("Operator", "New Map"): "新建地图",
+        ("*", "New Blade Map"): "新建 Blade 地图",
     },
 }
 
