@@ -436,11 +436,27 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
         op.execute_type = 0  # type: ignore
 
         row = layout.row(align=True)
-        row.alignment = "RIGHT"
-        row.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")  # 添加按钮
         # row = layout.row(align=True)
         # row.alignment = "CENTER"
         layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
+
+
+############################
+############################ 调试面板
+############################
+class AMAGATE_PT_Debug(N_Panel, bpy.types.Panel):
+    bl_label = "Debug"
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout
+
+        col = layout.column(align=True)
+        col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
+        col.operator(OP.OT_ExportNode.bl_idname)
 
 
 ############################

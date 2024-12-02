@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Any, TYPE_CHECKING
+from pprint import pprint
 
 # from collections import Counter
 
@@ -22,6 +23,8 @@ from bpy.props import (
     StringProperty,
 )
 import rna_keymap_ui
+
+from . import nodes_data
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -133,9 +136,155 @@ def ensure_collection(name, scene=None, hide_select=False) -> bpy.types.Collecti
     return coll
 
 
+# 确保材质
+def ensure_material(tex_name) -> bpy.types.Material:
+    mat = bpy.data.materials.get(tex_name)
+    if not mat:
+        mat = bpy.data.materials.new(tex_name)
+
+    return mat
+
+
 def link2coll(obj, coll):
     if coll.objects.get(obj.name) is None:
         coll.objects.link(obj)
+
+
+############################
+############################ 节点导入导出
+############################
+
+
+def to_primitive(obj):
+    """将对象转化为基本类型"""
+    if isinstance(obj, (int, float, str, bool)):
+        return obj
+    try:
+        return tuple(obj)
+    except TypeError:
+        return None
+
+
+def serialize_node(node: bpy.types.Node, temp_node):
+    """序列化节点为字典"""
+    node_data = {
+        "type": node.bl_idname,
+        "name": node.name,
+        "properties": {},
+    }
+    for prop in node.bl_rna.properties:
+        if (
+            not prop.is_readonly
+            and not prop.identifier.startswith("bl_")
+            and prop.identifier != "name"
+        ):
+            value = to_primitive(getattr(node, prop.identifier))
+            if value is not None:
+                if value != to_primitive(
+                    getattr(temp_node, prop.identifier)
+                ):  # 只存储非默认值
+                    node_data["properties"][prop.identifier] = value
+    # 处理输入
+    inputs_data = []
+    for i, input_socket in enumerate(node.inputs):
+        if not input_socket.is_linked:
+            if not hasattr(input_socket, "default_value"):
+                continue
+            value = to_primitive(input_socket.default_value)  # type: ignore
+            if value is not None:
+                if value != to_primitive(
+                    temp_node.inputs[i].default_value
+                ):  # 只存储非默认值
+                    inputs_data.append(
+                        {"idx": i, "name": input_socket.name, "value": value}
+                    )
+
+    node_data["inputs"] = inputs_data
+
+    return node_data
+
+
+def deserialize_node(nodes, node_data):
+    """根据字典数据重建节点"""
+    node = nodes.new(type=node_data["type"])
+    node.name = node_data["name"]
+    # node.location = tuple(node_data["location"])
+    for prop, value in node_data["properties"].items():
+        setattr(node, prop, value)
+
+    for input_data in node_data.get("inputs", []):
+        input_socket = node.inputs.get(input_data["name"])
+        input_socket.default_value = input_data["value"]
+
+    return node
+
+
+def export_nodes(target, var_name, filepath):
+    if hasattr(target, "node_tree"):
+        nodes = target.node_tree.nodes  # type: bpy.types.Nodes
+        links = target.node_tree.links  # type: bpy.types.NodeLinks
+    else:
+        nodes = target.nodes  # type: bpy.types.Nodes
+        links = target.links  # type: bpy.types.NodeLinks
+
+    temp_nodes = {}
+
+    # 存储节点和连接的字典
+    nodes_data = {"nodes": [], "links": []}
+    for node in list(nodes):
+        temp_node = temp_nodes.get(node.bl_idname)
+        if not temp_node:
+            temp_node = temp_nodes.setdefault(
+                node.bl_idname, nodes.new(type=node.bl_idname)
+            )
+
+        node_data = serialize_node(node, temp_node)
+        nodes_data["nodes"].append(node_data)
+
+    for node in temp_nodes.values():
+        nodes.remove(node)
+
+    # 遍历连接
+    for link in links:
+        link_data = {
+            "from_node": link.from_node.name,
+            "from_socket": link.from_socket.name,
+            "to_node": link.to_node.name,
+            "to_socket": link.to_socket.name,
+        }
+        nodes_data["links"].append(link_data)
+
+    with open(filepath, "w", encoding="utf-8") as file:
+        file.write(f"{var_name} = ")
+        pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
+
+    print("导出成功")
+
+
+def import_nodes(target, nodes_data):
+    if hasattr(target, "node_tree"):
+        target.use_nodes = True
+        nodes = target.node_tree.nodes  # type: bpy.types.Nodes
+        links = target.node_tree.links  # type: bpy.types.NodeLinks
+    else:
+        nodes = target.nodes  # type: bpy.types.Nodes
+        links = target.links  # type: bpy.types.NodeLinks
+
+    # 清空默认节点
+    for node in nodes:
+        nodes.remove(node)
+
+    node_map = {}
+    for node_data in nodes_data["nodes"]:
+        node = deserialize_node(nodes, node_data)
+        node_map[node.name] = node
+
+    for link_data in nodes_data["links"]:
+        from_node = node_map[link_data["from_node"]]
+        to_node = node_map[link_data["to_node"]]
+        from_socket = from_node.outputs[link_data["from_socket"]]
+        to_socket = to_node.inputs[link_data["to_socket"]]
+        links.new(from_socket, to_socket)
 
 
 ############################

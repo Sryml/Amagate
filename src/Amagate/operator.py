@@ -321,7 +321,6 @@ class OT_Scene_External_Set(bpy.types.Operator):
 
         return {"FINISHED"}
 
-    # TODO
     def draw(self, context):
         layout = self.layout
         scene_data = context.scene.amagate_data  # type: ignore
@@ -717,7 +716,7 @@ class OT_New(bpy.types.Operator):
     @staticmethod
     def timer_func(target):
         def warp():
-            operators = {"new": "initmap", "import": "# TODO"}
+            operators = {"new": "initmap", "import": ""}
             getattr(bpy.ops.amagate, operators[target])()  # type: ignore
 
         return warp
@@ -834,8 +833,66 @@ def split_editor(context: Context):
     new_area.spaces[0].overlay.show_axis_x = False  # type: ignore
     new_area.spaces[0].overlay.show_axis_y = False  # type: ignore
     new_area.spaces[0].overlay.show_cursor = False  # type: ignore
-    with context.temp_override(area=new_area):
+
+    with context.temp_override(area=area, space_data=area.spaces[0]):
         bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
+
+    region = next(r for r in area.regions if r.type == "UI")
+    bpy.app.timers.register(
+        active_panel_category(region, "Amagate"), first_interval=0.05
+    )
+
+
+def active_panel_category(region, category):
+    def warp():
+        try:
+            region.active_panel_category = category  # type: ignore
+        except:
+            pass
+
+    return warp
+
+
+# 合并地图
+class OT_MergeMap(bpy.types.Operator):
+    bl_idname = "amagate.mergemap"
+    bl_label = "Merge Map"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        # TODO 合并地图
+        return {"FINISHED"}
+
+
+# 导入地图
+class OT_ImportMap(bpy.types.Operator):
+    bl_idname = "amagate.importmap"
+    bl_label = "Import Map"
+    bl_description = "Import Blade Map"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        # TODO 导入地图
+        return {"FINISHED"}
+
+
+#  -> 导出地图
+class OT_ExportMap(bpy.types.Operator):
+    bl_idname = "amagate.exportmap"
+    bl_label = "Export Map"
+    bl_description = "Export Blade Map"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        # self.report({'WARNING'}, "Export Failed")
+        self.report({"INFO"}, "Export Success")
+        return {"FINISHED"}
+
+
+############################
+############################ 调试面板
+############################
 
 
 # 重载插件
@@ -850,22 +907,25 @@ class OT_ReloadAddon(bpy.types.Operator):
 
         bpy.ops.preferences.addon_disable(module=__package__)  # type: ignore
         # base_package.unregister()
-        bpy.ops.preferences.addon_enable(module=__package__)  # type: ignore
+        bpy.app.timers.register(
+            lambda: bpy.ops.preferences.addon_enable(module=__package__) and None,  # type: ignore
+            first_interval=0.5,
+        )
+        # bpy.ops.preferences.addon_enable(module=__package__)  # type: ignore
         # base_package.register(reload=True)
         print("插件已热更新！")
         return {"FINISHED"}
 
 
-#  -> 导出地图
-class OT_ExportMap(bpy.types.Operator):
-    bl_idname = "amagate.exportmap"
-    bl_label = "Export Map"
-    bl_description = "Export Blade Map"
-    bl_options = {"INTERNAL"}
+# 导出节点
+class OT_ExportNode(bpy.types.Operator):
+    bl_idname = "amagate.exportnode"
+    bl_label = "Export Node"
+    # bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        # self.report({'WARNING'}, "Export Failed")
-        self.report({"INFO"}, "Export Success")
+        filepath = os.path.join(os.path.dirname(__file__), "nodes_data.py")
+        data.export_nodes(bpy.data.materials["test"], "mat_nodes", filepath)
         return {"FINISHED"}
 
 
