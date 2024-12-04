@@ -395,6 +395,9 @@ class OT_Texture_Add(bpy.types.Operator):
 
         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
         img_data.id = data.get_id(used_ids)
+        data.ensure_material(img.name)
+        if not img.use_fake_user:
+            img.use_fake_user = True
 
     def execute(self, context: Context):
         curr_dir = bpy.path.abspath("//")
@@ -416,6 +419,9 @@ class OT_Texture_Add(bpy.types.Operator):
 
         for file in files:
             name = os.path.splitext(file)[0]
+            if name == "NULL":
+                continue
+
             filepath = os.path.join(self.directory, file)
             if same_drive and self.relative_path:
                 filepath = f"//{os.path.relpath(filepath, curr_dir)}"
@@ -428,6 +434,9 @@ class OT_Texture_Add(bpy.types.Operator):
                     if not img.amagate_data.id:  # type: ignore
                         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
                         img.amagate_data.id = data.get_id(used_ids)  # type: ignore
+                        data.ensure_material(img.name)
+                        if not img.use_fake_user:
+                            img.use_fake_user = True
             else:
                 self.load_image(context, filepath, name)
         return {"FINISHED"}
@@ -466,8 +475,8 @@ class OT_Texture_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的纹理
-        # TODO 也许检查材质的引用
-        if img.users > 1:
+        mat = bpy.data.materials.get(img.name)
+        if mat and mat.users - mat.use_fake_user > 0:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Texture is used by sectors')}",
@@ -492,6 +501,8 @@ class OT_Texture_Remove(bpy.types.Operator):
 
         # 删除纹理
         bpy.data.images.remove(img)
+        if mat:
+            bpy.data.materials.remove(mat)
         # 更新索引
         new_idx = next((i for i in range(idx, len(bpy.data.images)) if bpy.data.images[i].amagate_data.id != 0), None)  # type: ignore
         if new_idx is None:
@@ -764,6 +775,7 @@ class OT_InitMap(bpy.types.Operator):
             bpy.data.collections,
         ):
             for _ in range(len(d)):
+                # 倒序删除，避免集合索引更新的开销
                 d.remove(d[-1])  # type: ignore
         old_scene = context.window.scene
 
@@ -784,8 +796,9 @@ class OT_InitMap(bpy.types.Operator):
         data.ensure_collection(data.GS_COLL, scene)
         data.ensure_collection(data.E_COLL, scene)
         data.ensure_collection(data.C_COLL, scene)
-        ## 加载纹理
+        ## 创建空对象
         data.ensure_null_object()
+        ## 加载纹理
         filepath = os.path.join(os.path.dirname(__file__), "textures", "wall_01.jpg")
         OT_Texture_Add.load_image(context, filepath, "wall_01")
         ## 创建默认数据
@@ -804,7 +817,10 @@ class OT_InitMap(bpy.types.Operator):
 
 
 def split_editor(context: Context):
-    area = next(a for a in context.screen.areas if a.type == "VIEW_3D")
+    area = next((a for a in context.screen.areas if a.type == "VIEW_3D"), None)
+    if not area:
+        return
+
     with context.temp_override(area=area):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性

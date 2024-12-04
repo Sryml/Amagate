@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import pickle
 from typing import Any, TYPE_CHECKING
 
 # from collections import Counter
@@ -31,7 +32,9 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
 
-############################
+############################ 全局变量
+DEBUG = False
+
 ICONS: Any = None
 
 AG_COLL = "Amagate Auto Generated"
@@ -39,8 +42,6 @@ S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
-
-DEBUG = False
 ############################
 
 
@@ -110,6 +111,8 @@ def ensure_null_texture():
         img.amagate_data.id = -1  # type: ignore
     elif not img.amagate_data.id:  # type: ignore
         img.amagate_data.id = -1  # type: ignore
+    if not img.use_fake_user:
+        img.use_fake_user = True
 
 
 # 确保NULL物体存在
@@ -139,6 +142,12 @@ def ensure_material(tex_name) -> bpy.types.Material:
     mat = bpy.data.materials.get(tex_name)
     if not mat:
         mat = bpy.data.materials.new(tex_name)
+        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        import_nodes(mat, nodes_data["mat_nodes"])
+        mat.use_fake_user = True
+        mat.node_tree.nodes["Image Texture"].image = bpy.data.images.get(tex_name)  # type: ignore
+        mat.use_backface_culling = True
 
     return mat
 
@@ -307,7 +316,7 @@ def import_nodes(target, nodes_data):
         if parent_name:
             node_map[node_data["name"]].parent = node_map[parent_name]
 
-    print("导入成功")
+    # print("导入成功")
 
 
 ############################
