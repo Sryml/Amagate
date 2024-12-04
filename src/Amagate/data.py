@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 from typing import Any, TYPE_CHECKING
-from pprint import pprint
 
 # from collections import Counter
 
@@ -24,7 +23,6 @@ from bpy.props import (
 )
 import rna_keymap_ui
 
-from . import nodes_data
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -157,8 +155,14 @@ def link2coll(obj, coll):
 
 def to_primitive(obj):
     """将对象转化为基本类型"""
+    if obj is None:
+        return None
+
     if isinstance(obj, (int, float, str, bool)):
         return obj
+    if hasattr(obj, "type") and obj.type == "FRAME":
+        return obj.name
+
     try:
         return tuple(obj)
     except TypeError:
@@ -170,20 +174,22 @@ def serialize_node(node: bpy.types.Node, temp_node):
     node_data = {
         "type": node.bl_idname,
         "name": node.name,
+        # "location": tuple(node.location),  # type: ignore
         "properties": {},
     }
     for prop in node.bl_rna.properties:
+        identifier = prop.identifier
         if (
             not prop.is_readonly
-            and not prop.identifier.startswith("bl_")
-            and prop.identifier != "name"
+            and not identifier.startswith("bl_")
+            and identifier not in ("name", "select", "location")
         ):
-            value = to_primitive(getattr(node, prop.identifier))
+            value = to_primitive(getattr(node, identifier))
             if value is not None:
                 if value != to_primitive(
-                    getattr(temp_node, prop.identifier)
+                    getattr(temp_node, identifier)
                 ):  # 只存储非默认值
-                    node_data["properties"][prop.identifier] = value
+                    node_data["properties"][identifier] = value
     # 处理输入
     inputs_data = []
     for i, input_socket in enumerate(node.inputs):
@@ -201,25 +207,34 @@ def serialize_node(node: bpy.types.Node, temp_node):
 
     node_data["inputs"] = inputs_data
 
+    parent_node = node.parent
+    node.parent = None
+    node_data["location"] = tuple(node.location)  # type: ignore
+    node.parent = parent_node
+
     return node_data
 
 
 def deserialize_node(nodes, node_data):
     """根据字典数据重建节点"""
     node = nodes.new(type=node_data["type"])
+    node.select = False
     node.name = node_data["name"]
     # node.location = tuple(node_data["location"])
     for prop, value in node_data["properties"].items():
-        setattr(node, prop, value)
+        if prop != "parent":
+            setattr(node, prop, value)
 
     for input_data in node_data.get("inputs", []):
         input_socket = node.inputs.get(input_data["name"])
         input_socket.default_value = input_data["value"]
 
+    node.location = node_data["location"]
+
     return node
 
 
-def export_nodes(target, var_name, filepath):
+def export_nodes(target):
     if hasattr(target, "node_tree"):
         nodes = target.node_tree.nodes  # type: bpy.types.Nodes
         links = target.node_tree.links  # type: bpy.types.NodeLinks
@@ -254,11 +269,12 @@ def export_nodes(target, var_name, filepath):
         }
         nodes_data["links"].append(link_data)
 
-    with open(filepath, "w", encoding="utf-8") as file:
-        file.write(f"{var_name} = ")
-        pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
+    # with open(filepath, "w", encoding="utf-8") as file:
+    # file.write(f"{var_name} = ")
+    # pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
 
     print("导出成功")
+    return nodes_data
 
 
 def import_nodes(target, nodes_data):
@@ -285,6 +301,13 @@ def import_nodes(target, nodes_data):
         from_socket = from_node.outputs[link_data["from_socket"]]
         to_socket = to_node.inputs[link_data["to_socket"]]
         links.new(from_socket, to_socket)
+
+    for node_data in nodes_data["nodes"]:
+        parent_name = node_data["properties"].get("parent")
+        if parent_name:
+            node_map[node_data["name"]].parent = node_map[parent_name]
+
+    print("导入成功")
 
 
 ############################

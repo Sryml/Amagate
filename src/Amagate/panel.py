@@ -457,6 +457,7 @@ class AMAGATE_PT_Debug(N_Panel, bpy.types.Panel):
         col = layout.column(align=True)
         col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
         col.operator(OP.OT_ExportNode.bl_idname)
+        col.operator(OP.OT_ImportNode.bl_idname)
 
 
 ############################

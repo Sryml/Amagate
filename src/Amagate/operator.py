@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 import os
+import pickle
 from typing import Any, TYPE_CHECKING
 
 import bpy
@@ -921,11 +922,54 @@ class OT_ReloadAddon(bpy.types.Operator):
 class OT_ExportNode(bpy.types.Operator):
     bl_idname = "amagate.exportnode"
     bl_label = "Export Node"
-    # bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        filepath = os.path.join(os.path.dirname(__file__), "nodes_data.py")
-        data.export_nodes(bpy.data.materials["test"], "mat_nodes", filepath)
+        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        # 导出节点
+        nodes_data = {}
+        nodes_data["mat_nodes"] = data.export_nodes(bpy.data.materials["test"])
+        nodes_data["amagate_eval"] = data.export_nodes(
+            bpy.data.node_groups["Amagate Eval"]
+        )
+        pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+        return {"FINISHED"}
+
+
+class OT_ImportNode(bpy.types.Operator):
+    bl_idname = "amagate.importnode"
+    bl_label = "Import Node"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+
+        mat = bpy.data.materials.new("test")
+        data.import_nodes(mat, nodes_data["mat_nodes"])
+
+        group = bpy.data.node_groups.new("Amagate Eval", "GeometryNodeTree")  # type: ignore
+
+        group.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        input_node = group.nodes.new("NodeGroupInput")
+        input_node.select = False
+        input_node.location.x = -200 - input_node.width
+
+        group.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+        output_node = group.nodes.new("NodeGroupOutput")
+        output_node.is_active_output = True  # type: ignore
+        output_node.select = False
+        output_node.location.x = 200
+
+        group.links.new(input_node.outputs[0], output_node.inputs[0])
+        group.use_fake_user = True
+        group.is_tool = True  # type: ignore
+        group.is_type_mesh = True  # type: ignore
+        data.import_nodes(group, nodes_data["amagate_eval"])
         return {"FINISHED"}
 
 
