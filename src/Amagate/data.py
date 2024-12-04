@@ -23,6 +23,7 @@ from bpy.props import (
     StringProperty,
 )
 import rna_keymap_ui
+from mathutils import *  # type: ignore
 
 
 if TYPE_CHECKING:
@@ -94,11 +95,11 @@ def get_external_by_id(scene_data, external_id) -> tuple[int, ExternalLightPrope
     return (0, None)  # type: ignore
 
 
-def get_texture_by_id(texture_id) -> tuple[int, bpy.types.Image]:
+def get_texture_by_id(texture_id) -> tuple[int, Image]:
     if texture_id != 0:
         for i, texture in enumerate(bpy.data.images):
             if texture.amagate_data.id == texture_id:  # type: ignore
-                return (i, texture)
+                return (i, texture)  # type: ignore
     return (-1, None)  # type: ignore
 
 
@@ -116,10 +117,11 @@ def ensure_null_texture():
 
 
 # 确保NULL物体存在
-def ensure_null_object() -> bpy.types.Object:
-    null_obj = bpy.data.objects.get("NULL")
+def ensure_null_object() -> Object:
+    null_obj = bpy.data.objects.get("NULL")  # type: Object # type: ignore
     if not null_obj:
         null_obj = bpy.data.objects.new("NULL", None)
+        null_obj.use_fake_user = True
     return null_obj
 
 
@@ -138,16 +140,20 @@ def ensure_collection(name, scene=None, hide_select=False) -> bpy.types.Collecti
 
 
 # 确保材质
-def ensure_material(tex_name) -> bpy.types.Material:
-    mat = bpy.data.materials.get(tex_name)
+def ensure_material(tex: Image) -> bpy.types.Material:
+    tex_data = tex.amagate_data
+    name = f"AG.Mat{tex_data.id}"
+    mat = tex_data.mat_obj
     if not mat:
-        mat = bpy.data.materials.new(tex_name)
+        mat = bpy.data.materials.new("")
+        mat.rename(name, mode="ALWAYS")
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
         import_nodes(mat, nodes_data["mat_nodes"])
         mat.use_fake_user = True
-        mat.node_tree.nodes["Image Texture"].image = bpy.data.images.get(tex_name)  # type: ignore
+        mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
         mat.use_backface_culling = True
+        tex_data.mat_obj = mat
 
     return mat
 
@@ -537,7 +543,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         context,
         layout,
         data,
-        item: bpy.types.Image,
+        item: Image,
         icon,
         active_data,
         active_prop,
@@ -997,6 +1003,35 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         return self.external_obj
 
+    def set_matslot(self, mat, faces=[]):
+        """设置材质槽位"""
+        obj = self.id_data  # type: Object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+
+        slot = obj.material_slots.get(mat.name)
+        if not slot:
+            slots = set(range(len(obj.material_slots)))
+            for face in mesh.polygons:
+                if face.index in faces:
+                    continue
+                slots.discard(face.material_index)
+                if not slots:
+                    break
+
+            if slots:
+                slot = obj.material_slots[slots.pop()]
+            else:
+                mesh.materials.append(None)
+                slot = obj.material_slots[-1]
+
+        if slot.link != "OBJECT":
+            slot.link = "OBJECT"
+        if not slot.material:
+            slot.material = mat
+        slot_index = slot.slot_index
+        for i in faces:
+            mesh.polygons[i].material_index = slot_index
+
     def init(self):
         scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
 
@@ -1004,35 +1039,48 @@ class SectorProperty(bpy.types.PropertyGroup):
         id_ = get_id(used_ids)
         self.id = id_
 
-        self["Textures"] = {}
-        obj = self.id_data
-        mesh = obj.data
+        obj = self.id_data  # type: Object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
 
-        # 遍历网格的面
+        obj[f"AG - Sector ID"] = id_
+
+        # 添加网格属性
+        mesh.attributes.new(name="tex_id", type="INT", domain="FACE")
+        mesh.attributes.new(name="tex_pos", type="FLOAT2", domain="FACE")
+        mesh.attributes.new(name="tex_rotate", type="FLOAT", domain="FACE")
+        mesh.attributes.new(name="tex_scale", type="FLOAT2", domain="FACE")
+
+        # 指定材质
         for face in mesh.polygons:  # polygons 代表面
             face_index = face.index  # 面的索引
             face_normal = face.normal  # 面的法线方向（Vector）
 
-            # 判断是否朝上或朝下
-            if face_normal.z > 0:  # z 方向为正，面朝上，地板
-                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
-                    "Floor"
-                ]
-            elif face_normal.z < 0:  # z 方向为负，面朝下，天花板
-                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
-                    "Ceiling"
-                ]
+            # 判断地板和天花板
+            dp = face_normal.dot(Vector((0, 0, 1)))
+            if dp > 0.999:  # 地板
+                tex_id = scene_data.defaults["Textures"]["Floor"]["id"]
+            elif dp < -0.999:  # 天花板
+                tex_id = scene_data.defaults["Textures"]["Ceiling"]["id"]
+            else:  # 墙壁
+                tex_id = scene_data.defaults["Textures"]["Wall"]["id"]
+            mesh.attributes["tex_id"].data[face_index].value = tex_id  # type: ignore
+            mat = None
+            tex = get_texture_by_id(tex_id)[1]
+            if tex:
+                mat = tex.amagate_data.mat_obj
+            if mat:
+                self.set_matslot(mat, [face_index])
             else:
-                self["Textures"][str(face_index)] = scene_data.defaults["Textures"][
-                    "Wall"
-                ]
+                pass
 
+        # 指定大气
         self.atmo_id = scene_data.defaults.atmo_id
         get_atmo_by_id(scene_data, self.atmo_id)[1].users_obj.add().obj = obj
 
         # self.ambient_light.color = scene_data.defaults.ambient_light.color
         # self.ambient_light.vector = scene_data.defaults.ambient_light.vector
 
+        # 指定外部光
         self.external_id = scene_data.defaults.external_id
         self.ensure_external_obj()
         get_external_by_id(scene_data, self.external_id)[1].users_obj.add().obj = obj
@@ -1045,6 +1093,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 # 图像属性
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
+    mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
 
 
 # 场景属性

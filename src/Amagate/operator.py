@@ -395,7 +395,7 @@ class OT_Texture_Add(bpy.types.Operator):
 
         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
         img_data.id = data.get_id(used_ids)
-        data.ensure_material(img.name)
+        data.ensure_material(img)
         if not img.use_fake_user:
             img.use_fake_user = True
 
@@ -426,7 +426,7 @@ class OT_Texture_Add(bpy.types.Operator):
             if same_drive and self.relative_path:
                 filepath = f"//{os.path.relpath(filepath, curr_dir)}"
 
-            img = bpy.data.images.get(name)
+            img = bpy.data.images.get(name)  # type: Image # type: ignore
             if img:
                 if self.override:
                     img.filepath = filepath
@@ -434,7 +434,7 @@ class OT_Texture_Add(bpy.types.Operator):
                     if not img.amagate_data.id:  # type: ignore
                         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
                         img.amagate_data.id = data.get_id(used_ids)  # type: ignore
-                        data.ensure_material(img.name)
+                        data.ensure_material(img)
                         if not img.use_fake_user:
                             img.use_fake_user = True
             else:
@@ -475,7 +475,7 @@ class OT_Texture_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的纹理
-        mat = bpy.data.materials.get(img.name)
+        mat = img_data.mat_obj  # type: bpy.types.Material
         if mat and mat.users - mat.use_fake_user > 0:
             self.report(
                 {"WARNING"},
@@ -526,23 +526,23 @@ class OT_Texture_Reload(bpy.types.Operator):
 
     reload_all: BoolProperty(name="Reload All", default=False)  # type: ignore
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         if self.reload_all:
-            for img in bpy.data.images:
-                if img.amagate_data.id:  # type: ignore
+            for img in bpy.data.images:  # type: ignore
+                if img.amagate_data.id:
                     img.reload()
         else:
             idx = scene_data.active_texture
             if idx >= len(bpy.data.images):
                 return {"CANCELLED"}
 
-            img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
-            if img and img.amagate_data.id:  # type: ignore
+            img: Image = bpy.data.images[idx]
+            if img and img.amagate_data.id:
                 img.reload()
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event):
         self.reload_all = event.shift
         return self.execute(context)
 
@@ -571,8 +571,8 @@ class OT_Texture_Package(bpy.types.Operator):
         if idx >= len(bpy.data.images):
             return {"CANCELLED"}
 
-        img: bpy.types.Image = bpy.data.images[idx]  # type: ignore
-        if img and img.amagate_data.id and img.name != "NULL":  # type: ignore
+        img: Image = bpy.data.images[idx]
+        if img and img.amagate_data.id and img.name != "NULL":
             if img.packed_file:
                 img.unpack(method=m)
             else:
@@ -665,6 +665,7 @@ class OT_Sector_Convert(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 选择所有 MESH 对象
+        bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.select_all(action="DESELECT")
         for obj in mesh_objects:
             obj.select_set(True)  # 选择 MESH 对象
@@ -773,6 +774,7 @@ class OT_InitMap(bpy.types.Operator):
             bpy.data.lights,
             bpy.data.cameras,
             bpy.data.collections,
+            bpy.data.materials,
         ):
             for _ in range(len(d)):
                 # 倒序删除，避免集合索引更新的开销
