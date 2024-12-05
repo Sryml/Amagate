@@ -229,9 +229,22 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
             row.prop(prop, "pos", index=1, text="Y")
 
             row = box.row()
-            row.prop(prop, "zoom", text="Zoom")
-            # row.separator()
             row.prop(prop, "angle", text="Angle")
+
+            box2 = box.box()
+            row = box2.row()
+            col = row.column()
+            col.prop(prop, "zoom", index=0, text=f"X {pgettext('Zoom')}")
+            col.prop(prop, "zoom", index=1, text=f"Y {pgettext('Zoom')}")
+            col = row.column()
+            col.scale_y = 2
+            col.prop(
+                prop,
+                "zoom_constraint",
+                text="",
+                icon="LINKED" if prop.zoom_constraint else "UNLINKED",
+                emboss=False,
+            )
 
             if i != len(scene_data.default_tex) - 1:
                 layout.separator()

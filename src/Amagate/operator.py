@@ -476,7 +476,7 @@ class OT_Texture_Remove(bpy.types.Operator):
 
         # 不能删除正在使用的纹理
         mat = img_data.mat_obj  # type: bpy.types.Material
-        if mat and mat.users - mat.use_fake_user > 0:
+        if mat and mat.users - mat.use_fake_user > 1:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Texture is used by sectors')}",

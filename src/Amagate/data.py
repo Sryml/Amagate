@@ -739,6 +739,7 @@ class TextureProperty(bpy.types.PropertyGroup):
     target: StringProperty(default="Sector")  # type: ignore
     pos: FloatVectorProperty(
         name="Position",
+        description="Texture Position",
         subtype="XYZ",
         size=2,
         step=10,
@@ -747,7 +748,20 @@ class TextureProperty(bpy.types.PropertyGroup):
         # min=-1.0,
         # max=1.0,
     )  # type: ignore
-    zoom: FloatProperty(name="Zoom", default=10.0, set=lambda self, value: self.set_zoom(value), get=lambda self: self.get_zoom())  # type: ignore
+    zoom: FloatVectorProperty(
+        name="Zoom",
+        description="Texture Zoom",
+        subtype="XYZ",
+        size=2,
+        step=10,
+        set=lambda self, value: self.set_zoom(value),
+        get=lambda self: self.get_zoom(),
+    )  # type: ignore
+    zoom_constraint: BoolProperty(
+        name="Constraint",
+        # description="Zoom Constraint",
+        default=True,
+    )  # type: ignore
     angle: FloatProperty(name="Angle", default=0.0, set=lambda self, value: self.set_angle(value), get=lambda self: self.get_angle())  # type: ignore
     ############################
 
@@ -771,11 +785,20 @@ class TextureProperty(bpy.types.PropertyGroup):
             scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
             return scene_data.defaults["Textures"][self.target]["zoom"]
         else:
-            return self.get("_zoom", 10.0)
+            return self.get("_zoom", (10.0, 10.0))
 
     def set_zoom(self, value):
         if self.target != "Sector":
             scene_data: SceneProperty = bpy.context.scene.amagate_data  # type: ignore
+            if self.zoom_constraint:
+                value = list(value)
+                old_value = scene_data.defaults["Textures"][self.target]["zoom"]
+                idx = 0 if old_value[0] != value[0] else 1
+                if old_value[0] == old_value[1]:
+                    value[1 - idx] = value[idx]
+                else:
+                    factor = value[idx] / old_value[idx]
+                    value[1 - idx] = old_value[1 - idx] * factor
             scene_data.defaults["Textures"][self.target]["zoom"] = value
         else:
             self["_zoom"] = value
@@ -1140,9 +1163,9 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.atmo_id = 1
         defaults.external_id = 1
         defaults["Textures"] = {
-            "Floor": {"id": 0, "pos": (0.0, 0.0), "zoom": 10.0, "angle": 0.0},
-            "Ceiling": {"id": 0, "pos": (0.0, 0.0), "zoom": 10.0, "angle": 0.0},
-            "Wall": {"id": 0, "pos": (0.0, 0.0), "zoom": 10.0, "angle": -90.0},
+            "Floor": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+            "Ceiling": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+            "Wall": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
         }
 
         ############################
