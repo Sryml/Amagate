@@ -1,0 +1,9 @@
+{
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.diagnosticSeverityOverrides": {
+        "reportShadowedImports": "none",
+        "reportUnboundVariable": "none",
+        "reportOptionalMemberAccess": "none",
+        "reportUnusedExpression": "none"
+      },
+}
