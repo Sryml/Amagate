@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import pickle
+import threading
 from typing import Any, TYPE_CHECKING
 
 # from collections import Counter
@@ -43,6 +44,8 @@ S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
+
+AUTO_CLEAN_LOCK: threading.Lock = None  # type: ignore
 ############################
 
 
@@ -126,9 +129,8 @@ def ensure_null_object() -> Object:
 
 
 # 确保集合
-def ensure_collection(name, scene=None, hide_select=False) -> bpy.types.Collection:
-    if not scene:
-        scene = bpy.context.scene
+def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
+    scene = bpy.context.scene
     collections = bpy.data.collections
     name = f"{pgettext(name)}{get_scene_suffix(scene)}"
     coll = collections.get(name)
@@ -419,6 +421,57 @@ def unregister_shortcuts():
 
 
 ############################
+############################ 依赖图更新回调
+############################
+
+
+def auto_clean():
+    # bpy.ops.amagate.cleandata() # type: ignore
+    scene_data = bpy.context.scene.amagate_data
+    coll = ensure_collection(S_COLL)
+    SectorManage = scene_data["SectorManage"]
+    if len(SectorManage["sectors"]) != len(coll.all_objects):
+        exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.get_sector_data())  # type: ignore
+        all_ids = set(SectorManage["sectors"].keys())
+        deleted_ids = sorted(all_ids - exist_ids, reverse=True)
+
+        if deleted_ids:
+            # 如果只是移动到其它集合，则撤销操作
+            obj = SectorManage["sectors"][deleted_ids[0]]["obj"]
+            if obj and bpy.context.scene in obj.users_scene:
+                bpy.ops.ed.undo()
+                AUTO_CLEAN_LOCK.release()
+                return
+
+            bpy.ops.ed.undo()
+            scene_data = bpy.context.scene.amagate_data
+            coll = ensure_collection(S_COLL)
+            SectorManage = scene_data["SectorManage"]
+
+            for id_key in deleted_ids:
+                obj = SectorManage["sectors"][id_key]["obj"]
+                if obj:
+                    bpy.data.objects.remove(obj, do_unlink=True)
+                for l in SectorManage["sectors"][id_key]["light"]:
+                    l.hide_viewport = True
+
+                if int(id_key) != SectorManage["max_id"]:
+                    SectorManage["deleted_id_count"] += 1
+                else:
+                    SectorManage["max_id"] -= 1
+                SectorManage["sectors"].pop(id_key)
+
+            bpy.ops.ed.undo_push(message="Delete Sector")
+
+    AUTO_CLEAN_LOCK.release()
+
+
+def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
+    if AUTO_CLEAN_LOCK.acquire(blocking=False):
+        bpy.app.timers.register(auto_clean, first_interval=0.1)
+
+
+############################
 ############################ 保存前回调
 ############################
 
@@ -675,7 +728,7 @@ class Texture_Select(bpy.types.PropertyGroup):
 ############################
 
 
-class ObjectCollection(bpy.types.PropertyGroup):
+class SectorCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
     obj: PointerProperty(type=bpy.types.Object, update=lambda self, context: self.update_obj(context))  # type: ignore
 
@@ -688,7 +741,7 @@ class ObjectCollection(bpy.types.PropertyGroup):
 class AtmosphereProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
-    users_obj: CollectionProperty(type=ObjectCollection)  # type: ignore
+    users_obj: CollectionProperty(type=SectorCollection)  # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -720,7 +773,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         return self.get("_color", (0.0, 0.0, 0.0, 0.02))
 
     def set_color(self, value):
-        if value == self.color:
+        if value == tuple(self.color):
             return
 
         self["_color"] = value
@@ -728,6 +781,11 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
             obj = user.obj  # type: Object
             if obj:
                 obj.amagate_data.get_sector_data().update_atmo(self)
+
+    def clean(self):
+        lst = [i for i, item in enumerate(self.users_obj) if not item.obj]
+        for i in reversed(lst):
+            self.users_obj.remove(i)
 
     # 确保引用对象存在
     # def ensure_obj(self, scene: bpy.types.Scene, fix_link=False):
@@ -844,7 +902,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     name: StringProperty(name="Light Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
     obj: PointerProperty(type=bpy.types.Light)  # type: ignore
-    users_obj: CollectionProperty(type=ObjectCollection)  # type: ignore
+    users_obj: CollectionProperty(type=SectorCollection)  # type: ignore
 
     color: FloatVectorProperty(
         name="Color",
@@ -1012,7 +1070,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     def update_atmo(self, atmo):
         self.atmo_color = atmo.color[:3]
         f = 1.0
-        if self.atmo_color == Color((0.0, 0.0, 0.0)):
+        if tuple(self.atmo_color) == (0.0, 0.0, 0.0):
             f = 2.0
         self.atmo_density = atmo.color[-1] * f
         self.id_data.update_tag(refresh={"OBJECT"})
@@ -1056,7 +1114,11 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         if not self.external_obj:
             name = f"AG - Sector{self.id}.Sun{self.external_id}"
-            light = bpy.data.objects.new(name, object_data=light_data)
+            light = bpy.data.objects.get(name)
+            if not light:
+                light = bpy.data.objects.new(name, object_data=light_data)
+            else:
+                light.data = light_data
             self.external_obj = light
 
             light.hide_select = True
@@ -1073,6 +1135,8 @@ class SectorProperty(bpy.types.PropertyGroup):
             light.light_linking.receiver_collection = lightlink_coll
             light.light_linking.blocker_collection = lightlink_coll
             link2coll(ensure_null_object(), lightlink_coll)
+
+            # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
 
             if not rotation_euler:
                 rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
@@ -1111,16 +1175,46 @@ class SectorProperty(bpy.types.PropertyGroup):
         for i in faces:
             mesh.polygons[i].material_index = slot_index
 
-    def init(self):
+    def get_id(self):
         scene_data = bpy.context.scene.amagate_data
+        SectorManage = scene_data["SectorManage"]
 
-        used_ids = tuple(a.amagate_data.get_sector_data().id for a in bpy.context.scene.objects if a.amagate_data.get_sector_data())  # type: ignore
-        id_ = get_id(used_ids)
+        if SectorManage["deleted_id_count"]:
+            SectorManage["deleted_id_count"] -= 1
+            id_ = 1
+            while f"{id_}" in SectorManage["sectors"]:
+                id_ += 1
+        else:
+            SectorManage["max_id"] += 1
+            id_ = SectorManage["max_id"]
+        return id_
+
+    def init(self):
+        scene = bpy.context.scene
+        scene_data = scene.amagate_data
+
+        # used_ids = []
+        # lst = []
+        # for i in scene_data.sectors:
+        #     obj = i.obj
+        #     if obj:
+        #         if scene not in obj.users_scene:
+        #             lst.append(i)
+        #             bpy.data.objects.remove(obj, do_unlink=True)
+        #         else:
+        #             used_ids.append(int(i.name))
+        #     else:
+        #         lst.append(i)
+
+        id_ = self.get_id()
         self.id = id_
 
         obj = self.id_data  # type: Object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
 
+        scene_data["SectorManage"]["sectors"][str(id_)] = {"obj": obj, "light": []}
+
+        # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
 
         # 指定大气
@@ -1167,6 +1261,15 @@ class SectorProperty(bpy.types.PropertyGroup):
             else:
                 pass
 
+        name = f"Sector{self.id}"
+        obj.rename(name, mode="ALWAYS")
+        coll = ensure_collection(S_COLL)
+        if coll not in obj.users_collection:
+            # 清除集合
+            obj.users_collection[0].objects.unlink(obj)
+            # 链接到集合
+            link2coll(obj, coll)
+
 
 # 图像属性
 class ImageProperty(bpy.types.PropertyGroup):
@@ -1179,10 +1282,11 @@ class SceneProperty(bpy.types.PropertyGroup):
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
 
+    # sectors: CollectionProperty(type=SectorCollection)  # type: ignore
     # amagate_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
-    sector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
-    ghostsector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
-    entity_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
+    # sector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
+    # ghostsector_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
+    # entity_coll: PointerProperty(type=bpy.types.Collection)  # type: ignore
 
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
     active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
@@ -1213,6 +1317,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
     def init(self):
+        self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults
 
         defaults.as_default = True
@@ -1234,9 +1339,9 @@ class SceneProperty(bpy.types.PropertyGroup):
 class ObjectProperty(bpy.types.PropertyGroup):
     SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
 
-    def get_sector_data(self):
+    def get_sector_data(self) -> SectorProperty:
         if len(self.SectorData) == 0:
-            return None
+            return None  # type: ignore
         return self.SectorData[0]
 
     def set_sector_data(self):

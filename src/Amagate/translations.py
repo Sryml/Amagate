@@ -15,6 +15,8 @@ translations_dict = {
         ("*", "Camera Collection"): "摄像机集合",
         ("Operator", "Don't Save"): "不保存",
         ("Operator", "Cancel"): "取消",
+        ("Operator", "Initialize Scene"): "初始化场景",
+        ("Operator", "Delete Sector"): "删除扇区",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",

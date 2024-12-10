@@ -3,6 +3,9 @@ from __future__ import annotations
 import sys
 import os
 import pickle
+import contextlib
+import threading
+from io import StringIO
 from typing import Any, TYPE_CHECKING
 
 import bpy
@@ -106,8 +109,8 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的大气
-        # if atmo.ensure_obj(fix_link=True).users > 1:
-        if next((i for i in atmo.users_obj if i.obj), None):
+        # if next((i for i in atmo.users_obj if i.obj), None):
+        if len(atmo.users_obj) > 0:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('Atmosphere is used by sectors')}",
@@ -124,6 +127,7 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -266,7 +270,8 @@ class OT_Scene_External_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 不能删除正在使用的外部光
-        if next((i for i in item.users_obj if i.obj), None):
+        # if next((i for i in item.users_obj if i.obj), None):
+        if len(item.users_obj) > 0:
             self.report(
                 {"WARNING"},
                 f"{pgettext('Warning')}: {pgettext('External light is used by objects')}",
@@ -284,6 +289,7 @@ class OT_Scene_External_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -512,6 +518,7 @@ class OT_Texture_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
+        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -763,7 +770,7 @@ class OT_InitMap(bpy.types.Operator):
     bl_idname = "amagate.initmap"
     bl_label = "Initialize Map"
     bl_description = ""
-    bl_options = {"INTERNAL", "UNDO"}
+    bl_options = {"INTERNAL"}
 
     def execute(self, context: Context):
         # 清空场景
@@ -793,11 +800,11 @@ class OT_InitMap(bpy.types.Operator):
         # 初始化场景数据
         scene_data.id = 1
         ## 创建集合
-        data.ensure_collection(data.AG_COLL, scene, hide_select=True)
-        data.ensure_collection(data.S_COLL, scene)
-        data.ensure_collection(data.GS_COLL, scene)
-        data.ensure_collection(data.E_COLL, scene)
-        data.ensure_collection(data.C_COLL, scene)
+        data.ensure_collection(data.AG_COLL, hide_select=True)
+        data.ensure_collection(data.S_COLL)
+        data.ensure_collection(data.GS_COLL)
+        data.ensure_collection(data.E_COLL)
+        data.ensure_collection(data.C_COLL)
         ## 创建空对象
         data.ensure_null_object()
         ## 加载纹理
@@ -814,7 +821,11 @@ class OT_InitMap(bpy.types.Operator):
         scene_data.is_blade = True
         split_editor(context)
 
-        # bpy.ops.ed.undo_push(message="Initialize Scene")
+        # XXX 依赖图更新后回调函数，不知加载新文件后是否还有回调函数
+        data.AUTO_CLEAN_LOCK = threading.Lock()
+        bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)
+
+        bpy.ops.ed.undo_push(message="Initialize Scene")
         return {"FINISHED"}
 
 
@@ -827,7 +838,9 @@ def split_editor(context: Context):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
-        bpy.ops.view3d.toggle_xray()
+        log_output = StringIO()
+        with contextlib.redirect_stdout(log_output):
+            bpy.ops.view3d.toggle_xray()
 
     # 找到新创建的区域
     new_area = next(
@@ -906,6 +919,33 @@ class OT_ExportMap(bpy.types.Operator):
     def execute(self, context):
         # self.report({'WARNING'}, "Export Failed")
         self.report({"INFO"}, "Export Success")
+        return {"FINISHED"}
+
+
+# 清理数据
+class OT_CleanData(bpy.types.Operator):
+    bl_idname = "amagate.cleandata"
+    bl_label = "Clean Data"
+    # bl_description = "Clean Data"
+    bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
+
+    def execute(self, context: Context):
+        scene = bpy.context.scene
+        scene_data = context.scene.amagate_data
+
+        for i in scene_data.atmospheres:
+            i.clean()
+        for i in scene_data.externals:
+            i.clean()
+
+        log_output = StringIO()
+        with contextlib.redirect_stdout(log_output):
+            bpy.ops.outliner.orphans_purge()
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Clean Data")
         return {"FINISHED"}
 
 
