@@ -474,9 +474,14 @@ def auto_clean():
     AUTO_CLEAN_LOCK.release()
 
 
+# def auto_clean_release():
+#     AUTO_CLEAN_LOCK.release()
+
+
 def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
     if AUTO_CLEAN_LOCK.acquire(blocking=False):
-        bpy.app.timers.register(auto_clean, first_interval=0.1)
+        auto_clean()
+        # bpy.app.timers.register(auto_clean_release, first_interval=0.2)
 
 
 ############################
@@ -997,9 +1002,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
             if not sec:
                 items_to_remove.append(i)
             else:
-                sec.amagate_data.get_sector_data().ensure_external_obj(
-                    self, rotation_euler
-                )
+                sec.amagate_data.get_sector_data().update_external(self, rotation_euler)
 
         if items_to_remove:
             self.clean(items_to_remove)
@@ -1064,7 +1067,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     # wall_texture: CollectionProperty(type=TextureProperty)  # type: ignore
 
     ambient_light: PointerProperty(type=AmbientLightProperty)  # type: ignore # 环境光
-    external_id: IntProperty(name="External Light", description="", default=1)  # type: ignore
+    external_id: IntProperty(name="External Light", description="", default=0, get=lambda self: self.get_external_id(), set=lambda self, value: self.set_external_id(value))  # type: ignore
     external_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     flat_light: PointerProperty(type=FlatLightProperty)  # type: ignore # 平面光
 
@@ -1096,32 +1099,54 @@ class SectorProperty(bpy.types.PropertyGroup):
         scene_data = bpy.context.scene.amagate_data
         obj = self.id_data
         atmo = get_atmo_by_id(scene_data, value)[1]
+        if not atmo:
+            return
+
         if value != self.atmo_id:
             old_atmo = get_atmo_by_id(scene_data, self.atmo_id)[1]
             if old_atmo:
                 old_atmo.users_obj.remove(old_atmo.users_obj.find(f"{self.id}"))
 
-            # 重新利用已有的条目，通常是扇区被删除而残留的
-            # item = atmo.users_obj.get(f"{self.id}")
-            # if item:
-            #     item.obj = obj
-            # else:
             atmo.users_obj.add().obj = obj
             self["_atmo_id"] = value
             scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
         self.update_atmo(atmo)
 
-    def ensure_external_obj(self, external=None, rotation_euler=None):
+    def get_external_id(self):
+        return self.get("_external_id", 0)
+
+    def set_external_id(self, value):
+        if self.as_default:
+            self["_external_id"] = value
+            return
+
         scene_data = bpy.context.scene.amagate_data
+        obj = self.id_data
+        external = get_external_by_id(scene_data, value)[1]
         if not external:
-            external = get_external_by_id(scene_data, self.external_id)[1]
-        if not external:
-            # 不存在的external_id
-            print("Error: external_id {self.external_id} does not exist")
             return
+        if not external.obj:
+            external.update_obj()
+
+        if value != self.external_id:
+            old_external_id = self.external_id
+            old_external = get_external_by_id(scene_data, old_external_id)[1]
+            if old_external:
+                old_external.users_obj.remove(old_external.users_obj.find(f"{self.id}"))
+
+            external.users_obj.add().obj = obj
+            self["_external_id"] = value
+            scene_data["SectorManage"]["sectors"][str(self.id)]["external_id"] = value
+        self.update_external(external)
+
+    def update_external(self, external, rotation_euler=None):
+        if not rotation_euler:
+            rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
+        obj = self.ensure_external_obj(external)
+        obj.rotation_euler = rotation_euler
+
+    def ensure_external_obj(self, external):
         light_data = external.obj
-        if not light_data:
-            return
 
         if not self.external_obj:
             name = f"AG - Sector{self.id}.Sun{self.external_id}"
@@ -1148,12 +1173,6 @@ class SectorProperty(bpy.types.PropertyGroup):
             link2coll(ensure_null_object(), lightlink_coll)
 
             # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
-
-            if not rotation_euler:
-                rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
-
-        if rotation_euler:
-            self.external_obj.rotation_euler = rotation_euler
 
         return self.external_obj
 
@@ -1204,19 +1223,6 @@ class SectorProperty(bpy.types.PropertyGroup):
         scene = bpy.context.scene
         scene_data = scene.amagate_data
 
-        # used_ids = []
-        # lst = []
-        # for i in scene_data.sectors:
-        #     obj = i.obj
-        #     if obj:
-        #         if scene not in obj.users_scene:
-        #             lst.append(i)
-        #             bpy.data.objects.remove(obj, do_unlink=True)
-        #         else:
-        #             used_ids.append(int(i.name))
-        #     else:
-        #         lst.append(i)
-
         id_ = self.get_id()
         self.id = id_
 
@@ -1241,10 +1247,6 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # 指定外部光
         self.external_id = scene_data.defaults.external_id
-        self.ensure_external_obj()
-        get_external_by_id(scene_data, self.external_id)[1].users_obj.add().obj = obj
-        # self.external_light.color = scene_data.defaults.external_light.color
-        # self.external_light.vector = scene_data.defaults.external_light.vector
 
         # self.flat_light.color = scene_data.defaults.flat_light.color
 
