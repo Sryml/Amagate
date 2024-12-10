@@ -66,15 +66,15 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         scene_data = context.scene.amagate_data
 
         # 获取可用 ID
-        used_ids = tuple(a.id for a in scene_data.atmospheres)
+        used_ids = tuple(int(i) for i in scene_data.atmospheres.keys())
         id_ = data.get_id(used_ids)
         # 获取可用名称
-        used_names = tuple(a.name for a in scene_data.atmospheres)
+        used_names = tuple(a.item_name for a in scene_data.atmospheres)
         name = data.get_name(used_names, "atmo{}", id_)
 
         item = scene_data.atmospheres.add()
-        item.id = id_
-        item["_name"] = name
+        item.name = f"{id_}"
+        item["_item_name"] = name
 
         # item.ensure_obj(scene)
 
@@ -227,14 +227,14 @@ class OT_Scene_External_Add(bpy.types.Operator):
         scene_data = context.scene.amagate_data
 
         # 获取可用 ID
-        used_ids = tuple(a.id for a in scene_data.externals)
+        used_ids = tuple(int(i) for i in scene_data.externals.keys())
         id_ = data.get_id(used_ids)
         # 获取可用名称
-        used_names = tuple(a.name for a in scene_data.externals)
+        used_names = tuple(a.item_name for a in scene_data.externals)
 
         item = scene_data.externals.add()
-        item.id = id_
-        item["_name"] = data.get_name(used_names, "Sun{}", id_)
+        item.name = f"{id_}"
+        item["_item_name"] = data.get_name(used_names, "Sun{}", id_)
         item["_color"] = (0.784, 0.784, 0.392)
         item["_vector"] = (-1, 0, -1)
         item.update_obj()

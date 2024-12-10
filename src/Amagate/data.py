@@ -55,6 +55,7 @@ def region_redraw(target):
             region.tag_redraw()  # 刷新该区域
 
 
+# XXX 弃用的
 def get_scene_suffix(scene: bpy.types.Scene = None) -> str:  # type: ignore
     if not scene:
         scene = bpy.context.scene
@@ -82,20 +83,18 @@ def get_name(used_names, f, id_) -> str:
 
 
 #
-def get_atmo_by_id(scene_data, atmo_id) -> tuple[int, AtmosphereProperty]:
-    if atmo_id != 0:
-        for i, atmo in enumerate(scene_data.atmospheres):
-            if atmo.id == atmo_id:
-                return (i, atmo)
-    return (0, None)  # type: ignore
+def get_atmo_by_id(scene_data, atmo_id):
+    # type: (SceneProperty, Any) -> tuple[int, AtmosphereProperty]
+    idx = scene_data.atmospheres.find(str(atmo_id))
+    atmo = scene_data.atmospheres[idx] if idx != -1 else None
+    return (idx, atmo)  # type: ignore
 
 
-def get_external_by_id(scene_data, external_id) -> tuple[int, ExternalLightProperty]:
-    if external_id != 0:
-        for i, external in enumerate(scene_data.externals):
-            if external.id == external_id:
-                return (i, external)
-    return (0, None)  # type: ignore
+def get_external_by_id(scene_data, external_id):
+    # type: (SceneProperty, Any) -> tuple[int, ExternalLightProperty]
+    idx = scene_data.externals.find(str(external_id))
+    external = scene_data.externals[idx] if idx != -1 else None
+    return (idx, external)  # type: ignore
 
 
 def get_texture_by_id(texture_id) -> tuple[int, Image]:
@@ -426,7 +425,6 @@ def unregister_shortcuts():
 
 
 def auto_clean():
-    # bpy.ops.amagate.cleandata() # type: ignore
     scene_data = bpy.context.scene.amagate_data
     coll = ensure_collection(S_COLL)
     SectorManage = scene_data["SectorManage"]
@@ -450,10 +448,20 @@ def auto_clean():
 
             for id_key in deleted_ids:
                 obj = SectorManage["sectors"][id_key]["obj"]
-                if obj:
-                    bpy.data.objects.remove(obj, do_unlink=True)
-                for l in SectorManage["sectors"][id_key]["light"]:
+                bpy.data.meshes.remove(obj.data)
+                # bpy.data.objects.remove(obj)
+                for l in SectorManage["sectors"][id_key]["light_objs"]:
                     l.hide_viewport = True
+                atmo = get_atmo_by_id(
+                    scene_data, SectorManage["sectors"][id_key]["atmo_id"]
+                )[1]
+                if atmo:
+                    atmo.users_obj.remove(atmo.users_obj.find(id_key))
+                external = get_external_by_id(
+                    scene_data, SectorManage["sectors"][id_key]["external_id"]
+                )[1]
+                if external:
+                    external.users_obj.remove(external.users_obj.find(id_key))
 
                 if int(id_key) != SectorManage["max_id"]:
                     SectorManage["deleted_id_count"] += 1
@@ -527,9 +535,9 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
 
         col = row.column()
         if enabled:
-            col.prop(item, "name", text="", emboss=False)
+            col.prop(item, "item_name", text="", emboss=False)
         else:
-            col.label(text=item.name)
+            col.label(text=item.item_name)
 
         row = split.row()
         row.enabled = enabled
@@ -562,9 +570,9 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
 
         col = row.column()
         if enabled:
-            col.prop(light, "name", text="", emboss=False)
+            col.prop(light, "item_name", text="", emboss=False)
         else:
-            col.label(text=light.name)
+            col.label(text=light.item_name)
 
         if enabled:
             split = split.split(factor=0.5)
@@ -739,8 +747,9 @@ class SectorCollection(bpy.types.PropertyGroup):
 
 # 大气属性
 class AtmosphereProperty(bpy.types.PropertyGroup):
-    id: IntProperty(name="ID", default=0)  # type: ignore
-    name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
+    id: IntProperty(name="ID", default=0, get=lambda self: int(self["name"]))  # type: ignore
+    name: StringProperty(name="id key", default="0")  # type: ignore
+    item_name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_item_name(), set=lambda self, value: self.set_item_name(value))  # type: ignore
     users_obj: CollectionProperty(type=SectorCollection)  # type: ignore
     color: FloatVectorProperty(
         name="Color",
@@ -754,20 +763,20 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     # intensity: FloatProperty(name="Intensity", default=0.02)  # type: ignore
 
-    def get_name(self):
-        return self.get("_name", "")
+    def get_item_name(self):
+        return self.get("_item_name", "")
 
-    def set_name(self, value):
+    def set_item_name(self, value):
         if value == "":
             return
 
         scene_data = bpy.context.scene.amagate_data
         atmos = scene_data.atmospheres
         for atmo in atmos:
-            if atmo.name == value and atmo != self:
-                atmo["_name"] = self.get("_name", "")
+            if atmo.item_name == value and atmo != self:
+                atmo["_item_name"] = self["_item_name"]
                 break
-        self["_name"] = value
+        self["_item_name"] = value
 
     def get_color(self):
         return self.get("_color", (0.0, 0.0, 0.0, 0.02))
@@ -899,8 +908,9 @@ class TextureProperty(bpy.types.PropertyGroup):
 
 # 外部光属性
 class ExternalLightProperty(bpy.types.PropertyGroup):
-    id: IntProperty(name="ID", default=0)  # type: ignore
-    name: StringProperty(name="Light Name", default="", get=lambda self: self.get_name(), set=lambda self, value: self.set_name(value))  # type: ignore
+    id: IntProperty(name="ID", default=0, get=lambda self: int(self["name"]))  # type: ignore
+    name: StringProperty(name="id key", default="0")  # type: ignore
+    item_name: StringProperty(name="Light Name", default="", get=lambda self: self.get_item_name(), set=lambda self, value: self.set_item_name(value))  # type: ignore
     obj: PointerProperty(type=bpy.types.Light)  # type: ignore
     users_obj: CollectionProperty(type=SectorCollection)  # type: ignore
 
@@ -947,20 +957,20 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
     def set_dict(self, key, value):
         self[key] = value
 
-    def get_name(self):
-        return self.get("_name", "")
+    def get_item_name(self):
+        return self.get("_item_name", "")
 
-    def set_name(self, value):
+    def set_item_name(self, value):
         if value == "":
             return
 
         scene_data = bpy.context.scene.amagate_data
         lights = scene_data.externals
         for l in lights:
-            if l.name == value and l != self:
-                l["_name"] = self.get("_name", "")
+            if l.item_name == value and l != self:
+                l["_item_name"] = self["_item_name"]
                 break
-        self["_name"] = value
+        self["_item_name"] = value
 
     # TODO 每删除10个扇区触发一次clean
     def clean(self, lst=None):
@@ -1092,12 +1102,13 @@ class SectorProperty(bpy.types.PropertyGroup):
                 old_atmo.users_obj.remove(old_atmo.users_obj.find(f"{self.id}"))
 
             # 重新利用已有的条目，通常是扇区被删除而残留的
-            item = atmo.users_obj.get(f"{self.id}")
-            if item:
-                item.obj = obj
-            else:
-                atmo.users_obj.add().obj = obj
+            # item = atmo.users_obj.get(f"{self.id}")
+            # if item:
+            #     item.obj = obj
+            # else:
+            atmo.users_obj.add().obj = obj
             self["_atmo_id"] = value
+            scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
         self.update_atmo(atmo)
 
     def ensure_external_obj(self, external=None, rotation_euler=None):
@@ -1212,7 +1223,12 @@ class SectorProperty(bpy.types.PropertyGroup):
         obj = self.id_data  # type: Object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
 
-        scene_data["SectorManage"]["sectors"][str(id_)] = {"obj": obj, "light": []}
+        scene_data["SectorManage"]["sectors"][str(id_)] = {
+            "obj": obj,
+            "light_objs": [],
+            "atmo_id": 0,
+            "external_id": 0,
+        }
 
         # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
@@ -1263,6 +1279,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         name = f"Sector{self.id}"
         obj.rename(name, mode="ALWAYS")
+        obj.data.rename(name, mode="ALWAYS")
         coll = ensure_collection(S_COLL)
         if coll not in obj.users_collection:
             # 清除集合

@@ -180,7 +180,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         col.label(text=f"{pgettext('Atmosphere')}:")
 
         col = row.column()
-        name = "None" if not atmo else atmo.name
+        name = "None" if not atmo else atmo.item_name
         op = col.operator(
             OP.OT_Atmo_Select.bl_idname,
             text=name,
@@ -264,7 +264,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         col.label(text=f"{pgettext('External Light')}:")
 
         col = row.column()
-        name = "None" if not item else item.name
+        name = "None" if not item else item.item_name
         op = col.operator(
             OP.OT_External_Select.bl_idname,
             text=name,
