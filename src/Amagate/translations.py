@@ -13,6 +13,7 @@ translations_dict = {
         ("*", "Ghost Sector Collection"): "虚拟扇区集合",
         ("*", "Entity Collection"): "实体集合",
         ("*", "Camera Collection"): "摄像机集合",
+        ("*", "non-uniform"): "不一致的",
         ("Operator", "Don't Save"): "不保存",
         ("Operator", "Cancel"): "取消",
         ("Operator", "Initialize Scene"): "初始化场景",

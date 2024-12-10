@@ -127,7 +127,6 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -202,27 +201,6 @@ class OT_Scene_External_Add(bpy.types.Operator):
 
     undo: BoolProperty(default=True)  # type: ignore
 
-    # @classmethod
-    # def new(cls, scene):
-    #     scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
-
-    #     # 获取可用 ID
-    #     used_ids = tuple(a.id for a in scene_data.externals)
-    #     id_ = data.get_id(used_ids)
-    #     # 获取可用名称
-    #     used_names = tuple(a.name for a in scene_data.externals)
-
-    #     item = scene_data.externals.add()
-    #     item.id = id_
-    #     item["_name"] = data.get_name(used_names, "Sun{}", id_)
-    #     item["_color"] = (0.784, 0.784, 0.392)
-    #     item["_vector"] = (-1, 0, -1)
-    #     item.update_obj()
-
-    #     scene_data.active_external = len(scene_data.externals) - 1
-    #     if self.undo:
-    #         bpy.ops.ed.undo_push(message="Add External Light")
-
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
 
@@ -289,7 +267,6 @@ class OT_Scene_External_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -518,7 +495,6 @@ class OT_Texture_Remove(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        bpy.ops.amagate.cleandata()  # type: ignore
         if event.shift:
             return self.execute(context)
         else:
@@ -838,8 +814,7 @@ def split_editor(context: Context):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
-        log_output = StringIO()
-        with contextlib.redirect_stdout(log_output):
+        with contextlib.redirect_stdout(StringIO()):
             bpy.ops.view3d.toggle_xray()
 
     # 找到新创建的区域
@@ -919,33 +894,6 @@ class OT_ExportMap(bpy.types.Operator):
     def execute(self, context):
         # self.report({'WARNING'}, "Export Failed")
         self.report({"INFO"}, "Export Success")
-        return {"FINISHED"}
-
-
-# 清理数据
-class OT_CleanData(bpy.types.Operator):
-    bl_idname = "amagate.cleandata"
-    bl_label = "Clean Data"
-    # bl_description = "Clean Data"
-    bl_options = {"INTERNAL"}
-
-    undo: BoolProperty(default=True)  # type: ignore
-
-    def execute(self, context: Context):
-        scene = bpy.context.scene
-        scene_data = context.scene.amagate_data
-
-        for i in scene_data.atmospheres:
-            i.clean()
-        for i in scene_data.externals:
-            i.clean()
-
-        log_output = StringIO()
-        with contextlib.redirect_stdout(log_output):
-            bpy.ops.outliner.orphans_purge()
-
-        if self.undo:
-            bpy.ops.ed.undo_push(message="Clean Data")
         return {"FINISHED"}
 
 

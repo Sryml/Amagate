@@ -377,15 +377,10 @@ class AMAGATE_PT_Sector_E(N_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
 
-        sectors = 0
-        for obj in context.selected_objects:
-            if obj.amagate_data.get_sector_data():  # type: ignore
-                sectors += 1
-
         col = layout.column(align=True)
         # 扇区数量
         col.label(
-            text=f"{pgettext('Selected sector')}: {sectors} / {len(context.selected_objects)}"
+            text=f"{pgettext('Selected sector')}: 0 / {len(context.selected_objects)}"
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
@@ -413,18 +408,76 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         layout = self.layout
         scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
 
-        sectors = 0
-        for obj in context.selected_objects:
-            if obj.amagate_data.get_sector_data():  # type: ignore
-                sectors += 1
+        SELECTED_SECTORS = []
+        selected_objects = context.selected_objects
+        if selected_objects:
+            for obj in selected_objects:
+                if obj.amagate_data.get_sector_data():  # type: ignore
+                    SELECTED_SECTORS.append(obj)
+            data.SELECTED_SECTORS = SELECTED_SECTORS
 
         col = layout.column(align=True)
         # 扇区数量
         col.label(
-            text=f"{pgettext('Selected sector')}: {sectors} / {len(context.selected_objects)}"
+            text=f"{pgettext('Selected sector')}: {len(SELECTED_SECTORS)} / {len(selected_objects)}"
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+
+
+class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
+    bl_label = "Properties"
+    bl_parent_id = "AMAGATE_PT_Sector"  # 设置父面板
+    # bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        SELECTED_SECTORS = data.SELECTED_SECTORS
+
+        # 大气
+        atmo_id = None
+        for sec in SELECTED_SECTORS:
+            sec_data = sec.amagate_data.get_sector_data()
+            if atmo_id is None:
+                atmo_id = sec_data.atmo_id
+            elif sec_data.atmo_id != atmo_id:
+                atmo_id = None
+                break
+        if atmo_id is None:
+            atmo_idx, atmo = -1, None
+            name = "*"
+        else:
+            atmo_idx, atmo = data.get_atmo_by_id(scene_data, atmo_id)
+            name = "None" if not atmo else atmo.item_name
+
+        row = layout.row()
+        split = row.split(factor=0.7)
+        row = split.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Atmosphere')}:")
+
+        col = row.column()
+        op = col.operator(
+            OP.OT_Atmo_Select.bl_idname,
+            text=name,
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.target = "Sector"  # type: ignore
+        op.prop["_index"] = atmo_idx  # type: ignore
+
+        if atmo:
+            row = split.row()
+            row.enabled = False
+            row.prop(atmo, "color", text="")
+        elif atmo_id is None:
+            row = split.row()
+            row.alignment = "CENTER"
+            row.label(text="non-uniform")
+
+        layout.separator()
 
 
 ############################
