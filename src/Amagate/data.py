@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import math
 import pickle
 import threading
 from typing import Any, TYPE_CHECKING
@@ -52,9 +53,15 @@ SELECTED_SECTORS: list[Object] = []
 
 
 def region_redraw(target):
-    for region in bpy.context.area.regions:  # type: ignore
+    for region in bpy.context.area.regions:
         if region.type == target:
             region.tag_redraw()  # 刷新该区域
+
+
+def area_redraw(target):
+    for area in bpy.context.screen.areas:
+        if area.type == target:
+            area.tag_redraw()
 
 
 # XXX 弃用的
@@ -682,7 +689,8 @@ class Atmo_Select(bpy.types.PropertyGroup):
                 sector_data.atmo_id = scene_data.atmospheres[value].id
         elif self.target == "Scene":
             scene_data.defaults.atmo_id = scene_data.atmospheres[value].id
-        region_redraw("UI")
+        # region_redraw("UI")
+        area_redraw("VIEW_3D")
 
         bpy.ops.ed.undo_push(message="Select Atmosphere")
 
@@ -797,6 +805,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         for user in self.users_obj:
             obj = user.obj  # type: Object
             obj.amagate_data.get_sector_data().update_atmo(self)
+        area_redraw("VIEW_3D")
 
 
 # 纹理属性
@@ -979,15 +988,15 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
 
 
 # 环境光属性
-class AmbientLightProperty(bpy.types.PropertyGroup):
-    color: FloatVectorProperty(
-        name="Color",
-        subtype="COLOR",
-        size=3,
-        min=0.0,
-        max=1.0,
-        default=(0.784, 0.784, 0.784),
-    )  # type: ignore
+# class AmbientLightProperty(bpy.types.PropertyGroup):
+#     color: FloatVectorProperty(
+#         name="Color",
+#         subtype="COLOR",
+#         size=3,
+#         min=0.0,
+#         max=1.0,
+#         default=(0.784, 0.784, 0.784),
+#     )  # type: ignore
 
 
 # 平面光属性
@@ -1025,7 +1034,15 @@ class SectorProperty(bpy.types.PropertyGroup):
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
     atmo_density: FloatProperty(name="Density", description="", default=0.02, min=0.0, soft_max=1.0)  # type: ignore
 
-    ambient_light: PointerProperty(type=AmbientLightProperty)  # type: ignore # 环境光
+    ambient_color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(0.784, 0.784, 0.784),
+        update=lambda self, context: self.update_ambient_color(context),
+    )  # type: ignore # 环境光
     external_id: IntProperty(name="External Light", description="", default=0, get=lambda self: self.get_external_id(), set=lambda self, value: self.set_external_id(value))  # type: ignore
     external_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     flat_light: PointerProperty(type=FlatLightProperty)  # type: ignore # 平面光
@@ -1107,8 +1124,9 @@ class SectorProperty(bpy.types.PropertyGroup):
     def ensure_external_obj(self, external):
         light_data = external.obj
 
-        if not self.external_obj:
-            name = f"AG - Sector{self.id}.Sun{self.external_id}"
+        light = self.external_obj
+        if not light:
+            name = f"AG - Sector{self.id}.Sun"
             light = bpy.data.objects.get(name)
             if not light:
                 light = bpy.data.objects.new(name, object_data=light_data)
@@ -1132,8 +1150,53 @@ class SectorProperty(bpy.types.PropertyGroup):
             link2coll(ensure_null_object(), lightlink_coll)
 
             # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
+        elif light.data != light_data:
+            light.data = light_data
 
         return self.external_obj
+
+    def update_ambient_color(self, context: Context):
+        if self.as_default:
+            return
+
+        light_data = self.ensure_ambient_light()
+        light_data.color = self.ambient_color
+
+    def ensure_ambient_light(self):
+        scene_data = bpy.context.scene.amagate_data
+        name = f"AG - Sector{self.id}.Ambient"
+        light_data = bpy.data.lights.get(name)
+        if not light_data:
+            light_data = bpy.data.lights.new(name, type="SUN")
+            light_data.use_shadow = False
+            light_data.angle = math.pi  # type: ignore
+            light_data.energy = 2.0  # type: ignore
+            light_data.color = self.ambient_color
+        # 创建灯光链接集合
+        collections = bpy.data.collections
+        name = f"{name}.Linking"
+        lightlink_coll = collections.get(name)
+        if not lightlink_coll:
+            lightlink_coll = collections.new(name)
+            link2coll(ensure_null_object(), lightlink_coll)
+        link2coll(self.id_data, lightlink_coll)
+
+        for i in range(1, 3):  # 1 2
+            name = f"{light_data.name}{i}"
+            obj = bpy.data.objects.get(name)
+            if not obj:
+                obj = bpy.data.objects.new(name, object_data=light_data)
+            elif obj.data != light_data:
+                obj.data = light_data
+            if i == 1:
+                obj.rotation_euler = (0, 0, 0)
+            else:
+                obj.rotation_euler = (math.pi, 0, 0)
+            link2coll(obj, ensure_collection(AG_COLL, hide_select=True))
+            obj.light_linking.receiver_collection = lightlink_coll
+            obj.light_linking.blocker_collection = lightlink_coll
+
+        return light_data
 
     def set_matslot(self, mat, faces=[]):
         """设置材质槽位"""
@@ -1198,15 +1261,6 @@ class SectorProperty(bpy.types.PropertyGroup):
         # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
 
-        # 指定大气
-        self.atmo_id = scene_data.defaults.atmo_id
-
-        # self.ambient_light.color = scene_data.defaults.ambient_light.color
-        # self.ambient_light.vector = scene_data.defaults.ambient_light.vector
-
-        # 指定外部光
-        self.external_id = scene_data.defaults.external_id
-
         # self.flat_light.color = scene_data.defaults.flat_light.color
 
         # 添加网格属性
@@ -1215,12 +1269,11 @@ class SectorProperty(bpy.types.PropertyGroup):
         mesh.attributes.new(name="tex_rotate", type="FLOAT", domain="FACE")
         mesh.attributes.new(name="tex_scale", type="FLOAT2", domain="FACE")
 
-        # 指定材质
         for face in mesh.polygons:  # polygons 代表面
             face_index = face.index  # 面的索引
             face_normal = face.normal  # 面的法线方向（Vector）
 
-            # 判断地板和天花板
+            # 设置纹理
             dp = face_normal.dot(Vector((0, 0, 1)))
             if dp > 0.999:  # 地板
                 tex_id = scene_data.defaults["Textures"]["Floor"]["id"]
@@ -1238,6 +1291,10 @@ class SectorProperty(bpy.types.PropertyGroup):
             else:
                 pass
 
+            # 设置纹理参数
+            mesh.attributes["tex_scale"].data[face_index].vector = (10.0, 10.0)  # type: ignore
+
+        # 命名并链接到扇区集合
         name = f"Sector{self.id}"
         obj.rename(name, mode="ALWAYS")
         obj.data.rename(name, mode="ALWAYS")
@@ -1247,6 +1304,13 @@ class SectorProperty(bpy.types.PropertyGroup):
             obj.users_collection[0].objects.unlink(obj)
             # 链接到集合
             link2coll(obj, coll)
+
+        # 指定大气
+        self.atmo_id = scene_data.defaults.atmo_id
+        # 指定外部光
+        self.external_id = scene_data.defaults.external_id
+        # 设置环境光
+        self.ambient_color = scene_data.defaults.ambient_color
 
 
 # 图像属性

@@ -670,6 +670,7 @@ class OT_Sector_Convert(bpy.types.Operator):
                 obj.amagate_data.set_sector_data()
                 sector_data = obj.amagate_data.get_sector_data()
                 sector_data.init()
+        # data.area_redraw("VIEW_3D")
         return {"FINISHED"}
 
 

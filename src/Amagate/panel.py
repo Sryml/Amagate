@@ -288,7 +288,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         row = split.row()
         row.alignment = "LEFT"
         row.label(text=f"{pgettext('Ambient Light')}:")
-        split.prop(scene_data.defaults.ambient_light, "color", text="")
+        split.prop(scene_data.defaults, "ambient_color", text="")
 
         box.separator(type="LINE")
         # layout.separator()
