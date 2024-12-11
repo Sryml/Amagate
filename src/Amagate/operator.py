@@ -759,6 +759,7 @@ class OT_InitMap(bpy.types.Operator):
             bpy.data.cameras,
             bpy.data.collections,
             bpy.data.materials,
+            bpy.data.worlds,
         ):
             for _ in range(len(d)):
                 # 倒序删除，避免集合索引更新的开销
@@ -790,6 +791,12 @@ class OT_InitMap(bpy.types.Operator):
         ## 创建默认数据
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
+        ## 设置世界环境
+        world = bpy.data.worlds.new("")
+        world.rename("BWorld", mode="ALWAYS")
+        world.use_nodes = True
+        world.node_tree.nodes["Background"].inputs[1].default_value = 0.5  # type: ignore
+        scene.world = world
         ##
         scene_data.init()
 

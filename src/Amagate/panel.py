@@ -198,9 +198,9 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
         # 地板 天花板 墙壁
         for i, prop in enumerate(scene_data.default_tex):
-            target = prop.target
+            kind = prop.kind
 
-            tex_id = scene_data.defaults["Textures"][target]["id"]
+            tex_id = scene_data.defaults["Textures"][kind]["id"]
             tex_idx, tex = data.get_texture_by_id(tex_id)
             box = layout.box()
 
@@ -208,14 +208,15 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
             col = row.column()
             col.alignment = "LEFT"
-            col.label(text=f"{pgettext(target, 'Property')}:")
+            col.label(text=f"{pgettext(kind, 'Property')}:")
 
             col = row.column()
             name = "None" if not tex else tex.name
             op = col.operator(
                 OP.OT_Texture_Select.bl_idname, text=name, icon="DOWNARROW_HLT"
             )
-            op.prop.target = target  # type: ignore
+            op.prop.target = prop.target  # type: ignore
+            op.prop.kind = prop.kind  # type: ignore
             op.prop["_index"] = tex_idx  # type: ignore
 
             if tex and tex.preview:
@@ -434,22 +435,26 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
         layout = self.layout
         scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
         SELECTED_SECTORS = data.SELECTED_SECTORS
+        if not SELECTED_SECTORS:
+            return
+
+        first_sec_data = SELECTED_SECTORS[0].amagate_data.get_sector_data()
 
         # 大气
-        atmo_id = None
+        atmo_id = first_sec_data.atmo_id
+        is_uniform = True
         for sec in SELECTED_SECTORS:
             sec_data = sec.amagate_data.get_sector_data()
-            if atmo_id is None:
-                atmo_id = sec_data.atmo_id
-            elif sec_data.atmo_id != atmo_id:
+            if sec_data.atmo_id != atmo_id:
                 atmo_id = None
+                is_uniform = False
                 break
-        if atmo_id is None:
-            atmo_idx, atmo = -1, None
-            name = "*"
-        else:
+        if is_uniform:
             atmo_idx, atmo = data.get_atmo_by_id(scene_data, atmo_id)
             name = "None" if not atmo else atmo.item_name
+        else:
+            atmo_idx, atmo = -1, None
+            name = "*"
 
         row = layout.row()
         split = row.split(factor=0.7)
@@ -472,12 +477,184 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
             row = split.row()
             row.enabled = False
             row.prop(atmo, "color", text="")
-        elif atmo_id is None:
+        elif not is_uniform:
             row = split.row()
             row.alignment = "CENTER"
             row.label(text="non-uniform")
 
         layout.separator()
+
+        if context.active_object.mode == "OBJECT":
+            # 地板 天花板 墙壁
+            for i, prop in enumerate(scene_data.sector_tex):
+                kind = prop.kind
+
+                tex_id = first_sec_data["Textures"][kind]["id"]
+                xpos = first_sec_data["Textures"][kind]["pos"][0]
+                ypos = first_sec_data["Textures"][kind]["pos"][1]
+                angle = first_sec_data["Textures"][kind]["angle"]
+                xzoom = first_sec_data["Textures"][kind]["zoom"][0]
+                yzoom = first_sec_data["Textures"][kind]["zoom"][1]
+                is_tex_uniform = True
+                is_xpos_uniform = True
+                is_ypos_uniform = True
+                is_angle_uniform = True
+                is_xzoom_uniform = True
+                is_yzoom_uniform = True
+
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    # 检查纹理是否一致
+                    if is_tex_uniform and sec_data["Textures"][kind]["id"] != tex_id:
+                        tex_id = None
+                        is_tex_uniform = False
+                    # 检查x位置是否一致
+                    if is_xpos_uniform and sec_data["Textures"][kind]["pos"][0] != xpos:
+                        xpos = None
+                        is_xpos_uniform = False
+                    # 检查y位置是否一致
+                    if is_ypos_uniform and sec_data["Textures"][kind]["pos"][1] != ypos:
+                        ypos = None
+                        is_ypos_uniform = False
+                    # 检查角度是否一致
+                    if (
+                        is_angle_uniform
+                        and sec_data["Textures"][kind]["angle"] != angle
+                    ):
+                        angle = None
+                        is_angle_uniform = False
+                    # 检查x缩放是否一致
+                    if (
+                        is_xzoom_uniform
+                        and sec_data["Textures"][kind]["zoom"][0] != xzoom
+                    ):
+                        xzoom = None
+                        is_xzoom_uniform = False
+                    # 检查y缩放是否一致
+                    if (
+                        is_yzoom_uniform
+                        and sec_data["Textures"][kind]["zoom"][1] != yzoom
+                    ):
+                        yzoom = None
+                        is_yzoom_uniform = False
+
+                if is_tex_uniform:
+                    tex_idx, tex = data.get_texture_by_id(tex_id)
+                    name = "None" if not tex else tex.name
+                else:
+                    tex_idx, tex = -1, None
+                    name = "*"
+
+                box = layout.box()
+                row = box.row()
+
+                col = row.column()
+                col.alignment = "LEFT"
+                col.label(text=f"{pgettext(kind, 'Property')}:")
+
+                col = row.column()
+                op = col.operator(
+                    OP.OT_Texture_Select.bl_idname, text=name, icon="DOWNARROW_HLT"
+                )
+                op.prop.target = prop.target  # type: ignore
+                op.prop.kind = prop.kind  # type: ignore
+                op.prop["_index"] = tex_idx  # type: ignore
+
+                if tex and tex.preview:
+                    col = row.column()
+                    col.label(text="", icon_value=tex.preview.icon_id)
+                elif not is_tex_uniform:
+                    col = row.column()
+                    col.alignment = "CENTER"
+                    col.label(text="non-uniform")
+
+                row = box.row()
+                x_text = "X" if is_xpos_uniform else "X *"
+                y_text = "Y" if is_ypos_uniform else "Y *"
+                row.prop(prop, "pos", index=0, text=x_text)
+                # row.separator()
+                row.prop(prop, "pos", index=1, text=y_text)
+                return
+                row = box.row()
+                row.prop(prop, "angle", text="Angle")
+
+                box2 = box.box()
+                row = box2.row()
+                col = row.column()
+                col.prop(prop, "zoom", index=0, text=f"X {pgettext('Zoom')}")
+                col.prop(prop, "zoom", index=1, text=f"Y {pgettext('Zoom')}")
+                col = row.column()
+                col.scale_y = 2
+                col.prop(
+                    prop,
+                    "zoom_constraint",
+                    text="",
+                    icon="LINKED" if prop.zoom_constraint else "UNLINKED",
+                    emboss=False,
+                )
+
+                if i != len(scene_data.sector_tex) - 1:
+                    layout.separator()
+
+        else:
+            ...
+
+        layout.separator()
+        return
+        box = layout.box()
+        # 外部光
+        idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
+
+        row = box.row()
+        split = row.split(factor=0.7)
+        row = split.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('External Light')}:")
+
+        col = row.column()
+        name = "None" if not item else item.item_name
+        op = col.operator(
+            OP.OT_External_Select.bl_idname,
+            text=name,
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.target = "Scene"  # type: ignore
+        op.prop["_index"] = idx  # type: ignore
+
+        if item:
+            row = split.row()
+            row.prop(item, "color_readonly", text="")
+
+        box.separator(type="LINE")
+        # layout.separator()
+
+        # 环境光
+        # box = layout.box()
+
+        row = box.row()
+        split = row.split(factor=0.5)
+        row = split.row()
+        row.alignment = "LEFT"
+        row.label(text=f"{pgettext('Ambient Light')}:")
+        split.prop(scene_data.defaults, "ambient_color", text="")
+
+        box.separator(type="LINE")
+        # layout.separator()
+
+        # 平面光
+        # box = layout.box()
+
+        row = box.row()
+        split = row.split(factor=0.5)
+        row = split.row()
+        row.alignment = "LEFT"
+        row.label(text=f"{pgettext('Flat Light')}:")
+        split.prop(scene_data.defaults.flat_light, "color", text="")
+
+        row = box.row()
+        row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
 ############################

@@ -726,6 +726,7 @@ class External_Select(bpy.types.PropertyGroup):
 class Texture_Select(bpy.types.PropertyGroup):
     index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
     target: StringProperty(default="Sector")  # type: ignore
+    kind: StringProperty(default="")  # type: ignore
     readonly: BoolProperty(default=True)  # type: ignore
 
     def get_index(self):
@@ -738,8 +739,8 @@ class Texture_Select(bpy.types.PropertyGroup):
         self["_index"] = value
 
         scene_data = bpy.context.scene.amagate_data
-        if self.target != "Sector":
-            scene_data.defaults["Textures"][self.target]["id"] = bpy.data.images[
+        if self.target == "Scene":
+            scene_data.defaults["Textures"][self.kind]["id"] = bpy.data.images[
                 value
             ].amagate_data.id
         region_redraw("UI")
@@ -815,6 +816,7 @@ class TextureProperty(bpy.types.PropertyGroup):
     # y: FloatProperty(name="Y", default=0.0)  # type: ignore
 
     target: StringProperty(default="Sector")  # type: ignore
+    kind: StringProperty(default="")  # type: ignore
     pos: FloatVectorProperty(
         name="Position",
         description="Texture Position",
@@ -844,55 +846,59 @@ class TextureProperty(bpy.types.PropertyGroup):
     ############################
 
     def get_pos(self):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.target]["pos"]
+            return scene_data.defaults["Textures"][self.kind]["pos"]
         else:
-            return self.get("_pos", (0.0, 0.0))
+            sec_data = SELECTED_SECTORS[0].amagate_data.get_sector_data()
+            return sec_data["Textures"][self.kind]["pos"]
 
     def set_pos(self, value):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
-            scene_data.defaults["Textures"][self.target]["pos"] = value
+            scene_data.defaults["Textures"][self.kind]["pos"] = value
         else:
-            self["_pos"] = value
+            # TODO 需要判断具体修改的是x还是y
+            for sec in SELECTED_SECTORS:
+                sec_data = sec.amagate_data.get_sector_data()
+                sec_data["Textures"][self.kind]["pos"] = value
 
     ############################
     def get_zoom(self):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.target]["zoom"]
+            return scene_data.defaults["Textures"][self.kind]["zoom"]
         else:
             return self.get("_zoom", (10.0, 10.0))
 
     def set_zoom(self, value):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
             if self.zoom_constraint:
                 value = list(value)
-                old_value = scene_data.defaults["Textures"][self.target]["zoom"]
+                old_value = scene_data.defaults["Textures"][self.kind]["zoom"]
                 idx = 0 if old_value[0] != value[0] else 1
                 if old_value[0] == old_value[1]:
                     value[1 - idx] = value[idx]
                 else:
                     factor = value[idx] / old_value[idx]
                     value[1 - idx] = old_value[1 - idx] * factor
-            scene_data.defaults["Textures"][self.target]["zoom"] = value
+            scene_data.defaults["Textures"][self.kind]["zoom"] = value
         else:
             self["_zoom"] = value
 
     ############################
     def get_angle(self):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.target]["angle"]
+            return scene_data.defaults["Textures"][self.kind]["angle"]
         else:
             return self.get("_angle", 0.0)
 
     def set_angle(self, value):
-        if self.target != "Sector":
+        if self.target == "Scene":
             scene_data = bpy.context.scene.amagate_data
-            scene_data.defaults["Textures"][self.target]["angle"] = value
+            scene_data.defaults["Textures"][self.kind]["angle"] = value
         else:
             self["_angle"] = value
 
@@ -1250,7 +1256,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         obj = self.id_data  # type: Object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
-
+        # 添加到扇区管理字典
         scene_data["SectorManage"]["sectors"][str(id_)] = {
             "obj": obj,
             "light_objs": [],
@@ -1260,39 +1266,6 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
-
-        # self.flat_light.color = scene_data.defaults.flat_light.color
-
-        # 添加网格属性
-        mesh.attributes.new(name="tex_id", type="INT", domain="FACE")
-        mesh.attributes.new(name="tex_pos", type="FLOAT2", domain="FACE")
-        mesh.attributes.new(name="tex_rotate", type="FLOAT", domain="FACE")
-        mesh.attributes.new(name="tex_scale", type="FLOAT2", domain="FACE")
-
-        for face in mesh.polygons:  # polygons 代表面
-            face_index = face.index  # 面的索引
-            face_normal = face.normal  # 面的法线方向（Vector）
-
-            # 设置纹理
-            dp = face_normal.dot(Vector((0, 0, 1)))
-            if dp > 0.999:  # 地板
-                tex_id = scene_data.defaults["Textures"]["Floor"]["id"]
-            elif dp < -0.999:  # 天花板
-                tex_id = scene_data.defaults["Textures"]["Ceiling"]["id"]
-            else:  # 墙壁
-                tex_id = scene_data.defaults["Textures"]["Wall"]["id"]
-            mesh.attributes["tex_id"].data[face_index].value = tex_id  # type: ignore
-            mat = None
-            tex = get_texture_by_id(tex_id)[1]
-            if tex:
-                mat = tex.amagate_data.mat_obj
-            if mat:
-                self.set_matslot(mat, [face_index])
-            else:
-                pass
-
-            # 设置纹理参数
-            mesh.attributes["tex_scale"].data[face_index].vector = (10.0, 10.0)  # type: ignore
 
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"
@@ -1304,6 +1277,46 @@ class SectorProperty(bpy.types.PropertyGroup):
             obj.users_collection[0].objects.unlink(obj)
             # 链接到集合
             link2coll(obj, coll)
+
+        # self.flat_light.color = scene_data.defaults.flat_light.color
+        # 设置预设纹理
+        self["Textures"] = scene_data.defaults["Textures"].to_dict()
+
+        # 添加网格属性
+        mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
+        mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
+        mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
+        mesh.attributes.new(name="amagate_tex_rotate", type="FLOAT", domain="FACE")
+        mesh.attributes.new(name="amagate_tex_scale", type="FLOAT2", domain="FACE")
+
+        for face in mesh.polygons:  # polygons 代表面
+            face_index = face.index  # 面的索引
+            face_normal = face.normal  # 面的法线方向（Vector）
+
+            # 设置纹理
+            dp = face_normal.dot(Vector((0, 0, 1)))
+            if dp > 0.999:  # 地板
+                tex_id = self["Textures"]["Floor"]["id"]
+                face_flag = -1
+            elif dp < -0.999:  # 天花板
+                tex_id = self["Textures"]["Ceiling"]["id"]
+                face_flag = -2
+            else:  # 墙壁
+                tex_id = self["Textures"]["Wall"]["id"]
+                face_flag = -3
+            mesh.attributes["amagate_flag"].data[face_index].value = face_flag  # type: ignore
+            mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
+            mat = None
+            tex = get_texture_by_id(tex_id)[1]
+            if tex:
+                mat = tex.amagate_data.mat_obj
+            if mat:
+                self.set_matslot(mat, [face_index])
+            else:
+                pass
+
+            # 设置纹理参数
+            mesh.attributes["amagate_tex_scale"].data[face_index].vector = (10.0, 10.0)  # type: ignore
 
         # 指定大气
         self.atmo_id = scene_data.defaults.atmo_id
@@ -1337,7 +1350,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 布局属性
     default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
-    sector_tex: PointerProperty(type=TextureProperty)  # type: ignore
+    sector_tex: CollectionProperty(type=TextureProperty)  # type: ignore
     ############################
 
     def get_active_texture(self):
@@ -1360,15 +1373,20 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.atmo_id = 1
         defaults.external_id = 1
         defaults["Textures"] = {
-            "Floor": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-            "Ceiling": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-            "Wall": {"id": 0, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
+            "Floor": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+            "Ceiling": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+            "Wall": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
         }
 
         ############################
         for i in ("Floor", "Ceiling", "Wall"):
+            prop = self.sector_tex.add()
+            prop.kind = i
+            prop.target = "Sector"
+
             prop = self.default_tex.add()
-            prop.target = i
+            prop.kind = i
+            prop.target = "Scene"
 
 
 # 物体属性
