@@ -9,6 +9,8 @@ from typing import Any, TYPE_CHECKING
 # from collections import Counter
 
 import bpy
+
+# import bmesh
 from bpy.app.translations import pgettext
 
 # from bpy.types import Context
@@ -49,6 +51,9 @@ C_COLL = "Camera Collection"
 AUTO_CLEAN_LOCK: threading.Lock = None  # type: ignore
 
 SELECTED_SECTORS: list[Object] = []
+ACTIVE_SECTOR: Object = None  # type: ignore
+
+FACE_FLAG = {"Floor": -1, "Ceiling": -2, "Wall": -3}
 ############################
 
 
@@ -439,7 +444,7 @@ def auto_clean():
     coll = ensure_collection(S_COLL)
     SectorManage = scene_data["SectorManage"]
     if len(SectorManage["sectors"]) != len(coll.all_objects):
-        exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.get_sector_data())  # type: ignore
+        exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
         all_ids = set(SectorManage["sectors"].keys())
         deleted_ids = sorted(all_ids - exist_ids, reverse=True)
 
@@ -618,7 +623,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
     def draw_item(
         self,
-        context,
+        context: Context,
         layout,
         data,
         item: Image,
@@ -646,9 +651,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
         col = row.column()
         col.alignment = "RIGHT"
-        default_id = [
-            i["id"] for i in scene_data.defaults["Textures"].values() if i["id"] != 0
-        ]
+        default_id = [i.id for i in scene_data.defaults.textures if i.id != 0]
         i = ICONS["star"].icon_id if tex_data.id in default_id else 0
         col.label(text="", icon_value=i)
 
@@ -725,8 +728,8 @@ class External_Select(bpy.types.PropertyGroup):
 # 选择纹理
 class Texture_Select(bpy.types.PropertyGroup):
     index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
-    target: StringProperty(default="Sector")  # type: ignore
-    kind: StringProperty(default="")  # type: ignore
+    target: StringProperty(default="")  # type: ignore
+    name: StringProperty(default="")  # type: ignore
     readonly: BoolProperty(default=True)  # type: ignore
 
     def get_index(self):
@@ -740,9 +743,11 @@ class Texture_Select(bpy.types.PropertyGroup):
 
         scene_data = bpy.context.scene.amagate_data
         if self.target == "Scene":
-            scene_data.defaults["Textures"][self.kind]["id"] = bpy.data.images[
+            scene_data.defaults.textures[self.name].id = bpy.data.images[
                 value
             ].amagate_data.id
+        elif self.target == "SectorPublic":
+            ...
         region_redraw("UI")
 
         bpy.ops.ed.undo_push(message="Select Texture")
@@ -811,96 +816,241 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
 
 # 纹理属性
 class TextureProperty(bpy.types.PropertyGroup):
-    # id: IntProperty(name="ID", default=0)  # type: ignore
-    # x: FloatProperty(name="X", default=0.0)  # type: ignore
-    # y: FloatProperty(name="Y", default=0.0)  # type: ignore
+    name: StringProperty(default="")  # type: ignore
+    target: StringProperty(default="")  # type: ignore
 
-    target: StringProperty(default="Sector")  # type: ignore
-    kind: StringProperty(default="")  # type: ignore
-    pos: FloatVectorProperty(
-        name="Position",
-        description="Texture Position",
-        subtype="XYZ",
-        size=2,
-        step=10,
-        set=lambda self, value: self.set_pos(value),
-        get=lambda self: self.get_pos(),
-        # min=-1.0,
-        # max=1.0,
-    )  # type: ignore
-    zoom: FloatVectorProperty(
-        name="Zoom",
-        description="Texture Zoom",
-        subtype="XYZ",
-        size=2,
-        step=10,
-        set=lambda self, value: self.set_zoom(value),
-        get=lambda self: self.get_zoom(),
-    )  # type: ignore
+    id: IntProperty(name="ID", default=0, get=lambda self: self.get_id(), set=lambda self, value: self.set_id(value))  # type: ignore
+
+    xpos: FloatProperty(description="X Position", step=10, default=0.0, get=lambda self: self.get_pos(0), set=lambda self, value: self.set_pos(value, 0))  # type: ignore
+    ypos: FloatProperty(description="Y Position", step=10, default=0.0, get=lambda self: self.get_pos(1), set=lambda self, value: self.set_pos(value, 1))  # type: ignore
+
+    xzoom: FloatProperty(description="X Zoom", step=10, default=0.0, get=lambda self: self.get_zoom(0), set=lambda self, value: self.set_zoom(value, 0))  # type: ignore
+    yzoom: FloatProperty(description="Y Zoom", step=10, default=0.0, get=lambda self: self.get_zoom(1), set=lambda self, value: self.set_zoom(value, 1))  # type: ignore
     zoom_constraint: BoolProperty(
         name="Constraint",
         # description="Zoom Constraint",
         default=True,
     )  # type: ignore
-    angle: FloatProperty(name="Angle", default=0.0, set=lambda self, value: self.set_angle(value), get=lambda self: self.get_angle())  # type: ignore
+
+    angle: FloatProperty(name="Angle", default=0.0, get=lambda self: self.get_angle(), set=lambda self, value: self.set_angle(value))  # type: ignore
     ############################
 
-    def get_pos(self):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.kind]["pos"]
-        else:
-            sec_data = SELECTED_SECTORS[0].amagate_data.get_sector_data()
-            return sec_data["Textures"][self.kind]["pos"]
+    def get_id(self):
+        return self.get("id", 0)
 
-    def set_pos(self, value):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            scene_data.defaults["Textures"][self.kind]["pos"] = value
+    def set_id(self, value):
+        if value == self.id:
+            return
+
+        self["id"] = value
+
+        scene_data = bpy.context.scene.amagate_data
+
+    def get_pos(self, index=0):
+        attr = ("xpos", "ypos")[index]
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            if bpy.context.active_object.mode == "OBJECT":
+                return getattr(sec_data.textures[self.name], attr)
+            elif bpy.context.active_object.mode == "EDIT":
+                ret = 0.0
+                bpy.ops.object.mode_set(mode="OBJECT")
+                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
+                for i, face in enumerate(mesh.polygons):
+                    if face.select:
+                        ret = mesh.attributes["amagate_tex_pos"].data[i].vector[index]  # type: ignore
+                        break
+                bpy.ops.object.mode_set(mode="EDIT")
+                return ret
         else:
-            # TODO 需要判断具体修改的是x还是y
-            for sec in SELECTED_SECTORS:
-                sec_data = sec.amagate_data.get_sector_data()
-                sec_data["Textures"][self.kind]["pos"] = value
+            return self.get(attr, -1.0)
+
+    def set_pos(self, value, index=0):
+        attr = ("xpos", "ypos")[index]
+
+        if self.target == "SectorPublic":
+            # 单独修改面的情况
+            if bpy.context.active_object.mode == "EDIT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+                for sec in SELECTED_SECTORS:
+                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                    update = False
+                    for i, face in enumerate(mesh.polygons):
+                        if face.select:
+                            face_attr = mesh.attributes["amagate_tex_pos"].data[i]  # type: ignore
+                            if face_attr.vector[index] != value:
+                                face_attr.vector[index] = value
+                                update = True
+                    # if update:
+                    #     sec.update_tag()
+                bpy.ops.object.mode_set(mode="EDIT")
+            # 修改预设纹理的情况
+            else:
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    sec_data.textures[self.name].set_pos(value, index)
+        else:
+            self[attr] = value
+
+            if self.target != "Sector":
+                return
+
+            # 给对应标志的面应用预设属性
+            sec = self.id_data  # type: Object
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            face_flag = FACE_FLAG[self.name]
+            update = False
+            for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
+                if d.value == face_flag:
+                    face_attr = mesh.attributes["amagate_tex_pos"].data[i]  # type: ignore
+                    if face_attr.vector[index] != value:
+                        face_attr.vector[index] = value
+                        update = True
+            # if update:
+            #     sec.update_tag()
 
     ############################
-    def get_zoom(self):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.kind]["zoom"]
+    def get_zoom(self, index):
+        attr = ("xzoom", "yzoom")[index]
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            if bpy.context.active_object.mode == "OBJECT":
+                return getattr(sec_data.textures[self.name], attr)
+            elif bpy.context.active_object.mode == "EDIT":
+                ret = 0.0
+                bpy.ops.object.mode_set(mode="OBJECT")
+                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
+                for i, face in enumerate(mesh.polygons):
+                    if face.select:
+                        ret = mesh.attributes["amagate_tex_scale"].data[i].vector[index]  # type: ignore
+                        break
+                bpy.ops.object.mode_set(mode="EDIT")
+                return ret
         else:
-            return self.get("_zoom", (10.0, 10.0))
+            return self.get(attr, -1.0)
 
-    def set_zoom(self, value):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            if self.zoom_constraint:
-                value = list(value)
-                old_value = scene_data.defaults["Textures"][self.kind]["zoom"]
-                idx = 0 if old_value[0] != value[0] else 1
-                if old_value[0] == old_value[1]:
-                    value[1 - idx] = value[idx]
-                else:
-                    factor = value[idx] / old_value[idx]
-                    value[1 - idx] = old_value[1 - idx] * factor
-            scene_data.defaults["Textures"][self.kind]["zoom"] = value
+    def set_zoom(self, value, index, constraint=None):
+        attr = ("xzoom", "yzoom")[index]
+        attr2 = ("xzoom", "yzoom")[1 - index]
+        value2 = None
+        if (constraint is None and self.zoom_constraint) or (
+            constraint is not None and constraint
+        ):
+            old_value = getattr(self, attr)
+            if old_value == 0:
+                value2 = value
+            else:
+                factor = value / old_value
+                value2 = getattr(self, attr2) * factor
+
+        if self.target == "SectorPublic":
+            # 单独修改面的情况
+            if bpy.context.active_object.mode == "EDIT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+                for sec in SELECTED_SECTORS:
+                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                    update = False
+                    for i, face in enumerate(mesh.polygons):
+                        if face.select:
+                            face_attr = mesh.attributes["amagate_tex_scale"].data[i]  # type: ignore
+                            if face_attr.vector[index] != value:
+                                face_attr.vector[index] = value
+                                update = True
+                    # if update:
+                    #     sec.update_tag()
+                bpy.ops.object.mode_set(mode="EDIT")
+            # 修改预设纹理的情况
+            else:
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    sec_data.textures[self.name].set_zoom(
+                        value, index, constraint=self.zoom_constraint
+                    )
         else:
-            self["_zoom"] = value
+            self[attr] = value
+            if value2 is not None:
+                self[attr2] = value2
+
+            if self.target != "Sector":
+                return
+
+            # 给对应标志的面应用预设属性
+            sec = self.id_data  # type: Object
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            face_flag = FACE_FLAG[self.name]
+            update = False
+            for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
+                if d.value == face_flag:
+                    face_attr = mesh.attributes["amagate_tex_scale"].data[i]  # type: ignore
+                    if face_attr.vector[index] != value:
+                        face_attr.vector[index] = value
+                        update = True
+            # if update:
+            #     sec.update_tag()
 
     ############################
     def get_angle(self):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            return scene_data.defaults["Textures"][self.kind]["angle"]
+        attr = "angle"
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            if bpy.context.active_object.mode == "OBJECT":
+                return getattr(sec_data.textures[self.name], attr)
+            elif bpy.context.active_object.mode == "EDIT":
+                ret = 0.0
+                bpy.ops.object.mode_set(mode="OBJECT")
+                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
+                for i, face in enumerate(mesh.polygons):
+                    if face.select:
+                        ret = mesh.attributes["amagate_tex_rotate"].data[i].value  # type: ignore
+                        break
+                bpy.ops.object.mode_set(mode="EDIT")
+                return ret
         else:
-            return self.get("_angle", 0.0)
+            return self.get(attr, -1.0)
 
     def set_angle(self, value):
-        if self.target == "Scene":
-            scene_data = bpy.context.scene.amagate_data
-            scene_data.defaults["Textures"][self.kind]["angle"] = value
+        attr = "angle"
+
+        if self.target == "SectorPublic":
+            # 单独修改面的情况
+            if bpy.context.active_object.mode == "EDIT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+                for sec in SELECTED_SECTORS:
+                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                    update = False
+                    for i, face in enumerate(mesh.polygons):
+                        if face.select:
+                            face_attr = mesh.attributes["amagate_tex_rotate"].data[i]  # type: ignore
+                            if face_attr.value != value:
+                                face_attr.value = value
+                                update = True
+                    # if update:
+                    #     sec.update_tag()
+                bpy.ops.object.mode_set(mode="EDIT")
+            # 修改预设纹理的情况
+            else:
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    sec_data.textures[self.name].set_angle(value)
         else:
-            self["_angle"] = value
+            self[attr] = value
+
+            if self.target != "Sector":
+                return
+
+            # 给对应标志的面应用预设属性
+            sec = self.id_data  # type: Object
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            face_flag = FACE_FLAG[self.name]
+            update = False
+            for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
+                if d.value == face_flag:
+                    face_attr = mesh.attributes["amagate_tex_rotate"].data[i]  # type: ignore
+                    if face_attr.value != value:
+                        face_attr.value = value
+                        update = True
+            # if update:
+            #     sec.update_tag()
 
 
 # 外部光属性
@@ -1035,11 +1185,14 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 class SectorProperty(bpy.types.PropertyGroup):
     as_default: BoolProperty(default=False)  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
-    # is_sector: BoolProperty(default=False)  # type: ignore
+    # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
     atmo_density: FloatProperty(name="Density", description="", default=0.02, min=0.0, soft_max=1.0)  # type: ignore
-
+    # 纹理
+    textures: CollectionProperty(type=TextureProperty)  # type: ignore
+    # 外部光
+    # 环境光
     ambient_color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -1048,7 +1201,8 @@ class SectorProperty(bpy.types.PropertyGroup):
         max=1.0,
         default=(0.784, 0.784, 0.784),
         update=lambda self, context: self.update_ambient_color(context),
-    )  # type: ignore # 环境光
+    )  # type: ignore
+    # 外部光
     external_id: IntProperty(name="External Light", description="", default=0, get=lambda self: self.get_external_id(), set=lambda self, value: self.set_external_id(value))  # type: ignore
     external_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     flat_light: PointerProperty(type=FlatLightProperty)  # type: ignore # 平面光
@@ -1279,8 +1433,6 @@ class SectorProperty(bpy.types.PropertyGroup):
             link2coll(obj, coll)
 
         # self.flat_light.color = scene_data.defaults.flat_light.color
-        # 设置预设纹理
-        self["Textures"] = scene_data.defaults["Textures"].to_dict()
 
         # 添加网格属性
         mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
@@ -1289,6 +1441,20 @@ class SectorProperty(bpy.types.PropertyGroup):
         mesh.attributes.new(name="amagate_tex_rotate", type="FLOAT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_scale", type="FLOAT2", domain="FACE")
 
+        # 设置预设纹理
+        for i in ("Floor", "Ceiling", "Wall"):
+            def_prop = scene_data.defaults.textures[i]
+
+            prop = self.textures.add()
+            prop.target = "Sector"
+            prop.name = i
+            prop.id = def_prop.id
+            prop.xpos = def_prop.xpos
+            prop.ypos = def_prop.ypos
+            prop.xzoom = def_prop.xzoom
+            prop.yzoom = def_prop.yzoom
+            prop.angle = def_prop.angle
+
         for face in mesh.polygons:  # polygons 代表面
             face_index = face.index  # 面的索引
             face_normal = face.normal  # 面的法线方向（Vector）
@@ -1296,14 +1462,14 @@ class SectorProperty(bpy.types.PropertyGroup):
             # 设置纹理
             dp = face_normal.dot(Vector((0, 0, 1)))
             if dp > 0.999:  # 地板
-                tex_id = self["Textures"]["Floor"]["id"]
-                face_flag = -1
+                tex_id = self.textures["Floor"].id
+                face_flag = FACE_FLAG["Floor"]
             elif dp < -0.999:  # 天花板
-                tex_id = self["Textures"]["Ceiling"]["id"]
-                face_flag = -2
+                tex_id = self.textures["Ceiling"].id
+                face_flag = FACE_FLAG["Ceiling"]
             else:  # 墙壁
-                tex_id = self["Textures"]["Wall"]["id"]
-                face_flag = -3
+                tex_id = self.textures["Wall"].id
+                face_flag = FACE_FLAG["Wall"]
             mesh.attributes["amagate_flag"].data[face_index].value = face_flag  # type: ignore
             mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
             mat = None
@@ -1324,6 +1490,8 @@ class SectorProperty(bpy.types.PropertyGroup):
         self.external_id = scene_data.defaults.external_id
         # 设置环境光
         self.ambient_color = scene_data.defaults.ambient_color
+
+        obj.amagate_data.is_sector = True
 
 
 # 图像属性
@@ -1349,7 +1517,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
 
     # 布局属性
-    default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
+    # default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
     sector_tex: CollectionProperty(type=TextureProperty)  # type: ignore
     ############################
 
@@ -1372,26 +1540,38 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.as_default = True
         defaults.atmo_id = 1
         defaults.external_id = 1
-        defaults["Textures"] = {
-            "Floor": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-            "Ceiling": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-            "Wall": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
-        }
 
+        # defaults["Textures"] = {
+        #     "Floor": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+        #     "Ceiling": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
+        #     "Wall": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
+        # }
         ############################
         for i in ("Floor", "Ceiling", "Wall"):
-            prop = self.sector_tex.add()
-            prop.kind = i
-            prop.target = "Sector"
-
-            prop = self.default_tex.add()
-            prop.kind = i
+            prop = defaults.textures.add()
             prop.target = "Scene"
+            prop.name = i
+            prop.id = 1
+            prop.xpos = prop.ypos = 0.0
+            prop.xzoom = prop.yzoom = 10.0
+            if i == "Wall":
+                prop.angle = -90.0
+            else:
+                prop.angle = 0.0
+
+            prop = self.sector_tex.add()
+            prop.name = i
+            prop.target = "SectorPublic"
+
+            # prop = self.default_tex.add()
+            # prop.kind = i
+            # prop.target = "Scene"
 
 
 # 物体属性
 class ObjectProperty(bpy.types.PropertyGroup):
     SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
+    is_sector: BoolProperty(default=False)  # type: ignore
 
     def get_sector_data(self) -> SectorProperty:
         if len(self.SectorData) == 0:

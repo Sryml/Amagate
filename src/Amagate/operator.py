@@ -468,11 +468,7 @@ class OT_Texture_Remove(bpy.types.Operator):
 
         # 不能删除默认纹理
         has_default = next(
-            (
-                True
-                for i in scene_data.defaults["Textures"].values()
-                if i["id"] == img_data.id
-            ),
+            (True for i in scene_data.defaults.textures if i.id == img_data.id),
             None,
         )
         if has_default:
