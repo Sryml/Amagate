@@ -257,7 +257,7 @@ def deserialize_node(nodes, node_data):
             setattr(node, prop, value)
 
     for input_data in node_data.get("inputs", []):
-        input_socket = node.inputs.get(input_data["name"])
+        input_socket = node.inputs[input_data["idx"]]
         input_socket.default_value = input_data["value"]
 
     node.location = node_data["location"]
@@ -299,10 +299,6 @@ def export_nodes(target):
             "to_socket": link.to_socket.name,
         }
         nodes_data["links"].append(link_data)
-
-    # with open(filepath, "w", encoding="utf-8") as file:
-    # file.write(f"{var_name} = ")
-    # pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
 
     print("导出成功")
     return nodes_data

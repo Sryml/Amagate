@@ -310,7 +310,7 @@ class OT_Scene_External_Set(bpy.types.Operator):
         scene_data = context.scene.amagate_data  # type: ignore
         light = data.get_external_by_id(scene_data, self.id)[1]
         col = layout.column()
-        col.prop(light, "vector", text="")
+        col.prop(light, "vector", text="", slider=True)
         col.prop(light, "vector2", text="")
 
     def invoke(self, context, event):
@@ -943,6 +943,9 @@ class OT_ExportNode(bpy.types.Operator):
             bpy.data.node_groups["Amagate Eval"]
         )
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
+        # from pprint import pprint
+        # with open(filepath, "w", encoding="utf-8") as file:
+        #     pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
         return {"FINISHED"}
 
 
