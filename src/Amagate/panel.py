@@ -116,8 +116,13 @@ class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
         col = row.column(align=True)
         col.operator(OP.OT_Scene_Atmo_Add.bl_idname, text="", icon="ADD")
         col.operator(OP.OT_Scene_Atmo_Remove.bl_idname, text="", icon="X")
-        col.separator(factor=3)
-        col.operator(OP.OT_Scene_Atmo_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
+        # col.separator(factor=3)
+        col.label(icon="BLANK1")
+        col.operator(
+            OP.OT_Scene_Atmo_Default.bl_idname,
+            text="",
+            icon_value=data.ICONS["star"].icon_id,
+        )
 
 
 # 场景面板 -> 外部光面板
@@ -151,7 +156,7 @@ class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
         col = row.column(align=True)
         col.operator(OP.OT_Scene_External_Add.bl_idname, text="", icon="ADD")
         col.operator(OP.OT_Scene_External_Remove.bl_idname, text="", icon="X")
-        col.separator(factor=3)
+        col.label(icon="BLANK1")
         col.operator(OP.OT_Scene_External_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
@@ -343,7 +348,7 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
             "images",
             scene_data,
             "active_texture",
-            rows=4,
+            rows=5,
             maxrows=7,
         )
 
@@ -351,7 +356,15 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
         col = row.column(align=True)
         col.operator(OP.OT_Texture_Add.bl_idname, text="", icon="ADD")
         col.operator(OP.OT_Texture_Remove.bl_idname, text="", icon="X")
-        col.separator(factor=3)
+        col.separator()
+
+        col.operator(
+            OP.OT_Texture_Default.bl_idname,
+            text="",
+            icon_value=data.ICONS["star"].icon_id,
+        )
+        col.separator()
+
         col.operator(OP.OT_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
         col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
         # TODO 设为默认按钮，点击弹出列表项

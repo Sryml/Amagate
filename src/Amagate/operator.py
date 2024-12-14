@@ -428,7 +428,7 @@ class OT_Texture_Add(bpy.types.Operator):
         self.override = event.shift
         # 这里通过文件选择器来选择文件或文件夹
         self.filepath = "//"
-        context.window_manager.fileselect_add(self)  # type: ignore
+        context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
 
@@ -438,18 +438,18 @@ class OT_Texture_Remove(bpy.types.Operator):
     bl_description = "Hold shift to quickly delete"
     bl_options = {"INTERNAL", "UNDO"}
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         idx = scene_data.active_texture
 
         if idx >= len(bpy.data.images):
             return {"CANCELLED"}
 
-        img: Image = bpy.data.images[idx]  # type: ignore
-        img_data = img.amagate_data  # type: ignore
+        img: Image = bpy.data.images[idx]
+        img_data = img.amagate_data
 
+        # 不能删除没有ID的纹理或特殊纹理
         if not img_data.id or img.name == "NULL":
-            # 不能删除特殊纹理
             if img.name == "NULL":
                 self.report(
                     {"WARNING"},
@@ -490,11 +490,71 @@ class OT_Texture_Remove(bpy.types.Operator):
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event):
         if event.shift:
             return self.execute(context)
         else:
             return context.window_manager.invoke_confirm(self, event)  # type: ignore
+
+
+class Texture_Default_Prop(bpy.types.PropertyGroup):
+    img_id: IntProperty()  # type: ignore
+    floor: BoolProperty(get=lambda self: self.get_default("Floor"), set=lambda self, value: self.set_default(value, "Floor"))  # type: ignore
+    ceiling: BoolProperty(get=lambda self: self.get_default("Ceiling"), set=lambda self, value: self.set_default(value, "Ceiling"))  # type: ignore
+    wall: BoolProperty(get=lambda self: self.get_default("Wall"), set=lambda self, value: self.set_default(value, "Wall"))  # type: ignore
+
+    def get_default(self, name):
+        return self[name]
+
+    def set_default(self, value, name):
+        scene_data = bpy.context.scene.amagate_data  # type: ignore
+        if value:
+            scene_data.defaults.textures[name].id = self.img_id
+            data.region_redraw("UI")
+            bpy.ops.ed.undo_push(message="Set as default texture")
+        self[name] = True
+
+    def init(self, context: Context):
+        scene_data = context.scene.amagate_data  # type: ignore
+        idx = scene_data.active_texture
+
+        if idx >= len(bpy.data.images):
+            return {"CANCELLED"}
+
+        img: Image = bpy.data.images[idx]
+        img_data = img.amagate_data
+        img_id = img_data.id
+
+        if not img_id:
+            return {"CANCELLED"}
+
+        self.img_id = img_id
+        for name in ("Floor", "Ceiling", "Wall"):
+            self[name] = scene_data.defaults.textures[name].id == img_id
+
+
+class OT_Texture_Default(bpy.types.Operator):
+    bl_idname = "amagate.texture_default"
+    bl_label = "Set as default texture"
+    bl_options = {"INTERNAL"}
+
+    prop: PointerProperty(type=Texture_Default_Prop)  # type: ignore
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column(align=True)
+        col.prop(self.prop, "floor", text="Floor", text_ctxt="Property", toggle=True)
+        col.prop(
+            self.prop, "ceiling", text="Ceiling", text_ctxt="Property", toggle=True
+        )
+        col.prop(self.prop, "wall", text="Wall", text_ctxt="Property", toggle=True)
+
+    def execute(self, context):
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        self.prop.init(context)
+        return context.window_manager.invoke_popup(self, width=100)
 
 
 class OT_Texture_Reload(bpy.types.Operator):
@@ -526,21 +586,42 @@ class OT_Texture_Reload(bpy.types.Operator):
         return self.execute(context)
 
 
+class Texture_Package_Prop(bpy.types.PropertyGroup):
+    items: CollectionProperty(type=data.StringCollection)  # type: ignore
+    index: IntProperty(name="Select Operation", default=-1, update=lambda self, context: self.update_index(context))  # type: ignore
+
+    def update_index(self, context):
+        # 如果未打开blend文件，则使用原始路径
+        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
+        selected = self.items[self.index].name
+        for img in bpy.data.images:
+            if img.amagate_data.id and img.name != "NULL":  # type: ignore
+                if selected == "Pack All":
+                    if not img.packed_file:
+                        img.pack()
+                else:
+                    if img.packed_file:
+                        img.unpack(method=m)
+        message = "Pack All" if selected == "Pack All" else "Unpack All"
+        bpy.ops.ed.undo_push(message=message)
+        # XXX 也许不起作用
+        simulate_keypress()
+
+
 class OT_Texture_Package(bpy.types.Operator):
     bl_idname = "amagate.texture_package"
     bl_label = "Pack/Unpack Texture"
     bl_description = "Hold shift to pack/unpack all textures"
     bl_options = {"INTERNAL"}
 
-    items: CollectionProperty(type=data.StringCollection)  # type: ignore
-    index: IntProperty(name="Select Operation", default=3, update=lambda self, context: OT_Texture_Package.execute2(self, context))  # type: ignore
+    prop: PointerProperty(type=Texture_Package_Prop)  # type: ignore
     ############################
 
     def draw(self, context):
         layout = self.layout
         row = layout.row()
         row.template_list(
-            "AMAGATE_UI_UL_StrList", "", self, "items", self, "index", rows=2
+            "AMAGATE_UI_UL_StrList", "", self.prop, "items", self.prop, "index", rows=2
         )
 
     def execute(self, context):
@@ -554,30 +635,16 @@ class OT_Texture_Package(bpy.types.Operator):
         if img and img.amagate_data.id and img.name != "NULL":
             if img.packed_file:
                 img.unpack(method=m)
+                bpy.ops.ed.undo_push(message="Unpack Texture")
             else:
                 img.pack()
+                bpy.ops.ed.undo_push(message="Pack Texture")
         return {"FINISHED"}
-
-    @staticmethod
-    def execute2(this, context):
-        # 如果未打开blend文件，则使用原始路径
-        m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
-        selected = this.items[this.index].name
-        for img in bpy.data.images:
-            if img.amagate_data.id and img.name != "NULL":  # type: ignore
-                if selected == "Pack All":
-                    if not img.packed_file:
-                        img.pack()
-                else:
-                    if img.packed_file:
-                        img.unpack(method=m)
-        # XXX 也许不起作用
-        simulate_keypress()
 
     def invoke(self, context, event):
         if event.shift:
             for n in ("Pack All", "Unpack All"):
-                self.items.add().name = n
+                self.prop.items.add().name = n
             return context.window_manager.invoke_popup(self, width=100)  # type: ignore
         return self.execute(context)
 
@@ -989,11 +1056,11 @@ class OT_ImportNode(bpy.types.Operator):
 ############################
 ############################
 ############################
-
+class_tuple = (bpy.types.PropertyGroup, bpy.types.Operator)
 classes = [
     cls
     for cls in globals().values()
-    if isinstance(cls, type) and issubclass(cls, bpy.types.Operator)
+    if isinstance(cls, type) and any(issubclass(cls, parent) for parent in class_tuple)
 ]
 
 
