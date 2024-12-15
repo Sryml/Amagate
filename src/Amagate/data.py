@@ -136,7 +136,8 @@ def ensure_null_texture():
 def ensure_null_object() -> Object:
     null_obj = bpy.data.objects.get("NULL")  # type: Object # type: ignore
     if not null_obj:
-        null_obj = bpy.data.objects.new("NULL", None)
+        obj_data = bpy.data.meshes.new("NULL")
+        null_obj = bpy.data.objects.new("NULL", obj_data)
         null_obj.use_fake_user = True
     return null_obj
 
@@ -546,7 +547,7 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
         # col = split.column()
         # col.enabled = False
         # col.label(text=f"ID: {item.id}")
-        i = ICONS["star"].icon_id if item.id == scene_data.defaults.atmo_id else 0
+        i = ICONS["star"].icon_id if item.id == scene_data.defaults.atmo_id else 1
         col = row.column()
         col.alignment = "LEFT"
         col.label(text="", icon_value=i)  # icon="CHECKMARK"
@@ -581,7 +582,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         split = row.split(factor=0.6)
         row = split.row()
 
-        i = ICONS["star"].icon_id if light.id == scene_data.defaults.external_id else 0
+        i = ICONS["star"].icon_id if light.id == scene_data.defaults.external_id else 1
         col = row.column()
         col.alignment = "LEFT"
         col.label(text="", icon_value=i)
@@ -620,7 +621,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
     def draw_item(
         self,
         context: Context,
-        layout,
+        layout: bpy.types.UILayout,
         data,
         item: Image,
         icon,
@@ -634,10 +635,14 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
         row = layout.row()
 
-        i = tex.preview.icon_id if tex.preview else 0
+        i = tex.preview.icon_id if tex.preview else 1
         col = row.column()
         col.alignment = "LEFT"
-        col.label(text="", icon_value=i)
+        # col.label(text="", icon_value=i)
+        op = col.operator(
+            "amagate.texture_preview", text="", icon_value=i, emboss=False
+        )
+        op.index = bpy.data.images.find(tex.name)  # type: ignore
 
         col = row.column()
         if enabled:
@@ -645,15 +650,16 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         else:
             col.label(text=tex.name)
 
+        row = row.row(align=True)
         col = row.column()
         col.alignment = "RIGHT"
         default_id = [i.id for i in scene_data.defaults.textures if i.id != 0]
-        i = ICONS["star"].icon_id if tex_data.id in default_id else 0
+        i = ICONS["star"].icon_id if tex_data.id in default_id else 1
         col.label(text="", icon_value=i)
 
         col = row.column()
         col.alignment = "RIGHT"
-        i = "UGLYPACKAGE" if tex.packed_file else "NONE"
+        i = "UGLYPACKAGE" if tex.packed_file else "BLANK1"
         col.label(text="", icon=i)
 
 
@@ -1361,6 +1367,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         slot = obj.material_slots.get(mat.name)
         if not slot:
+            # 排除已使用的槽位
             slots = set(range(len(obj.material_slots)))
             for face in mesh.polygons:
                 if face.index in faces:
@@ -1369,6 +1376,7 @@ class SectorProperty(bpy.types.PropertyGroup):
                 if not slots:
                     break
 
+            # 选择空槽位，如果没有的话则新建
             if slots:
                 slot = obj.material_slots[slots.pop()]
             else:
@@ -1511,6 +1519,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     active_texture: IntProperty(name="Texture", default=0, set=lambda self, value: self.set_active_texture(value), get=lambda self: self.get_active_texture())  # type: ignore
 
     defaults: PointerProperty(type=SectorProperty)  # type: ignore # 扇区默认属性
+
+    # 纹理预览
+    tex_preview: PointerProperty(type=bpy.types.Image)  # type: ignore
 
     # 布局属性
     # default_tex: CollectionProperty(type=TextureProperty)  # type: ignore

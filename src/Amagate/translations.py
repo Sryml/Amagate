@@ -45,6 +45,7 @@ translations_dict = {
         ("*", "External Light"): "外部光",
         ("*", "Flat Light"): "平面光",
         # 纹理面板
+        ("Operator", "Click to preview texture"): "点击预览纹理",
         ("Operator", "Select Texture"): "选择纹理",
         ("Operator", "Add Texture"): "添加纹理",
         ("*", "Hold shift to enable overlay"): "按住 Shift 启用覆盖",

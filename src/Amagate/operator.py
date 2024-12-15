@@ -687,6 +687,41 @@ class OT_Texture_Select(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
 
 
+class OT_Texture_Preview(bpy.types.Operator):
+    bl_idname = "amagate.texture_preview"
+    bl_label = "Click to preview texture"
+    # bl_description = "Click to preview texture"
+    bl_options = {"INTERNAL"}
+
+    index: IntProperty(default=0)  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties: OT_Texture_Preview):
+        tex = bpy.data.images[properties.index]  # type: Image
+        tex_data = tex.amagate_data
+        if tex_data.id > 0:
+            return f"AG.Mat{tex_data.id}"
+        else:
+            return ""
+
+    def draw(self, context: Context):
+        layout = self.layout
+        row = layout.row()
+        scene_data = context.scene.amagate_data
+        # row.scale_y = 2
+        row.template_ID_preview(scene_data, "tex_preview", hide_buttons=True)
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        scene_data = context.scene.amagate_data
+        tex = bpy.data.images[self.index]  # type: Image
+        scene_data.tex_preview = tex
+
+        return context.window_manager.invoke_popup(self, width=130)
+
+
 ############################
 ############################ 扇区面板
 ############################
@@ -870,7 +905,7 @@ class OT_InitMap(bpy.types.Operator):
 
         # XXX 依赖图更新后回调函数，不知加载新文件后是否还有回调函数
         data.AUTO_CLEAN_LOCK = threading.Lock()
-        bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)
+        bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)  # type: ignore
 
         bpy.ops.ed.undo_push(message="Initialize Scene")
         return {"FINISHED"}

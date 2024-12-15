@@ -226,7 +226,13 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
             if tex and tex.preview:
                 col = row.column()
-                col.label(text="", icon_value=tex.preview.icon_id)
+                op = col.operator(
+                    OP.OT_Texture_Preview.bl_idname,
+                    text="",
+                    icon_value=tex.preview.icon_id,
+                    emboss=False,
+                )
+                op.index = bpy.data.images.find(tex.name)  # type: ignore
 
             row = box.row()
             row.prop(prop, "xpos", text="X")
@@ -577,7 +583,13 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
 
                 if tex and tex.preview:
                     col = row.column()
-                    col.label(text="", icon_value=tex.preview.icon_id)
+                    op = col.operator(
+                        OP.OT_Texture_Preview.bl_idname,
+                        text="",
+                        icon_value=tex.preview.icon_id,
+                        emboss=False,
+                    )
+                    op.index = bpy.data.images.find(tex.name)  # type: ignore
                 elif not is_tex_uniform:
                     col = row.column()
                     col.alignment = "CENTER"
