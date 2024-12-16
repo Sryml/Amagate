@@ -47,6 +47,7 @@ translations_dict = {
         # 纹理面板
         ("Operator", "Click to preview texture"): "点击预览纹理",
         ("Operator", "Select Texture"): "选择纹理",
+        ("*", "Ignore textures with the same name as the special texture"): "忽略与特殊纹理同名的纹理",
         ("Operator", "Add Texture"): "添加纹理",
         ("*", "Hold shift to enable overlay"): "按住 Shift 启用覆盖",
         ("*", "Override Mode"): "覆盖模式",

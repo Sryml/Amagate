@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     Context = bpy.__Context
     Object = bpy.__Object
     Image = bpy.__Image
+    Scene = bpy.__Scene
 
 
 class N_Panel:
@@ -43,9 +44,9 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
         super().__init__()
         data.ensure_null_texture()
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
 
         # 场景状态
         if not scene_data.is_blade:
@@ -88,9 +89,9 @@ class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"HIDE_HEADER"}
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
 
         # 显示大气列表
         row = layout.row(align=True)
@@ -131,9 +132,9 @@ class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     # bl_options = {"HIDE_HEADER"}
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data
 
         row = layout.row(align=True)
         row.alignment = "LEFT"
@@ -166,11 +167,11 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
     bl_options = {"DEFAULT_CLOSED"}  # 默认折叠
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
         # layout.use_property_split = True
         # layout.use_property_decorate = False
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data
 
         # 大气
         # layout.prop_search(scene_data.defaults, "atmo", scene_data, "atmospheres", text="Atmosphere")
@@ -333,9 +334,9 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
         super().__init__()
         data.ensure_null_texture()
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data
         images = bpy.data.images
 
         # 显示纹理列表
@@ -428,7 +429,7 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data
 
         # 当选中物体中包含扇区的情况下才会渲染面板
         SELECTED_SECTORS = []
@@ -462,7 +463,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = context.scene.amagate_data
         SELECTED_SECTORS = data.SELECTED_SECTORS
         if not SELECTED_SECTORS:
             return

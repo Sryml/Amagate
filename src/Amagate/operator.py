@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     Context = bpy.__Context
     Object = bpy.__Object
     Image = bpy.__Image
+    Scene = bpy.__Scene
 
 
 import ctypes
@@ -93,8 +94,8 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
 
     undo: BoolProperty(default=True)  # type: ignore
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         active_atmo = scene_data.active_atmosphere
         if active_atmo >= len(scene_data.atmospheres):
             return {"CANCELLED"}
@@ -126,7 +127,7 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
             bpy.ops.ed.undo_push(message="Remove Atmosphere")
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event):
         if event.shift:
             return self.execute(context)
         else:
@@ -140,8 +141,8 @@ class OT_Scene_Atmo_Default(bpy.types.Operator):
 
     undo: BoolProperty(default=True)  # type: ignore
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         active_atmo = scene_data.active_atmosphere
         if active_atmo >= len(scene_data.atmospheres):
             return {"CANCELLED"}
@@ -160,8 +161,8 @@ class OT_Atmo_Select(bpy.types.Operator):
 
     prop: PointerProperty(type=data.Atmo_Select)  # type: ignore
 
-    def draw(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
         layout = self.layout
         col = layout.column()
 
@@ -231,8 +232,8 @@ class OT_Scene_External_Remove(bpy.types.Operator):
 
     undo: BoolProperty(default=True)  # type: ignore
 
-    def execute(self, context):
-        scene_data: data.SceneProperty = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data: data.SceneProperty = context.scene.amagate_data
         active_idx = scene_data.active_external
         externals = scene_data.externals
         if active_idx >= len(externals):
@@ -266,7 +267,7 @@ class OT_Scene_External_Remove(bpy.types.Operator):
 
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event):
         if event.shift:
             return self.execute(context)
         else:
@@ -280,8 +281,8 @@ class OT_Scene_External_Default(bpy.types.Operator):
 
     undo: BoolProperty(default=True)  # type: ignore
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         active_idx = scene_data.active_external
         if active_idx >= len(scene_data.externals):
             return {"CANCELLED"}
@@ -300,14 +301,14 @@ class OT_Scene_External_Set(bpy.types.Operator):
 
     id: IntProperty(name="ID")  # type: ignore
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
 
         return {"FINISHED"}
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
         light = data.get_external_by_id(scene_data, self.id)[1]
         col = layout.column()
         col.prop(light, "vector", text="", slider=True)
@@ -324,8 +325,8 @@ class OT_External_Select(bpy.types.Operator):
 
     prop: PointerProperty(type=data.External_Select)  # type: ignore
 
-    def draw(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
         layout = self.layout
         col = layout.column()
 
@@ -383,6 +384,7 @@ class OT_Texture_Add(bpy.types.Operator):
             img.use_fake_user = True
 
     def execute(self, context: Context):
+        scene_data = bpy.context.scene.amagate_data
         curr_dir = bpy.path.abspath("//")
         # 相同驱动器
         same_drive = (
@@ -402,7 +404,12 @@ class OT_Texture_Add(bpy.types.Operator):
 
         for file in files:
             name = os.path.splitext(file)[0]
-            if name == "NULL":
+            if name == data.ensure_null_texture().name:
+                # 忽略与特殊纹理同名的纹理
+                self.report(
+                    {"WARNING"},
+                    f"{pgettext('Warning')}: {pgettext('Ignore textures with the same name as the special texture')}",
+                )
                 continue
 
             filepath = os.path.join(self.directory, file)
@@ -449,8 +456,8 @@ class OT_Texture_Remove(bpy.types.Operator):
         img_data = img.amagate_data
 
         # 不能删除没有ID的纹理或特殊纹理
-        if not img_data.id or img.name == "NULL":
-            if img.name == "NULL":
+        if not img_data.id or img == scene_data.ensure_null_tex:
+            if img == scene_data.ensure_null_tex:
                 self.report(
                     {"WARNING"},
                     f"{pgettext('Warning')}: {pgettext('Cannot remove special texture')}",
@@ -507,7 +514,7 @@ class Texture_Default_Prop(bpy.types.PropertyGroup):
         return self[name]
 
     def set_default(self, value, name):
-        scene_data = bpy.context.scene.amagate_data  # type: ignore
+        scene_data = bpy.context.scene.amagate_data
         if value:
             scene_data.defaults.textures[name].id = self.img_id
             data.region_redraw("UI")
@@ -515,7 +522,7 @@ class Texture_Default_Prop(bpy.types.PropertyGroup):
         self[name] = True
 
     def init(self, context: Context):
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
         idx = scene_data.active_texture
 
         if idx >= len(bpy.data.images):
@@ -587,15 +594,16 @@ class OT_Texture_Reload(bpy.types.Operator):
 
 
 class Texture_Package_Prop(bpy.types.PropertyGroup):
-    items: CollectionProperty(type=data.StringCollection)  # type: ignore
-    index: IntProperty(name="Select Operation", default=-1, update=lambda self, context: self.update_index(context))  # type: ignore
+    pack_all: BoolProperty(default=False, update=lambda self, context: self.update(context, "Pack All"))  # type: ignore
+    unpack_all: BoolProperty(default=False, update=lambda self, context: self.update(context, "Unpack All"))  # type: ignore
 
-    def update_index(self, context):
+    def update(self, context: Context, selected):
+        scene_data = context.scene.amagate_data
         # 如果未打开blend文件，则使用原始路径
         m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
-        selected = self.items[self.index].name
+        # selected = self.items[self.index].name
         for img in bpy.data.images:
-            if img.amagate_data.id and img.name != "NULL":  # type: ignore
+            if img.amagate_data.id and img != scene_data.ensure_null_tex:  # type: ignore
                 if selected == "Pack All":
                     if not img.packed_file:
                         img.pack()
@@ -619,20 +627,22 @@ class OT_Texture_Package(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        row = layout.row()
-        row.template_list(
-            "AMAGATE_UI_UL_StrList", "", self.prop, "items", self.prop, "index", rows=2
-        )
+        col = layout.column()
+        col.prop(self.prop, "pack_all", text="Pack All", toggle=True)
+        col.prop(self.prop, "unpack_all", text="Unpack All", toggle=True)
+        # row.template_list(
+        #     "AMAGATE_UI_UL_StrList", "", self.prop, "items", self.prop, "index", rows=2
+        # )
 
-    def execute(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         m = "USE_LOCAL" if bpy.data.filepath else "USE_ORIGINAL"
         idx = scene_data.active_texture
         if idx >= len(bpy.data.images):
             return {"CANCELLED"}
 
         img: Image = bpy.data.images[idx]
-        if img and img.amagate_data.id and img.name != "NULL":
+        if img and img.amagate_data.id and img != scene_data.ensure_null_tex:
             if img.packed_file:
                 img.unpack(method=m)
                 bpy.ops.ed.undo_push(message="Unpack Texture")
@@ -641,10 +651,8 @@ class OT_Texture_Package(bpy.types.Operator):
                 bpy.ops.ed.undo_push(message="Pack Texture")
         return {"FINISHED"}
 
-    def invoke(self, context, event):
+    def invoke(self, context: Context, event):
         if event.shift:
-            for n in ("Pack All", "Unpack All"):
-                self.prop.items.add().name = n
             return context.window_manager.invoke_popup(self, width=100)  # type: ignore
         return self.execute(context)
 
@@ -665,8 +673,8 @@ class OT_Texture_Select(bpy.types.Operator):
     #         return pgettext("Select NULL for sky")
     #     return ""
 
-    def draw(self, context):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
         layout = self.layout
         col = layout.column()
 
@@ -699,8 +707,8 @@ class OT_Texture_Preview(bpy.types.Operator):
     def description(cls, context, properties: OT_Texture_Preview):
         tex = bpy.data.images[properties.index]  # type: Image
         tex_data = tex.amagate_data
-        if tex_data.id > 0:
-            return f"AG.Mat{tex_data.id}"
+        if tex_data.mat_obj:
+            return tex_data.mat_obj.name
         else:
             return ""
 
@@ -798,7 +806,7 @@ class OT_New(bpy.types.Operator):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
 
         row = layout.row()
         row.label(text="Save changes before closing?")
@@ -867,11 +875,11 @@ class OT_InitMap(bpy.types.Operator):
         # 创建新场景
         name = "Blade Scene"
         # bpy.ops.scene.new()
-        scene = bpy.data.scenes.new("")
+        scene = bpy.data.scenes.new("")  # type: Scene # type: ignore
         scene.rename(name, mode="ALWAYS")
         context.window.scene = scene
         bpy.data.scenes.remove(old_scene)
-        scene_data: data.SceneProperty = scene.amagate_data  # type: ignore
+        scene_data: data.SceneProperty = scene.amagate_data
 
         # 初始化场景数据
         scene_data.id = 1

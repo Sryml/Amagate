@@ -36,6 +36,7 @@ if TYPE_CHECKING:
     Context = bpy.__Context
     Object = bpy.__Object
     Image = bpy.__Image
+    Scene = bpy.__Scene
 
 ############################ 全局变量
 DEBUG = False
@@ -120,40 +121,47 @@ def get_texture_by_id(texture_id) -> tuple[int, Image]:
 
 
 # 确保NULL纹理存在
-def ensure_null_texture():
-    images = bpy.data.images
-    img = images.get("NULL")
+def ensure_null_texture() -> Image:
+    scene_data = bpy.context.scene.amagate_data
+    img = scene_data.ensure_null_tex  # type: Image
     if not img:
-        img = images.new("NULL", width=256, height=256)
+        img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
         img.amagate_data.id = -1  # type: ignore
-    elif not img.amagate_data.id:  # type: ignore
-        img.amagate_data.id = -1  # type: ignore
+        scene_data.ensure_null_tex = img
+    # elif not img.amagate_data.id:  # type: ignore
+    #     img.amagate_data.id = -1  # type: ignore
     if not img.use_fake_user:
         img.use_fake_user = True
+    return img
 
 
 # 确保NULL物体存在
 def ensure_null_object() -> Object:
-    null_obj = bpy.data.objects.get("NULL")  # type: Object # type: ignore
+    scene_data = bpy.context.scene.amagate_data
+    null_obj = scene_data.ensure_null_obj  # type: Object
     if not null_obj:
-        obj_data = bpy.data.meshes.new("NULL")
-        null_obj = bpy.data.objects.new("NULL", obj_data)
+        # obj_data = bpy.data.meshes.new("NULL")
+        null_obj = bpy.data.objects.new("NULL", None)  # type: ignore
         null_obj.use_fake_user = True
+        scene_data.ensure_null_obj = null_obj
     return null_obj
 
 
 # 确保集合
 def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
     scene = bpy.context.scene
-    collections = bpy.data.collections
-    # name = f"{pgettext(name)}{get_scene_suffix(scene)}"
-    name = f"{pgettext(name)}"
-    coll = collections.get(name)
-    if not coll:
-        coll = collections.new(name)
+    scene_data = scene.amagate_data
+    item = scene_data.ensure_coll.get(name)
+    if (not item) or (not item.obj):
+        c_name = f"{pgettext(name)}"
+        coll = bpy.data.collections.new(c_name)
         scene.collection.children.link(coll)
         coll.hide_select = hide_select
-    return coll
+        if not item:
+            item = scene_data.ensure_coll.add()
+            item.name = name
+        item.obj = coll
+    return item.obj
 
 
 # 确保材质
@@ -504,8 +512,9 @@ def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
 
 
 # 定义检查函数
-def check_before_save(scene: bpy.types.Scene):
-    img = bpy.data.images.get("NULL")
+def check_before_save(scene: Scene):
+    scene_data = scene.amagate_data
+    img = scene_data.ensure_null_tex
     if img:
         img.use_fake_user = True
 
@@ -534,8 +543,17 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 
 
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
-    def draw_item(self, context, layout, data, item, icon, active_data, active_prop):
-        scene_data = context.scene.amagate_data  # type: ignore
+    def draw_item(
+        self,
+        context: Context,
+        layout: bpy.types.UILayout,
+        data,
+        item,
+        icon,
+        active_data,
+        active_prop,
+    ):
+        scene_data = context.scene.amagate_data
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
@@ -566,7 +584,7 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
 class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
     def draw_item(
         self,
-        context,
+        context: Context,
         layout: bpy.types.UILayout,
         data,
         item,
@@ -574,7 +592,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         active_data,
         active_prop,
     ):
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
         light = item  # 获取大气数据
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
@@ -628,7 +646,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         active_data,
         active_prop,
     ):
-        scene_data = context.scene.amagate_data  # type: ignore
+        scene_data = context.scene.amagate_data
         tex = item
         tex_data = tex.amagate_data  # type: ignore
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
@@ -645,7 +663,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         op.index = bpy.data.images.find(tex.name)  # type: ignore
 
         col = row.column()
-        if enabled:
+        if enabled and tex != scene_data.ensure_null_tex:
             col.prop(tex, "name", text="", emboss=False)
         else:
             col.label(text=tex.name)
@@ -664,12 +682,31 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
 
 ############################
-############################ Operator Props
+############################ Collection Props
 ############################
 
 
 class StringCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
+
+
+class SectorCollection(bpy.types.PropertyGroup):
+    name: StringProperty(default="")  # type: ignore
+    obj: PointerProperty(type=bpy.types.Object, update=lambda self, context: self.update_obj(context))  # type: ignore
+
+    def update_obj(self, context):
+        if self.obj:
+            self.name = str(self.obj.amagate_data.get_sector_data().id)
+
+
+class CollCollection(bpy.types.PropertyGroup):
+    name: StringProperty(default="")  # type: ignore
+    obj: PointerProperty(type=bpy.types.Collection)  # type: ignore
+
+
+############################
+############################ Operator Props
+############################
 
 
 # 选择大气
@@ -758,15 +795,6 @@ class Texture_Select(bpy.types.PropertyGroup):
 ############################
 ############################ Object Props
 ############################
-
-
-class SectorCollection(bpy.types.PropertyGroup):
-    name: StringProperty(default="")  # type: ignore
-    obj: PointerProperty(type=bpy.types.Object, update=lambda self, context: self.update_obj(context))  # type: ignore
-
-    def update_obj(self, context):
-        if self.obj:
-            self.name = str(self.obj.amagate_data.get_sector_data().id)
 
 
 # 大气属性
@@ -1522,6 +1550,10 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 纹理预览
     tex_preview: PointerProperty(type=bpy.types.Image)  # type: ignore
+    # 存储确保对象
+    ensure_null_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    ensure_null_tex: PointerProperty(type=bpy.types.Image)  # type: ignore
+    ensure_coll: CollectionProperty(type=CollCollection)  # type: ignore
 
     # 布局属性
     # default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
