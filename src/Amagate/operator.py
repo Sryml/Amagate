@@ -897,6 +897,8 @@ class OT_InitMap(bpy.types.Operator):
         ## 创建默认数据
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
+        ## 创建节点
+        data.ensure_node()
         ## 设置世界环境
         world = bpy.data.worlds.new("")
         world.rename("BWorld", mode="ALWAYS")
@@ -911,8 +913,7 @@ class OT_InitMap(bpy.types.Operator):
         scene_data.is_blade = True
         split_editor(context)
 
-        # XXX 依赖图更新后回调函数，不知加载新文件后是否还有回调函数
-        data.AUTO_CLEAN_LOCK = threading.Lock()
+        data.DEPSGRAPH_UPDATE_LOCK = threading.Lock()
         bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)  # type: ignore
 
         bpy.ops.ed.undo_push(message="Initialize Scene")
@@ -1048,14 +1049,17 @@ class OT_ExportNode(bpy.types.Operator):
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         # 导出节点
         nodes_data = {}
-        nodes_data["mat_nodes"] = data.export_nodes(bpy.data.materials["test"])
-        nodes_data["amagate_eval"] = data.export_nodes(
+        nodes_data["AG.Mat"] = data.export_nodes(bpy.data.materials["AG.Mat"])
+        nodes_data["Amagate Eval"] = data.export_nodes(
             bpy.data.node_groups["Amagate Eval"]
         )
+        # nodes_data["AG.SectorNodes"] = data.export_nodes(
+        #     bpy.data.node_groups["AG.SectorNodes"]
+        # )
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-        # from pprint import pprint
-        # with open(filepath, "w", encoding="utf-8") as file:
-        #     pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
+        from pprint import pprint
+        with open(filepath+".tmp", "w", encoding="utf-8") as file:
+            pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
         return {"FINISHED"}
 
 
@@ -1068,10 +1072,12 @@ class OT_ImportNode(bpy.types.Operator):
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
 
-        mat = bpy.data.materials.new("test")
-        data.import_nodes(mat, nodes_data["mat_nodes"])
+        name = "AG.Mat"
+        mat = bpy.data.materials.new(name)
+        data.import_nodes(mat, nodes_data[name])
 
-        group = bpy.data.node_groups.new("Amagate Eval", "GeometryNodeTree")  # type: ignore
+        name = "Amagate Eval"
+        group = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
 
         group.interface.new_socket(
             "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
@@ -1092,7 +1098,18 @@ class OT_ImportNode(bpy.types.Operator):
         group.use_fake_user = True
         group.is_tool = True  # type: ignore
         group.is_type_mesh = True  # type: ignore
-        data.import_nodes(group, nodes_data["amagate_eval"])
+        data.import_nodes(group, nodes_data[name])
+
+        # name = "AG.SectorNodes"
+        # NodeTree = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        # )
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        # )
+        # NodeTree.is_modifier = True  # type: ignore
+        # data.import_nodes(NodeTree, nodes_data[name])
         return {"FINISHED"}
 
 

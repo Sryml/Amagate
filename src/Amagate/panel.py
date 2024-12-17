@@ -374,11 +374,6 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
 
         col.operator(OP.OT_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
         col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
-        # TODO 设为默认按钮，点击弹出列表项
-
-        # TODO: 预览图像
-        # row = layout.row(align=True)
-        # row.template_preview()
 
 
 ############################

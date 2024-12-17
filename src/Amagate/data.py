@@ -49,7 +49,7 @@ GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
 
-AUTO_CLEAN_LOCK: threading.Lock = None  # type: ignore
+DEPSGRAPH_UPDATE_LOCK: threading.Lock = None  # type: ignore
 
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
@@ -174,13 +174,69 @@ def ensure_material(tex: Image) -> bpy.types.Material:
         mat.rename(name, mode="ALWAYS")
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
-        import_nodes(mat, nodes_data["mat_nodes"])
+        import_nodes(mat, nodes_data["AG.Mat"])
         mat.use_fake_user = True
         mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
         mat.use_backface_culling = True
         tex_data.mat_obj = mat
 
     return mat
+
+
+# 确保节点
+def ensure_node():
+    filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+    nodes_data = pickle.load(open(filepath, "rb"))
+    scene_data = bpy.context.scene.amagate_data
+    #
+    NodeTree = scene_data.eval_node
+    if not NodeTree:
+        NodeTree = bpy.data.node_groups.new("Amagate Eval", "GeometryNodeTree")  # type: ignore
+        NodeTree.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        NodeTree.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+
+    import_nodes(NodeTree, nodes_data["Amagate Eval"])
+    NodeTree.use_fake_user = True
+    NodeTree.is_tool = True  # type: ignore
+    NodeTree.is_type_mesh = True  # type: ignore
+    scene_data.eval_node = NodeTree
+    #
+    NodeTree = scene_data.sec_node
+    if not NodeTree:
+        NodeTree = bpy.data.node_groups.new("AG.SectorNodes", "GeometryNodeTree")  # type: ignore
+        NodeTree.interface.new_socket(
+            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        )
+        NodeTree.interface.new_socket(
+            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        )
+    NodeTree.nodes.clear()
+
+    input_node = NodeTree.nodes.new("NodeGroupInput")
+    input_node.select = False
+    input_node.location.x = -200 - input_node.width
+
+    output_node = NodeTree.nodes.new("NodeGroupOutput")
+    output_node.is_active_output = True  # type: ignore
+    output_node.select = False
+    output_node.location.x = 200
+
+    group = NodeTree.nodes.new(type="GeometryNodeGroup")
+    group.location.x = -group.width / 2
+    group.select = False
+    group.node_tree = scene_data.eval_node  # type: ignore
+
+    # NodeTree.links.new(input_node.outputs[0], output_node.inputs[0])
+    NodeTree.links.new(input_node.outputs[0], group.inputs[0])
+    NodeTree.links.new(group.outputs[0], output_node.inputs[0])
+
+    NodeTree.use_fake_user = True
+    NodeTree.is_modifier = True  # type: ignore
+    scene_data.sec_node = NodeTree
 
 
 def link2coll(obj, coll):
@@ -230,11 +286,21 @@ def serialize_node(node: bpy.types.Node, temp_node):
                     getattr(temp_node, identifier)
                 ):  # 只存储非默认值
                     node_data["properties"][identifier] = value
+                elif identifier in (
+                    "input_type",
+                    "data_type",
+                    "mode",
+                    "operation",
+                    "domain",
+                ):
+                    node_data["properties"][identifier] = value
     # 处理输入
     inputs_data = []
     for i, input_socket in enumerate(node.inputs):
         if not input_socket.is_linked:
-            if not hasattr(input_socket, "default_value"):
+            if not hasattr(input_socket, "default_value") or not hasattr(
+                temp_node.inputs[i], "default_value"
+            ):
                 continue
             value = to_primitive(input_socket.default_value)  # type: ignore
             if value is not None:
@@ -242,7 +308,7 @@ def serialize_node(node: bpy.types.Node, temp_node):
                     temp_node.inputs[i].default_value
                 ):  # 只存储非默认值
                     inputs_data.append(
-                        {"idx": i, "name": input_socket.name, "value": value}
+                        {"idx": i, "value": value}  # "name": input_socket.name
                     )
 
     node_data["inputs"] = inputs_data
@@ -274,6 +340,13 @@ def deserialize_node(nodes, node_data):
     return node
 
 
+def get_socket_index(coll, target_socket):
+    for i, socket in enumerate(coll):
+        if socket == target_socket:
+            return i
+    return None
+
+
 def export_nodes(target):
     if hasattr(target, "node_tree"):
         nodes = target.node_tree.nodes  # type: bpy.types.Nodes
@@ -287,11 +360,18 @@ def export_nodes(target):
     # 存储节点和连接的字典
     nodes_data = {"nodes": [], "links": []}
     for node in list(nodes):
-        temp_node = temp_nodes.get(node.bl_idname)
+        temp_node_data = {"bl_idname": node.bl_idname}
+        dynamic_props = ("input_type", "data_type", "mode", "operation", "domain")
+        for prop in dynamic_props:
+            temp_node_data[prop] = getattr(node, prop) if hasattr(node, prop) else ""
+
+        k = ".".join(temp_node_data.values())
+        temp_node = temp_nodes.get(k)
         if not temp_node:
-            temp_node = temp_nodes.setdefault(
-                node.bl_idname, nodes.new(type=node.bl_idname)
-            )
+            temp_node = temp_nodes.setdefault(k, nodes.new(type=node.bl_idname))
+            for prop in dynamic_props:
+                if hasattr(temp_node, prop):
+                    setattr(temp_node, prop, temp_node_data[prop])
 
         node_data = serialize_node(node, temp_node)
         nodes_data["nodes"].append(node_data)
@@ -301,11 +381,13 @@ def export_nodes(target):
 
     # 遍历连接
     for link in links:
+        from_socket = get_socket_index(link.from_node.outputs, link.from_socket)
+        to_socket = get_socket_index(link.to_node.inputs, link.to_socket)
         link_data = {
             "from_node": link.from_node.name,
-            "from_socket": link.from_socket.name,
+            "from_socket": from_socket,
             "to_node": link.to_node.name,
-            "to_socket": link.to_socket.name,
+            "to_socket": to_socket,
         }
         nodes_data["links"].append(link_data)
 
@@ -323,8 +405,7 @@ def import_nodes(target, nodes_data):
         links = target.links  # type: bpy.types.NodeLinks
 
     # 清空默认节点
-    for node in nodes:
-        nodes.remove(node)
+    nodes.clear()
 
     node_map = {}
     for node_data in nodes_data["nodes"]:
@@ -444,8 +525,19 @@ def unregister_shortcuts():
 ############################
 
 
-def auto_clean():
+def depsgraph_update_post_func():
     scene_data = bpy.context.scene.amagate_data
+    # 如果用户删除了特殊对象，则撤销操作
+    for i in [
+        scene_data.ensure_null_obj,
+        scene_data.ensure_null_tex,
+        scene_data.sec_node,
+        scene_data.eval_node,
+    ] + [item.obj for item in scene_data.ensure_coll]:
+        if not i:
+            bpy.ops.ed.undo()
+            return
+    # 如果用户删除了扇区物体，则进行自动清理
     coll = ensure_collection(S_COLL)
     SectorManage = scene_data["SectorManage"]
     if len(SectorManage["sectors"]) != len(coll.all_objects):
@@ -458,7 +550,6 @@ def auto_clean():
             obj = SectorManage["sectors"][deleted_ids[0]]["obj"]
             if obj and bpy.context.scene in obj.users_scene:
                 bpy.ops.ed.undo()
-                AUTO_CLEAN_LOCK.release()
                 return
 
             bpy.ops.ed.undo()
@@ -493,17 +584,16 @@ def auto_clean():
 
             bpy.ops.ed.undo_push(message="Delete Sector")
 
-    AUTO_CLEAN_LOCK.release()
 
-
-# def auto_clean_release():
-#     AUTO_CLEAN_LOCK.release()
+# def depsgraph_update_post_func_release():
+#     DEPSGRAPH_UPDATE_LOCK.release()
 
 
 def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
-    if AUTO_CLEAN_LOCK.acquire(blocking=False):
-        auto_clean()
-        # bpy.app.timers.register(auto_clean_release, first_interval=0.2)
+    if DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
+        depsgraph_update_post_func()
+        DEPSGRAPH_UPDATE_LOCK.release()
+        # bpy.app.timers.register(depsgraph_update_post_func_release, first_interval=0.2)
 
 
 ############################
@@ -514,9 +604,15 @@ def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
 # 定义检查函数
 def check_before_save(scene: Scene):
     scene_data = scene.amagate_data
-    img = scene_data.ensure_null_tex
-    if img:
-        img.use_fake_user = True
+    scene_data.ensure_coll.values()
+    for i in [
+        scene_data.ensure_null_obj,
+        scene_data.ensure_null_tex,
+        scene_data.sec_node,
+        scene_data.eval_node,
+    ] + [item.obj for item in scene_data.ensure_coll]:
+        if i:
+            i.use_fake_user = True
 
 
 ############################
@@ -1554,6 +1650,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     ensure_null_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     ensure_null_tex: PointerProperty(type=bpy.types.Image)  # type: ignore
     ensure_coll: CollectionProperty(type=CollCollection)  # type: ignore
+    # 存储节点
+    sec_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
+    eval_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
 
     # 布局属性
     # default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
@@ -1654,7 +1753,7 @@ def register():
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
     # 注册保存前回调函数
-    # bpy.app.handlers.save_pre.append(check_before_save)
+    bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
 
 
 def unregister():
@@ -1671,4 +1770,4 @@ def unregister():
     bpy.utils.previews.remove(ICONS)
     ICONS = None
 
-    # bpy.app.handlers.save_pre.remove(check_before_save)
+    bpy.app.handlers.save_pre.remove(check_before_save)  # type: ignore
