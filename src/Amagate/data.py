@@ -49,7 +49,7 @@ GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
 
-DEPSGRAPH_UPDATE_LOCK: threading.Lock = None  # type: ignore
+DEPSGRAPH_UPDATE_LOCK = threading.Lock()
 
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
@@ -521,12 +521,20 @@ def unregister_shortcuts():
 
 
 ############################
-############################ 依赖图更新回调
+############################ 回调函数
 ############################
 
 
 def depsgraph_update_post_func():
     scene_data = bpy.context.scene.amagate_data
+
+    # XXX 不起作用，因为复制场景不会触发依赖图更新
+    # 如果用户复制了场景(存在2个blade场景)，则撤销操作
+    # if len([1 for i in bpy.data.scenes if i.amagate_data.is_blade]) > 1:  # type: ignore
+    #     print("撤销操作")
+    #     bpy.ops.ed.undo()
+    #     return
+
     # 如果用户删除了特殊对象，则撤销操作
     for i in [
         scene_data.ensure_null_obj,
@@ -537,9 +545,10 @@ def depsgraph_update_post_func():
         if not i:
             bpy.ops.ed.undo()
             return
+
     # 如果用户删除了扇区物体，则进行自动清理
     coll = ensure_collection(S_COLL)
-    SectorManage = scene_data["SectorManage"]
+    SectorManage = scene_data.get("SectorManage")
     if len(SectorManage["sectors"]) != len(coll.all_objects):
         exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
         all_ids = set(SectorManage["sectors"].keys())
@@ -589,21 +598,25 @@ def depsgraph_update_post_func():
 #     DEPSGRAPH_UPDATE_LOCK.release()
 
 
-def depsgraph_update_post(scene, depsgraph: bpy.types.Depsgraph):
+# @bpy.app.handlers.persistent
+def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
+    scene_data = scene.amagate_data
+    if not scene_data.is_blade:
+        return
+
     if DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
         depsgraph_update_post_func()
         DEPSGRAPH_UPDATE_LOCK.release()
         # bpy.app.timers.register(depsgraph_update_post_func_release, first_interval=0.2)
 
 
-############################
-############################ 保存前回调
-############################
-
-
 # 定义检查函数
-def check_before_save(scene: Scene):
-    scene_data = scene.amagate_data
+# @bpy.app.handlers.persistent
+def check_before_save(filepath):
+    scene_data = bpy.context.scene.amagate_data
+    if not scene_data.is_blade:
+        return
+
     scene_data.ensure_coll.values()
     for i in [
         scene_data.ensure_null_obj,
@@ -613,6 +626,15 @@ def check_before_save(scene: Scene):
     ] + [item.obj for item in scene_data.ensure_coll]:
         if i:
             i.use_fake_user = True
+
+
+# 加载后回调
+@bpy.app.handlers.persistent
+def load_post(filepath):
+    scene_data = bpy.context.scene.amagate_data
+    if scene_data.is_blade:
+        bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
+        bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post)  # type: ignore
 
 
 ############################
@@ -905,7 +927,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         size=4,  # RGBA
         min=0.0,
         max=1.0,
-        default=(0.0, 0.0, 0.0, 0.02),
+        default=(0.0, 0.0, 0.0, 0.0),
         get=lambda self: self.get_color(),
         set=lambda self, value: self.set_color(value),
     )  # type: ignore
@@ -927,7 +949,7 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
         self["_item_name"] = value
 
     def get_color(self):
-        return self.get("_color", (0.0, 0.0, 0.0, 0.02))
+        return self.get("_color", (0.0, 0.0, 0.0, 0.002))
 
     def set_color(self, value):
         if value == tuple(self.color):
@@ -947,9 +969,11 @@ class TextureProperty(bpy.types.PropertyGroup):
 
     id: IntProperty(name="ID", default=0, get=lambda self: self.get_id(), set=lambda self, value: self.set_id(value))  # type: ignore
 
+    pos: FloatVectorProperty(subtype="XYZ", size=2, get=lambda self: (self.xpos, self.ypos))  # type: ignore
     xpos: FloatProperty(description="X Position", step=10, default=0.0, get=lambda self: self.get_pos(0), set=lambda self, value: self.set_pos(value, 0))  # type: ignore
     ypos: FloatProperty(description="Y Position", step=10, default=0.0, get=lambda self: self.get_pos(1), set=lambda self, value: self.set_pos(value, 1))  # type: ignore
 
+    zoom: FloatVectorProperty(subtype="XYZ", size=2, get=lambda self: (self.xzoom, self.yzoom))  # type: ignore
     xzoom: FloatProperty(description="X Zoom", step=10, default=0.0, get=lambda self: self.get_zoom(0), set=lambda self, value: self.set_zoom(value, 0))  # type: ignore
     yzoom: FloatProperty(description="Y Zoom", step=10, default=0.0, get=lambda self: self.get_zoom(1), set=lambda self, value: self.set_zoom(value, 1))  # type: ignore
     zoom_constraint: BoolProperty(
@@ -958,7 +982,7 @@ class TextureProperty(bpy.types.PropertyGroup):
         default=True,
     )  # type: ignore
 
-    angle: FloatProperty(name="Angle", default=0.0, get=lambda self: self.get_angle(), set=lambda self, value: self.set_angle(value))  # type: ignore
+    angle: FloatProperty(name="Angle", unit="ROTATION", subtype="ANGLE", default=0.0, step=10, precision=5, get=lambda self: self.get_angle(), set=lambda self, value: self.set_angle(value))  # type: ignore
     ############################
 
     def get_id(self):
@@ -1105,11 +1129,12 @@ class TextureProperty(bpy.types.PropertyGroup):
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             face_flag = FACE_FLAG[self.name]
             update = False
+            vector = self.zoom
             for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
                 if d.value == face_flag:
                     face_attr = mesh.attributes["amagate_tex_scale"].data[i]  # type: ignore
-                    if face_attr.vector[index] != value:
-                        face_attr.vector[index] = value
+                    if face_attr.vector != vector:
+                        face_attr.vector = vector
                         update = True
             # if update:
             #     sec.update_tag()
@@ -1251,6 +1276,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
             light_data = bpy.data.lights.get(name)
             if not (light_data and light_data.type == "SUN"):
                 light_data = bpy.data.lights.new("", type="SUN")
+                light_data.volume_factor = 0.0
                 light_data.rename(name, mode="ALWAYS")
             self.obj = light_data
 
@@ -1454,6 +1480,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         light_data = bpy.data.lights.get(name)
         if not light_data:
             light_data = bpy.data.lights.new(name, type="SUN")
+            light_data.volume_factor = 0.0
             light_data.use_shadow = False
             light_data.angle = math.pi  # type: ignore
             light_data.energy = 2.0  # type: ignore
@@ -1562,6 +1589,10 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # self.flat_light.color = scene_data.defaults.flat_light.color
 
+        # 添加修改器
+        modifier = obj.modifiers.new("", type="NODES")
+        modifier.node_group = scene_data.sec_node  # type: ignore
+
         # 添加网格属性
         mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
@@ -1589,16 +1620,16 @@ class SectorProperty(bpy.types.PropertyGroup):
 
             # 设置纹理
             dp = face_normal.dot(Vector((0, 0, 1)))
-            if dp > 0.999:  # 地板
-                tex_id = self.textures["Floor"].id
-                face_flag = FACE_FLAG["Floor"]
-            elif dp < -0.999:  # 天花板
-                tex_id = self.textures["Ceiling"].id
-                face_flag = FACE_FLAG["Ceiling"]
+            if dp > 0.99999:  # 地板
+                face_flag_name = "Floor"
+            elif dp < -0.99999:  # 天花板
+                face_flag_name = "Ceiling"
             else:  # 墙壁
-                tex_id = self.textures["Wall"].id
-                face_flag = FACE_FLAG["Wall"]
-            mesh.attributes["amagate_flag"].data[face_index].value = face_flag  # type: ignore
+                face_flag_name = "Wall"
+
+            tex_prop = self.textures[face_flag_name]
+            tex_id = tex_prop.id
+            mesh.attributes["amagate_flag"].data[face_index].value = FACE_FLAG[face_flag_name]  # type: ignore
             mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
             mat = None
             tex = get_texture_by_id(tex_id)[1]
@@ -1610,7 +1641,9 @@ class SectorProperty(bpy.types.PropertyGroup):
                 pass
 
             # 设置纹理参数
-            mesh.attributes["amagate_tex_scale"].data[face_index].vector = (10.0, 10.0)  # type: ignore
+            mesh.attributes["amagate_tex_pos"].data[face_index].vector = tex_prop.pos  # type: ignore
+            mesh.attributes["amagate_tex_rotate"].data[face_index].value = tex_prop.angle  # type: ignore
+            mesh.attributes["amagate_tex_scale"].data[face_index].vector = tex_prop.zoom  # type: ignore
 
         # 指定大气
         self.atmo_id = scene_data.defaults.atmo_id
@@ -1693,7 +1726,7 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop.xpos = prop.ypos = 0.0
             prop.xzoom = prop.yzoom = 10.0
             if i == "Wall":
-                prop.angle = -90.0
+                prop.angle = -math.pi * 0.5
             else:
                 prop.angle = 0.0
 
@@ -1752,8 +1785,8 @@ def register():
     bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty, name="Amagate Data")  # type: ignore
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
-    # 注册保存前回调函数
-    bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
+    # 注册回调函数
+    bpy.app.handlers.load_post.append(load_post)  # type: ignore
 
 
 def unregister():
@@ -1770,4 +1803,5 @@ def unregister():
     bpy.utils.previews.remove(ICONS)
     ICONS = None
 
-    bpy.app.handlers.save_pre.remove(check_before_save)  # type: ignore
+    # 注销回调函数
+    bpy.app.handlers.load_post.remove(load_post)  # type: ignore

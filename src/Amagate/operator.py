@@ -903,17 +903,18 @@ class OT_InitMap(bpy.types.Operator):
         world = bpy.data.worlds.new("")
         world.rename("BWorld", mode="ALWAYS")
         world.use_nodes = True
-        world.node_tree.nodes["Background"].inputs[1].default_value = 0.5  # type: ignore
+        world.node_tree.nodes["Background"].inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
+        world.node_tree.nodes["Background"].inputs[1].default_value = 0.01  # type: ignore
         scene.world = world
         ##
         scene_data.init()
 
         # TODO 添加默认摄像机 添加默认扇区 调整视角
 
-        scene_data.is_blade = True
         split_editor(context)
+        scene_data.is_blade = True
 
-        data.DEPSGRAPH_UPDATE_LOCK = threading.Lock()
+        bpy.app.handlers.save_pre.append(data.check_before_save)  # type: ignore
         bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)  # type: ignore
 
         bpy.ops.ed.undo_push(message="Initialize Scene")
@@ -1058,7 +1059,8 @@ class OT_ExportNode(bpy.types.Operator):
         # )
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
         from pprint import pprint
-        with open(filepath+".tmp", "w", encoding="utf-8") as file:
+
+        with open(filepath + ".tmp", "w", encoding="utf-8") as file:
             pprint(nodes_data, stream=file, indent=0, sort_dicts=False)
         return {"FINISHED"}
 
