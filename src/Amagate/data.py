@@ -830,7 +830,7 @@ class CollCollection(bpy.types.PropertyGroup):
 # 选择大气
 class Atmo_Select(bpy.types.PropertyGroup):
     index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
-    target: StringProperty(default="Sector")  # type: ignore
+    target: StringProperty(default="")  # type: ignore
     readonly: BoolProperty(default=True)  # type: ignore
 
     def get_index(self):
@@ -843,7 +843,7 @@ class Atmo_Select(bpy.types.PropertyGroup):
         self["_index"] = value
 
         scene_data = bpy.context.scene.amagate_data
-        if self.target == "Sector":
+        if self.target == "SectorPublic":
             for sec in SELECTED_SECTORS:
                 sector_data = sec.amagate_data.get_sector_data()  # type: ignore
                 sector_data.atmo_id = scene_data.atmospheres[value].id
@@ -858,7 +858,7 @@ class Atmo_Select(bpy.types.PropertyGroup):
 # 选择外部光
 class External_Select(bpy.types.PropertyGroup):
     index: IntProperty(name="", default=0, get=lambda self: self.get_index(), set=lambda self, value: self.set_index(value))  # type: ignore
-    target: StringProperty(default="Sector")  # type: ignore
+    target: StringProperty(default="")  # type: ignore
     readonly: BoolProperty(default=True)  # type: ignore
 
     def get_index(self):
@@ -871,7 +871,7 @@ class External_Select(bpy.types.PropertyGroup):
         self["_index"] = value
 
         scene_data = bpy.context.scene.amagate_data
-        if self.target == "Sector":
+        if self.target == "SectorPublic":
             for sec in SELECTED_SECTORS:
                 sector_data = sec.amagate_data.get_sector_data()  # type: ignore
                 sector_data.external_id = scene_data.externals[value].id
@@ -899,12 +899,13 @@ class Texture_Select(bpy.types.PropertyGroup):
         self["_index"] = value
 
         scene_data = bpy.context.scene.amagate_data
-        if self.target == "Scene":
+        if self.target == "SectorPublic":
+            scene_data.sector_tex[self.name].id = bpy.data.images[value].amagate_data.id
+        elif self.target == "Scene":
             scene_data.defaults.textures[self.name].id = bpy.data.images[
                 value
             ].amagate_data.id
-        elif self.target == "SectorPublic":
-            ...
+
         region_redraw("UI")
 
         bpy.ops.ed.undo_push(message="Select Texture")
@@ -989,12 +990,63 @@ class TextureProperty(bpy.types.PropertyGroup):
         return self.get("id", 0)
 
     def set_id(self, value):
-        if value == self.id:
-            return
+        if self.target == "SectorPublic":
+            # 单独修改面的情况
+            if bpy.context.active_object.mode == "EDIT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+                tex = get_texture_by_id(value)[1]
+                mat = ensure_material(tex)
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                    faces = []
+                    update = False
+                    for i, face in enumerate(mesh.polygons):
+                        if face.select:
+                            face_attr = mesh.attributes["amagate_tex_id"].data[i]  # type: ignore
+                            if face_attr.value != value:
+                                face_attr.value = value
+                                update = True
+                                faces.append(i)
+                    if faces:
+                        sec_data.set_matslot(mat, faces)
+                    # if update:
+                    #     sec.update_tag()
+                bpy.ops.object.mode_set(mode="EDIT")
+            # 修改预设纹理的情况
+            else:
+                for sec in SELECTED_SECTORS:
+                    sec_data = sec.amagate_data.get_sector_data()
+                    sec_data.textures[self.name].set_id(value)
+        else:
+            if value == self.id:
+                return
 
-        self["id"] = value
+            self["id"] = value
 
-        scene_data = bpy.context.scene.amagate_data
+            if self.target != "Sector":
+                return
+
+            # 给对应标志的面应用预设属性
+            sec = self.id_data  # type: Object
+            sec_data = sec.amagate_data.get_sector_data()
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            tex = get_texture_by_id(value)[1]
+
+            faces = []
+            face_flag = FACE_FLAG[self.name]
+            update = False
+            for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
+                if d.value == face_flag:
+                    face_attr = mesh.attributes["amagate_tex_id"].data[i]  # type: ignore
+                    if face_attr.value != value:
+                        face_attr.value = value
+                        update = True
+                        faces.append(i)
+            if faces:
+                sec_data.set_matslot(ensure_material(tex), faces)
+            # if update:
+            #     sec.update_tag()
 
     def get_pos(self, index=0):
         attr = ("xpos", "ypos")[index]
@@ -1533,6 +1585,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             else:
                 mesh.materials.append(None)
                 slot = obj.material_slots[-1]
+            slot.material = mat
 
         if slot.link != "OBJECT":
             slot.link = "OBJECT"
@@ -1633,12 +1686,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
             mat = None
             tex = get_texture_by_id(tex_id)[1]
-            if tex:
-                mat = tex.amagate_data.mat_obj
-            if mat:
-                self.set_matslot(mat, [face_index])
-            else:
-                pass
+            self.set_matslot(ensure_material(tex), [face_index])
 
             # 设置纹理参数
             mesh.attributes["amagate_tex_pos"].data[face_index].vector = tex_prop.pos  # type: ignore

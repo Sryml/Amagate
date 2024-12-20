@@ -161,6 +161,60 @@ class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
         col.operator(OP.OT_Scene_External_Default.bl_idname, text="", icon_value=data.ICONS["star"].icon_id)  # type: ignore
 
 
+############################
+############################ 纹理面板
+############################
+class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
+    bl_label = "Textures"
+    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+    # bl_options = {"DEFAULT_CLOSED"}
+
+    def __init__(self):
+        super().__init__()
+        data.ensure_null_texture()
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data: data.SceneProperty = context.scene.amagate_data
+        images = bpy.data.images
+
+        # 显示纹理列表
+        row = layout.row(align=True)
+        row.alignment = "LEFT"
+        row.label(
+            text=f"{pgettext('Total')}: {[bool(i.amagate_data.id) for i in images].count(True)}"  # type: ignore
+        )
+
+        row = layout.row(align=True)
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_TextureList",
+            "texture_list",
+            bpy.data,
+            "images",
+            scene_data,
+            "active_texture",
+            rows=5,
+            maxrows=7,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column(align=True)
+        col.operator(OP.OT_Texture_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP.OT_Texture_Remove.bl_idname, text="", icon="X")
+        col.separator()
+
+        col.operator(
+            OP.OT_Texture_Default.bl_idname,
+            text="",
+            icon_value=data.ICONS["star"].icon_id,
+        )
+        col.separator()
+
+        col.operator(OP.OT_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
+        col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
+
+
 # 场景面板 -> 默认属性面板
 class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
     bl_label = "Default Properties"
@@ -323,60 +377,6 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
 
 ############################
-############################ 纹理面板
-############################
-class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
-    bl_label = "Textures"
-    # bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
-    # bl_options = {"DEFAULT_CLOSED"}
-
-    def __init__(self):
-        super().__init__()
-        data.ensure_null_texture()
-
-    def draw(self, context: Context):
-        layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data
-        images = bpy.data.images
-
-        # 显示纹理列表
-        row = layout.row(align=True)
-        row.alignment = "LEFT"
-        row.label(
-            text=f"{pgettext('Total')}: {[bool(i.amagate_data.id) for i in images].count(True)}"  # type: ignore
-        )
-
-        row = layout.row(align=True)
-        col = row.column()
-        col.template_list(
-            "AMAGATE_UI_UL_TextureList",
-            "texture_list",
-            bpy.data,
-            "images",
-            scene_data,
-            "active_texture",
-            rows=5,
-            maxrows=7,
-        )
-
-        # 添加按钮放置在右侧
-        col = row.column(align=True)
-        col.operator(OP.OT_Texture_Add.bl_idname, text="", icon="ADD")
-        col.operator(OP.OT_Texture_Remove.bl_idname, text="", icon="X")
-        col.separator()
-
-        col.operator(
-            OP.OT_Texture_Default.bl_idname,
-            text="",
-            icon_value=data.ICONS["star"].icon_id,
-        )
-        col.separator()
-
-        col.operator(OP.OT_Texture_Reload.bl_idname, text="", icon="FILE_REFRESH")
-        col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
-
-
-############################
 ############################ 扇区面板
 ############################
 class AMAGATE_PT_Sector_E(N_Panel, bpy.types.Panel):
@@ -496,7 +496,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
                 text=name,
                 icon="DOWNARROW_HLT",
             )  # COLLAPSEMENU
-            op.prop.target = "Sector"  # type: ignore
+            op.prop.target = "SectorPublic"  # type: ignore
             op.prop["_index"] = atmo_idx  # type: ignore
 
             if atmo:
@@ -649,7 +649,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
             text=name,
             icon="DOWNARROW_HLT",
         )  # COLLAPSEMENU
-        op.prop.target = "Scene"  # type: ignore
+        op.prop.target = "SectorPublic"  # type: ignore
         op.prop["_index"] = idx  # type: ignore
 
         if item:
@@ -708,9 +708,7 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
         op.execute_type = 0  # type: ignore
 
         row = layout.row(align=True)
-        # row = layout.row(align=True)
-        # row.alignment = "CENTER"
-        layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
+        # layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
 
 
 ############################

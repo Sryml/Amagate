@@ -907,8 +907,13 @@ class OT_InitMap(bpy.types.Operator):
         world.node_tree.nodes["Background"].inputs[1].default_value = 0.01  # type: ignore
         scene.world = world
         ##
-        scene.tool_settings.use_snap = True # 吸附开关
-        scene.tool_settings.snap_elements_base = {'EDGE', 'VERTEX', 'GRID', 'FACE'} # 吸附对象
+        scene.tool_settings.use_snap = True  # 吸附开关
+        scene.tool_settings.snap_elements_base = {
+            "EDGE",
+            "VERTEX",
+            "GRID",
+            "FACE",
+        }  # 吸附对象
         ##
         scene_data.init()
 
@@ -933,9 +938,9 @@ def split_editor(context: Context):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
-        area.spaces[0].overlay.show_extra_edge_length = True # 边长 # type: ignore
-        area.spaces[0].overlay.show_extra_edge_angle = True # 边夹角 # type: ignore
-        area.spaces[0].shading.render_pass = "DIFFUSE_COLOR" # 渲染通道 # type: ignore
+        area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
+        area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
+        area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.view3d.toggle_xray()
 
@@ -963,7 +968,7 @@ def split_editor(context: Context):
     new_area.spaces[0].overlay.show_axis_y = False  # type: ignore
     new_area.spaces[0].overlay.show_cursor = False  # type: ignore
     new_area.spaces[0].overlay.show_faces = False  # type: ignore
-    new_area.spaces[0].overlay.show_overlays = False # 叠加层  # type: ignore
+    new_area.spaces[0].overlay.show_overlays = False  # 叠加层  # type: ignore
 
     with context.temp_override(area=area, space_data=area.spaces[0]):
         bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
