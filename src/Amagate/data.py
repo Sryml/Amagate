@@ -900,7 +900,9 @@ class Texture_Select(bpy.types.PropertyGroup):
 
         scene_data = bpy.context.scene.amagate_data
         if self.target == "SectorPublic":
-            scene_data.sector_tex[self.name].id = bpy.data.images[value].amagate_data.id
+            scene_data.sector_public.textures[self.name].id = bpy.data.images[
+                value
+            ].amagate_data.id
         elif self.target == "Scene":
             scene_data.defaults.textures[self.name].id = bpy.data.images[
                 value
@@ -1048,6 +1050,7 @@ class TextureProperty(bpy.types.PropertyGroup):
             # if update:
             #     sec.update_tag()
 
+    ############################
     def get_pos(self, index=0):
         attr = ("xpos", "ypos")[index]
         if self.target == "SectorPublic":
@@ -1387,8 +1390,9 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
-    as_default: BoolProperty(default=False)  # type: ignore
+    target: StringProperty(name="Target", default="Sector")  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
+    has_sky: BoolProperty(default=False)  # type: ignore
     # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
@@ -1403,8 +1407,9 @@ class SectorProperty(bpy.types.PropertyGroup):
         size=3,
         min=0.0,
         max=1.0,
-        default=(0.784, 0.784, 0.784),
-        update=lambda self, context: self.update_ambient_color(context),
+        default=(0, 0, 0),
+        get=lambda self: self.get_ambient_color(),
+        set=lambda self, value: self.set_ambient_color(value),
     )  # type: ignore
     # 外部光
     external_id: IntProperty(name="External Light", description="", default=0, get=lambda self: self.get_external_id(), set=lambda self, value: self.set_external_id(value))  # type: ignore
@@ -1420,6 +1425,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     comment: StringProperty(name="Comment", description="", default="")  # type: ignore
 
+    ############################
     def update_atmo(self, atmo):
         self.atmo_color = atmo.color[:3]
         f = 1.0
@@ -1432,7 +1438,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         return self.get("_atmo_id", 0)
 
     def set_atmo_id(self, value):
-        if self.as_default:
+        if self.target == "Scene":
             self["_atmo_id"] = value
             return
 
@@ -1452,11 +1458,12 @@ class SectorProperty(bpy.types.PropertyGroup):
             scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
         self.update_atmo(atmo)
 
+    ############################
     def get_external_id(self):
         return self.get("_external_id", 0)
 
     def set_external_id(self, value):
-        if self.as_default:
+        if self.target == "Scene":
             self["_external_id"] = value
             return
 
@@ -1519,12 +1526,31 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         return self.external_obj
 
-    def update_ambient_color(self, context: Context):
-        if self.as_default:
-            return
+    ############################
+    def get_ambient_color(self):
+        attr = "ambient_color"
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            return getattr(sec_data, attr)
+        else:
+            return self.get(attr, (0.784, 0.784, 0.784))
 
-        light_data = self.ensure_ambient_light()
-        light_data.color = self.ambient_color
+    def set_ambient_color(self, value):
+        attr = "ambient_color"
+
+        if self.target == "SectorPublic":
+            for sec in SELECTED_SECTORS:
+                sec_data = sec.amagate_data.get_sector_data()
+                setattr(sec_data, attr, value)
+        else:
+            # if value == tuple(getattr(self, attr)):
+            #     return
+
+            self[attr] = value
+
+            if self.target == "Sector":
+                light_data = self.ensure_ambient_light()
+                light_data.color = getattr(self, attr)
 
     def ensure_ambient_light(self):
         scene_data = bpy.context.scene.amagate_data
@@ -1535,7 +1561,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             light_data.volume_factor = 0.0
             light_data.use_shadow = False
             light_data.angle = math.pi  # type: ignore
-            light_data.energy = 2.0  # type: ignore
+            light_data.energy = 8.0  # type: ignore
             light_data.color = self.ambient_color
         # 创建灯光链接集合
         collections = bpy.data.collections
@@ -1563,6 +1589,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         return light_data
 
+    ############################
     def set_matslot(self, mat, faces=[]):
         """设置材质槽位"""
         obj = self.id_data  # type: Object
@@ -1595,6 +1622,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         for i in faces:
             mesh.polygons[i].material_index = slot_index
 
+    ############################
     def get_id(self):
         scene_data = bpy.context.scene.amagate_data
         SectorManage = scene_data["SectorManage"]
@@ -1609,6 +1637,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             id_ = SectorManage["max_id"]
         return id_
 
+    ############################
     def init(self):
         scene = bpy.context.scene
         scene_data = scene.amagate_data
@@ -1736,8 +1765,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     eval_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
 
     # 布局属性
-    # default_tex: CollectionProperty(type=TextureProperty)  # type: ignore
-    sector_tex: CollectionProperty(type=TextureProperty)  # type: ignore
+    sector_public: PointerProperty(type=SectorProperty)  # type: ignore
     ############################
 
     def get_active_texture(self):
@@ -1756,15 +1784,11 @@ class SceneProperty(bpy.types.PropertyGroup):
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults
 
-        defaults.as_default = True
+        defaults.target = "Scene"
         defaults.atmo_id = 1
         defaults.external_id = 1
 
-        # defaults["Textures"] = {
-        #     "Floor": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-        #     "Ceiling": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": 0.0},
-        #     "Wall": {"id": 1, "pos": (0.0, 0.0), "zoom": (10.0, 10.0), "angle": -90.0},
-        # }
+        self.sector_public.target = "SectorPublic"
         ############################
         for i in ("Floor", "Ceiling", "Wall"):
             prop = defaults.textures.add()
@@ -1772,19 +1796,15 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop.name = i
             prop.id = 1
             prop.xpos = prop.ypos = 0.0
-            prop.xzoom = prop.yzoom = 10.0
+            prop.xzoom = prop.yzoom = 20.0
             if i == "Wall":
                 prop.angle = -math.pi * 0.5
             else:
                 prop.angle = 0.0
 
-            prop = self.sector_tex.add()
+            prop = self.sector_public.textures.add()
             prop.name = i
             prop.target = "SectorPublic"
-
-            # prop = self.default_tex.add()
-            # prop.kind = i
-            # prop.target = "Scene"
 
 
 # 物体属性

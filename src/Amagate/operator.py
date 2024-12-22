@@ -694,6 +694,10 @@ class OT_Texture_Select(bpy.types.Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
 
+    # XXX
+    # def check(self, context: Context):
+    #     return True
+
 
 class OT_Texture_Preview(bpy.types.Operator):
     bl_idname = "amagate.texture_preview"
@@ -874,10 +878,11 @@ class OT_InitMap(bpy.types.Operator):
 
         # 创建新场景
         name = "Blade Scene"
-        # bpy.ops.scene.new()
-        scene = bpy.data.scenes.new("")  # type: Scene # type: ignore
+        bpy.ops.scene.new(type="EMPTY")
+        scene = context.window.scene  # type: Scene # type: ignore
+        # scene = bpy.data.scenes.new("")  # type: Scene # type: ignore
         scene.rename(name, mode="ALWAYS")
-        context.window.scene = scene
+        # context.window.scene = scene
         bpy.data.scenes.remove(old_scene)
         scene_data: data.SceneProperty = scene.amagate_data
 
@@ -899,12 +904,14 @@ class OT_InitMap(bpy.types.Operator):
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
         ## 创建节点
         data.ensure_node()
+        ## 设置渲染引擎
+        scene.eevee.use_shadows = True
         ## 设置世界环境
         world = bpy.data.worlds.new("")
         world.rename("BWorld", mode="ALWAYS")
         world.use_nodes = True
         world.node_tree.nodes["Background"].inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
-        world.node_tree.nodes["Background"].inputs[1].default_value = 0.01  # type: ignore
+        world.node_tree.nodes["Background"].inputs[1].default_value = 0.02  # type: ignore
         scene.world = world
         ##
         scene.tool_settings.use_snap = True  # 吸附开关

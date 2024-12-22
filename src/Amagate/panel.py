@@ -256,15 +256,17 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 
         layout.separator()
 
+        box = layout.box()
         # 地板 天花板 墙壁
         for i, prop in enumerate(scene_data.defaults.textures):
             name = prop.name
 
             tex_id = prop.id
             tex_idx, tex = data.get_texture_by_id(tex_id)
-            box = layout.box()
 
-            row = box.row()
+            column = box.column()
+            #
+            row = column.row()
 
             col = row.column()
             col.alignment = "LEFT"
@@ -288,8 +290,8 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
                     emboss=False,
                 )
                 op.index = bpy.data.images.find(tex.name)  # type: ignore
-
-            row = box.row()
+            #
+            row = column.row(align=True)
             row.prop(prop, "xpos", text="X")
             row.prop(prop, "ypos", text="Y")
             # row.prop(scene_data.defaults.texture, "pos", index=-1, text="")
@@ -297,12 +299,12 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
             # row.separator()
             # row.prop(prop, "pos", index=1, text="Y")
 
-            row = box.row()
+            row = column.row()
             row.prop(prop, "angle", text="Angle")
 
-            box2 = box.box()
+            box2 = column.box()
             row = box2.row()
-            col = row.column()
+            col = row.column(align=True)
             col.prop(prop, "xzoom", text=f"X {pgettext('Zoom')}")
             col.prop(prop, "yzoom", text=f"Y {pgettext('Zoom')}")
             col = row.column()
@@ -316,15 +318,16 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
             )
 
             if i != len(scene_data.defaults.textures) - 1:
-                layout.separator()
+                box.separator(type="LINE")
 
         layout.separator()
 
         box = layout.box()
+        column = box.column(align=True)
         # 外部光
         idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
 
-        row = box.row()
+        row = column.row()
         split = row.split(factor=0.7)
         row = split.row()
 
@@ -346,33 +349,28 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
             row = split.row()
             row.prop(item, "color_readonly", text="")
 
-        box.separator(type="LINE")
-        # layout.separator()
+        column.separator(factor=2, type="LINE")
 
         # 环境光
-        # box = layout.box()
-
-        row = box.row()
+        row = column.row()
         split = row.split(factor=0.5)
         row = split.row()
         row.alignment = "LEFT"
         row.label(text=f"{pgettext('Ambient Light')}:")
         split.prop(scene_data.defaults, "ambient_color", text="")
 
-        box.separator(type="LINE")
-        # layout.separator()
+        column.separator(factor=2, type="LINE")
 
         # 平面光
-        # box = layout.box()
-
-        row = box.row()
+        row = column.row()
         split = row.split(factor=0.5)
         row = split.row()
         row.alignment = "LEFT"
         row.label(text=f"{pgettext('Flat Light')}:")
         split.prop(scene_data.defaults.flat_light, "color", text="")
 
-        row = box.row()
+        column.separator(type="SPACE")
+        row = column.row()
         row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
@@ -465,54 +463,54 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
 
         active_sec_data = data.ACTIVE_SECTOR.amagate_data.get_sector_data()
 
-        if context.active_object.mode == "OBJECT":
-            # 大气
-            atmo_id = active_sec_data.atmo_id
-            is_uniform = True
-            for sec in SELECTED_SECTORS:
-                sec_data = sec.amagate_data.get_sector_data()
-                if sec_data.atmo_id != atmo_id:
-                    atmo_id = None
-                    is_uniform = False
-                    break
-            if is_uniform:
-                atmo_idx, atmo = data.get_atmo_by_id(scene_data, atmo_id)
-                name = "None" if not atmo else atmo.item_name
-            else:
-                atmo_idx, atmo = -1, None
-                name = "*"
+        # 大气
+        atmo_id = active_sec_data.atmo_id
+        is_uniform = True
+        for sec in SELECTED_SECTORS:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.atmo_id != atmo_id:
+                atmo_id = None
+                is_uniform = False
+                break
+        if is_uniform:
+            atmo_idx, atmo = data.get_atmo_by_id(scene_data, atmo_id)
+            name = "None" if not atmo else atmo.item_name
+        else:
+            atmo_idx, atmo = -1, None
+            name = "*"
 
-            row = layout.row()
-            split = row.split(factor=0.7)
+        row = layout.row()
+        split = row.split(factor=0.7)
+        row = split.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Atmosphere')}:")
+
+        col = row.column()
+        op = col.operator(
+            OP.OT_Atmo_Select.bl_idname,
+            text=name,
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.target = "SectorPublic"  # type: ignore
+        op.prop["_index"] = atmo_idx  # type: ignore
+
+        if atmo:
             row = split.row()
+            row.enabled = False
+            row.prop(atmo, "color", text="")
+        elif not is_uniform:
+            row = split.row()
+            row.alignment = "CENTER"
+            row.label(text="non-uniform")
 
-            col = row.column()
-            col.alignment = "LEFT"
-            col.label(text=f"{pgettext('Atmosphere')}:")
+        layout.separator()
 
-            col = row.column()
-            op = col.operator(
-                OP.OT_Atmo_Select.bl_idname,
-                text=name,
-                icon="DOWNARROW_HLT",
-            )  # COLLAPSEMENU
-            op.prop.target = "SectorPublic"  # type: ignore
-            op.prop["_index"] = atmo_idx  # type: ignore
-
-            if atmo:
-                row = split.row()
-                row.enabled = False
-                row.prop(atmo, "color", text="")
-            elif not is_uniform:
-                row = split.row()
-                row.alignment = "CENTER"
-                # row.label(text="non-uniform")
-                row.label(text="*")
-
-            layout.separator()
-
+        box = layout.box()
+        if context.active_object.mode == "OBJECT":
             # 地板 天花板 墙壁
-            for i, prop in enumerate(scene_data.sector_tex):
+            for i, prop in enumerate(scene_data.sector_public.textures):
                 name = prop.name
 
                 tex_id = active_sec_data.textures[name].id
@@ -562,8 +560,9 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
                     tex_idx, tex = -1, None
                     tex_name = "*"
 
-                box = layout.box()
-                row = box.row()
+                column = box.column()
+                #
+                row = column.row()
 
                 col = row.column()
                 col.alignment = "LEFT"
@@ -588,22 +587,21 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
                     op.index = bpy.data.images.find(tex.name)  # type: ignore
                 elif not is_tex_uniform:
                     col = row.column()
-                    col.alignment = "CENTER"
-                    col.label(text="*")
-
-                row = box.row()
+                    col.label(icon_value=1)
+                #
+                row = column.row(align=True)
                 x_text = "X" if is_xpos_uniform else "X *"
                 y_text = "Y" if is_ypos_uniform else "Y *"
                 row.prop(prop, "xpos", text=x_text)
                 row.prop(prop, "ypos", text=y_text)
 
-                row = box.row()
+                row = column.row()
                 text = "Angle" if is_angle_uniform else f"{pgettext('Angle')} *"
                 row.prop(prop, "angle", text=text)
 
-                box2 = box.box()
+                box2 = column.box()
                 row = box2.row()
-                col = row.column()
+                col = row.column(align=True)
                 x_text = f"X {pgettext('Zoom')}"
                 if not is_xzoom_uniform:
                     x_text = f"{x_text} *"
@@ -622,68 +620,77 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
                     emboss=False,
                 )
 
-                if i != len(scene_data.sector_tex) - 1:
-                    layout.separator()
+                if i != len(scene_data.sector_public.textures) - 1:
+                    box.separator(type="LINE")
 
         else:
             ...
 
         layout.separator()
-        return
+
         box = layout.box()
+        column = box.column(align=True)
         # 外部光
-        idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
+        # idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
 
-        row = box.row()
-        split = row.split(factor=0.7)
-        row = split.row()
+        # row = column.row()
+        # split = row.split(factor=0.7)
+        # row = split.row()
 
-        col = row.column()
-        col.alignment = "LEFT"
-        col.label(text=f"{pgettext('External Light')}:")
+        # col = row.column()
+        # col.alignment = "LEFT"
+        # col.label(text=f"{pgettext('External Light')}:")
 
-        col = row.column()
-        name = "None" if not item else item.item_name
-        op = col.operator(
-            OP.OT_External_Select.bl_idname,
-            text=name,
-            icon="DOWNARROW_HLT",
-        )  # COLLAPSEMENU
-        op.prop.target = "SectorPublic"  # type: ignore
-        op.prop["_index"] = idx  # type: ignore
+        # col = row.column()
+        # name = "None" if not item else item.item_name
+        # op = col.operator(
+        #     OP.OT_External_Select.bl_idname,
+        #     text=name,
+        #     icon="DOWNARROW_HLT",
+        # )  # COLLAPSEMENU
+        # op.prop.target = "Scene"  # type: ignore
+        # op.prop["_index"] = idx  # type: ignore
 
-        if item:
-            row = split.row()
-            row.prop(item, "color_readonly", text="")
+        # if item:
+        #     row = split.row()
+        #     row.prop(item, "color_readonly", text="")
 
-        box.separator(type="LINE")
-        # layout.separator()
+        # column.separator(factor=2,type="LINE")
 
         # 环境光
-        # box = layout.box()
+        is_uniform = True
+        ambient_color = active_sec_data.ambient_color
+        for sec in SELECTED_SECTORS:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.ambient_color != ambient_color:
+                is_uniform = False
+                break
 
-        row = box.row()
+        row = column.row()
         split = row.split(factor=0.5)
-        row = split.row()
-        row.alignment = "LEFT"
-        row.label(text=f"{pgettext('Ambient Light')}:")
-        split.prop(scene_data.defaults, "ambient_color", text="")
+        row = split.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Ambient Light')}:")
+        if not is_uniform:
+            col = row.column()
+            col.alignment = "RIGHT"
+            col.label(text="*")
+        split.prop(scene_data.sector_public, "ambient_color", text="")
 
-        box.separator(type="LINE")
-        # layout.separator()
+        column.separator(factor=2, type="LINE")
 
         # 平面光
-        # box = layout.box()
+        # row = column.row()
+        # split = row.split(factor=0.5)
+        # row = split.row()
+        # row.alignment = "LEFT"
+        # row.label(text=f"{pgettext('Flat Light')}:")
+        # split.prop(scene_data.defaults.flat_light, "color", text="")
 
-        row = box.row()
-        split = row.split(factor=0.5)
-        row = split.row()
-        row.alignment = "LEFT"
-        row.label(text=f"{pgettext('Flat Light')}:")
-        split.prop(scene_data.defaults.flat_light, "color", text="")
-
-        row = box.row()
-        row.prop(scene_data.defaults.flat_light, "vector", text="")
+        # column.separator(type="SPACE")
+        # row = column.row()
+        # row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
 ############################
