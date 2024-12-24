@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import os
 import math
 import pickle
@@ -661,6 +662,30 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 
 
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        # 按A-Z排序 FIXME 没有按照预期排序，不知道为什么
+        if self.use_filter_sort_alpha:
+            flt_neworder = sorted(
+                range(len(items)), key=lambda i: items[i].item_name.lower()
+            )
+        else:
+            flt_neworder = []
+        # 按名称过滤
+        if self.filter_name:
+            flt_flags = [self.bitflag_filter_item] * len(items)  # 默认全部显示
+            regex_pattern = re.escape(self.filter_name).replace(r"\*", ".*")
+            regex = re.compile(f"{regex_pattern}", re.IGNORECASE)  # 全匹配忽略大小写
+            for idx, item in enumerate(items):
+                if not regex.search(item.item_name):
+                    flt_flags[idx] = 0
+        elif self.use_filter_invert:
+            flt_flags = [0] * len(items)
+        else:
+            flt_flags = [self.bitflag_filter_item] * len(items)
+
+        return flt_flags, flt_neworder
+
     def draw_item(
         self,
         context: Context,
@@ -700,6 +725,30 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
 
 
 class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        # 按A-Z排序
+        if self.use_filter_sort_alpha:
+            flt_neworder = sorted(
+                range(len(items)), key=lambda i: items[i].item_name.lower()
+            )
+        else:
+            flt_neworder = []
+        # 按名称过滤
+        if self.filter_name:
+            flt_flags = [self.bitflag_filter_item] * len(items)  # 默认全部显示
+            regex_pattern = re.escape(self.filter_name).replace(r"\*", ".*")
+            regex = re.compile(f"{regex_pattern}", re.IGNORECASE)  # 全匹配忽略大小写
+            for idx, item in enumerate(items):
+                if not regex.search(item.item_name):
+                    flt_flags[idx] = 0
+        elif self.use_filter_invert:
+            flt_flags = [0] * len(items)
+        else:
+            flt_flags = [self.bitflag_filter_item] * len(items)
+
+        return flt_flags, flt_neworder
+
     def draw_item(
         self,
         context: Context,
@@ -711,7 +760,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         active_prop,
     ):
         scene_data = context.scene.amagate_data
-        light = item  # 获取大气数据
+        light = item
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
@@ -743,14 +792,29 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
 
 
 class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
+    def draw_filter(self, context, layout):
+        row = layout.row()
+        row.prop(self, "filter_name", text="", icon="VIEWZOOM")
+
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
-        flt_flags = [0] * len(items)
+        if self.use_filter_invert:
+            invisible = self.bitflag_filter_item
+        else:
+            invisible = 0
+        flt_flags = [self.bitflag_filter_item] * len(items)
         flt_neworder = []
 
+        # 按名称过滤
+        regex = None
+        if self.filter_name:
+            regex_pattern = re.escape(self.filter_name).replace(r"\*", ".*")
+            regex = re.compile(f"{regex_pattern}", re.IGNORECASE)  # 全匹配忽略大小写
         for idx, item in enumerate(items):
-            if item.amagate_data.id != 0:
-                flt_flags[idx] = self.bitflag_filter_item
+            if item.amagate_data.id == 0:
+                flt_flags[idx] = invisible
+            elif regex and not regex.search(item.name):
+                flt_flags[idx] = 0
 
         return flt_flags, flt_neworder
 
