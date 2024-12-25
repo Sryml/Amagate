@@ -704,8 +704,9 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
     def poll(cls, context):
         return True
 
-    def draw(self, context):
+    def draw(self, context: Context):
         layout = self.layout
+        scene_data = context.scene.amagate_data
 
         row = layout.row(align=True)
         op = row.operator(
@@ -715,7 +716,8 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
         op.execute_type = 0  # type: ignore
 
         row = layout.row(align=True)
-        # layout.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")  # 添加按钮
+        row.enabled = scene_data.is_blade
+        row.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")
 
 
 ############################

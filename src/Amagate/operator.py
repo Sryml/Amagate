@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import sys
 import os
+import math
 import pickle
+import struct
 import contextlib
 import threading
 from io import StringIO
@@ -1027,7 +1029,116 @@ class OT_ExportMap(bpy.types.Operator):
     bl_description = "Export Blade Map"
     bl_options = {"INTERNAL"}
 
-    def execute(self, context):
+    def execute(self, context: Context):
+        coll = data.ensure_collection(data.S_COLL)
+        # 检查是否为无标题文件
+        if not bpy.data.filepath:
+            self.report({"WARNING"}, "Please save the file first")
+            return {"CANCELLED"}
+        # 收集可见扇区
+        sectors = [
+            i for i in coll.all_objects if i.visible_get()
+        ]  # type: list[Object] # type: ignore
+        if not sectors:
+            self.report({"WARNING"}, "No visible sector found")
+            return {"CANCELLED"}
+
+        # 导出扇区
+        scene_data = context.scene.amagate_data
+        bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
+        global_vertex_count = 0
+        global_vertex_map = {}  # {tuple(co): global_index}
+        sector_vertex_indices = {}  # 每个扇区的全局顶点索引映射
+        with open(bw_file, "wb") as f:
+            # 写入大气数据
+            f.write(struct.pack("<I", len(scene_data.atmospheres)))
+            for atm in scene_data.atmospheres:
+                buffer = atm.item_name.encode("utf-8")
+                f.write(struct.pack("<I", len(buffer)))
+                f.write(buffer)
+                f.write(
+                    struct.pack(
+                        "<BBB", *(math.ceil(atm.color[i] * 255) for i in range(3))
+                    )
+                )
+                f.write(struct.pack("<f", atm.color[-1]))
+
+            # 写入顶点数据
+            f.write(struct.pack("<I", 0))  # 占位
+            for sec in sectors:
+                sec_global_indices = []
+                sec_data = sec.amagate_data.get_sector_data()
+                mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                matrix_world = sec.matrix_world
+                for v in mesh.vertices:
+                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(2)
+                    if v_key not in global_vertex_map:
+                        global_vertex_map[v_key] = global_vertex_count
+                        global_vertex_count += 1
+                        f.write(struct.pack("<ddd", v_key[0], -v_key[2], -v_key[1]))
+                    sec_global_indices.append(global_vertex_map[v_key])
+                sector_vertex_indices[sec_data.id] = sec_global_indices
+            # 暂存当前流位置并更正顶点数量
+            crrt_pos = f.tell()
+            f.seek(-(global_vertex_count) * 24, 1)
+            f.write(struct.pack("<I", global_vertex_count))
+            f.seek(crrt_pos)
+
+            # 写入扇区数据
+            for sec in sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                matrix_world = sec.matrix_world
+                # 大气名称
+                atm_name = data.get_atmo_by_id(scene_data, sec_data.atmo_id)[
+                    1
+                ].item_name
+                buffer = atm_name.encode("utf-8")
+                f.write(struct.pack("<I", len(buffer)))
+                f.write(buffer)
+
+                # 环境光
+                f.write(
+                    struct.pack(
+                        "<BBB", *(math.ceil(c * 255) for c in sec_data.ambient_color)
+                    )
+                )
+                f.write(struct.pack("<f", 0.0))  # TODO
+                f.write(bytes.fromhex("0000803C"))  # 0.015625
+                f.write(struct.pack("<ddd", 0, 0, 0))  # 未知用途 默认0
+                f.write(bytes.fromhex("CD" * 8))
+                f.write(struct.pack("<I", 0))
+
+                # 平面光
+                f.write(struct.pack("<BBB", 0, 0, 0))
+                f.write(struct.pack("<f", 0.0))  # TODO
+                f.write(bytes.fromhex("0000803C"))  # 0.015625
+                f.write(struct.pack("<ddd", 0, 0, 0))  # # 未知用途 默认0
+                f.write(bytes.fromhex("CD" * 8))
+                f.write(struct.pack("<I", 0))
+                ## 平面光向量
+                f.write(struct.pack("<ddd", 0, 0, 0))
+
+                # 面数据
+                depsgraph = bpy.context.evaluated_depsgraph_get()
+                evaluated_obj = sec.evaluated_get(depsgraph)
+                mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
+                f.write(struct.pack("<I", len(mesh.polygons)))
+                for idx, poly in enumerate(mesh.polygons):
+                    ## 面类型
+                    if mesh.attributes["amagate_is_sky"].data[idx].value:  # type: ignore
+                        face_type = 7005
+                    elif mesh.attributes["amagate_connected"].data[idx].value:  # type: ignore
+                        face_type = 7002
+                    else:
+                        face_type = 7001
+                    f.write(struct.pack("<I", face_type))
+                    ## 法向
+                    f.write(struct.pack("<ddd", *(matrix_world @ poly.normal)))
+                    f.write(struct.pack("<d", mesh.attributes["amagate_v_dist"].data[idx].value))  # type: ignore
+
+        #
+        # amagate_tex_vx
+        # amagate_tex_vy
         # self.report({'WARNING'}, "Export Failed")
         self.report({"INFO"}, "Export Success")
         return {"FINISHED"}

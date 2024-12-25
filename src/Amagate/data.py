@@ -1740,6 +1740,8 @@ class SectorProperty(bpy.types.PropertyGroup):
         modifier.node_group = scene_data.sec_node  # type: ignore
 
         # 添加网格属性
+        mesh.attributes.new(name="amagate_connected", type="BOOLEAN", domain="FACE")
+        mesh.attributes.new(name="amagate_is_sky", type="BOOLEAN", domain="FACE")
         mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
