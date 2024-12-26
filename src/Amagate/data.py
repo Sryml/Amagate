@@ -1447,8 +1447,31 @@ class FlatLightProperty(bpy.types.PropertyGroup):
 
 
 class SectorFocoLightProperty(bpy.types.PropertyGroup):
-    # 可添加多个，保存数据块名称
     name: StringProperty(name="Name", default="")  # type: ignore
+    color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(0, 0, 0),  # 0.784, 0.784, 0.392
+    )  # type: ignore
+    pos: FloatVectorProperty(
+        name="Position",
+        subtype="XYZ",
+        default=(0.0, 0.0, 0.0),
+        size=3,
+    )  # type: ignore
+    strength: FloatProperty(
+        name="Strength",
+        description="Strength of the light",  # 光照强度
+        default=1.0,
+    )  # type: ignore
+    precision: FloatProperty(
+        name="Precision",
+        description="Precision of the light",  # 精度
+        default=0.03125,
+    )  # type: ignore
     # TODO
 
 
@@ -1740,7 +1763,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         modifier.node_group = scene_data.sec_node  # type: ignore
 
         # 添加网格属性
-        mesh.attributes.new(name="amagate_connected", type="BOOLEAN", domain="FACE")
+        mesh.attributes.new(name="amagate_connected_sector", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_is_sky", type="BOOLEAN", domain="FACE")
         mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
