@@ -130,7 +130,7 @@ class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
 class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
     bl_label = "External Light"
     bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
-    # bl_options = {"HIDE_HEADER"}
+    bl_options = {"DEFAULT_CLOSED"}
 
     def draw(self, context: Context):
         layout = self.layout
@@ -725,10 +725,11 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
 ############################
 class AMAGATE_PT_Debug(N_Panel, bpy.types.Panel):
     bl_label = "Debug"
+    bl_options = {"DEFAULT_CLOSED"}
 
     @classmethod
     def poll(cls, context):
-        return True
+        return data.DEBUG
 
     def draw(self, context):
         layout = self.layout

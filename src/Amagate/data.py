@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import os
 import math
+import shutil
 import pickle
 import threading
 from typing import Any, TYPE_CHECKING
@@ -40,7 +41,7 @@ if TYPE_CHECKING:
     Scene = bpy.__Scene
 
 ############################ 全局变量
-DEBUG = False
+DEBUG = os.path.exists(os.path.join(os.path.dirname(__file__), "DEBUG"))
 
 ICONS: Any = None
 
@@ -627,6 +628,26 @@ def check_before_save(filepath):
     ] + [item.obj for item in scene_data.ensure_coll]:
         if i:
             i.use_fake_user = True
+
+    if not scene_data.builtin_tex_saved:
+        scene_data.builtin_tex_saved = True
+        img = None  # type: Image # type: ignore
+        for img in bpy.data.images:  # type: ignore
+            img_data = img.amagate_data
+            if img_data.builtin:
+                img_data.builtin = False
+                os.makedirs(
+                    os.path.join(os.path.dirname(filepath), "textures"), exist_ok=True
+                )
+                new_path = os.path.join(
+                    os.path.dirname(filepath),
+                    "textures",
+                    os.path.basename(img.filepath),
+                )
+                shutil.copy(img.filepath, new_path)
+                img.filepath = (
+                    f"//{os.path.relpath(new_path, os.path.dirname(filepath))}"
+                )
 
 
 # 加载后回调
@@ -1825,6 +1846,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
+    builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
 
 
 # 场景属性
@@ -1845,6 +1867,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 纹理预览
     tex_preview: PointerProperty(type=bpy.types.Image)  # type: ignore
+    builtin_tex_saved: BoolProperty(name="Builtin Tex Saved", default=False)  # type: ignore
     # 存储确保对象
     ensure_null_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     ensure_null_tex: PointerProperty(type=bpy.types.Image)  # type: ignore

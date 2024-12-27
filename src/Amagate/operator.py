@@ -373,17 +373,21 @@ class OT_Texture_Add(bpy.types.Operator):
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     @staticmethod
-    def load_image(context: Context, filepath, name=""):
+    def load_image(filepath, name=""):
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img_data = img.amagate_data
         if name:
             img.name = name
+        else:
+            img.name = os.path.splitext(os.path.basename(filepath))[0]
 
         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
         img_data.id = data.get_id(used_ids)
         data.ensure_material(img)
         if not img.use_fake_user:
             img.use_fake_user = True
+
+        return img_data
 
     def execute(self, context: Context):
         scene_data = bpy.context.scene.amagate_data
@@ -430,7 +434,7 @@ class OT_Texture_Add(bpy.types.Operator):
                         if not img.use_fake_user:
                             img.use_fake_user = True
             else:
-                self.load_image(context, filepath, name)
+                self.load_image(filepath, name)
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -899,8 +903,12 @@ class OT_InitMap(bpy.types.Operator):
         ## 创建空对象
         data.ensure_null_object()
         ## 加载纹理
-        filepath = os.path.join(os.path.dirname(__file__), "textures", "wall_01.jpg")
-        OT_Texture_Add.load_image(context, filepath, "wall_01")
+        if data.DEBUG:
+            filepath = os.path.join(os.path.dirname(__file__), "textures", "test.jpg")
+            OT_Texture_Add.load_image(filepath)
+        # for i in ("floor_01.jpg", "wall_01.jpg"):
+        #     filepath = os.path.join(os.path.dirname(__file__), "textures", i)
+        #     OT_Texture_Add.load_image(filepath).builtin = True
         ## 创建默认数据
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
@@ -957,6 +965,7 @@ def split_editor(context: Context):
     new_area = next(
         a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
     )
+    """
     if data.DEBUG:
         # For DEBUG
         new_area.type = "CONSOLE"
@@ -968,6 +977,7 @@ def split_editor(context: Context):
         # 找到新创建的区域
         # new_area = next(a for a in context.screen.areas if a != new_area and a.type == 'CONSOLE')
         new_area.type = "VIEW_3D"
+    """
 
     # 调整渲染区域属性
     new_area.spaces[0].shading.type = "RENDERED"  # type: ignore
@@ -1276,7 +1286,7 @@ class OT_ExportMap(bpy.types.Operator):
         # self.report({'WARNING'}, "Export Map Failed")
         self.report(
             {"INFO"},
-            f"Export Map - Success:\n{global_vertex_count} Vertices, {global_face_count} Faces, {len(sector_ids)} Sectors",
+            f"{pgettext('Export Map')} - {pgettext('Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {len(sector_ids)} {pgettext('Sectors')}",
         )
         return {"FINISHED"}
 
@@ -1318,7 +1328,7 @@ class OT_ExportNode(bpy.types.Operator):
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         # 导出节点
         nodes_data = {}
-        nodes_data["AG.Mat"] = data.export_nodes(bpy.data.materials["AG.Mat"])
+        nodes_data["AG.Mat1"] = data.export_nodes(bpy.data.materials["AG.Mat1"])
         nodes_data["Amagate Eval"] = data.export_nodes(
             bpy.data.node_groups["Amagate Eval"]
         )
@@ -1342,7 +1352,7 @@ class OT_ImportNode(bpy.types.Operator):
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
 
-        name = "AG.Mat"
+        name = "AG.Mat1"
         mat = bpy.data.materials.new(name)
         data.import_nodes(mat, nodes_data[name])
 

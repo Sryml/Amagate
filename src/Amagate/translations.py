@@ -13,6 +13,7 @@ translations_dict = {
         ("*", "Ghost Sector Collection"): "虚拟扇区集合",
         ("*", "Entity Collection"): "实体集合",
         ("*", "Camera Collection"): "摄像机集合",
+        ("*", "Sectors"): "扇区",
         # ("*", "non-uniform"): "不一致的",
         ("Operator", "Don't Save"): "不保存",
         ("Operator", "Cancel"): "取消",
@@ -74,10 +75,13 @@ translations_dict = {
         ("Operator", "Convert to Sector"): "转换为扇区",
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         #
-        ("Operator", "Export Map"): "导出地图",
         # 工具面板
         ("Operator", "New Map"): "新建地图",
         ("*", "New Blade Map"): "新建 Blade 地图",
+        ("Operator", "Export Map"): "导出地图",
+        ("*", "Export Map"): "导出地图",
+        ("*", "Please save the file first"): "请先保存文件",
+        ("*", "No visible sector found"): "未找到可见扇区",
     },
 }
 
