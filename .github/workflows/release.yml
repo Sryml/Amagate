@@ -32,22 +32,21 @@ jobs:
       - name: 检出代码
         uses: actions/checkout@v3
 
-      # - name: Generate Version Name
-      #   run: |
-      #     COMMIT_HASH=$(git rev-parse --short HEAD)
-      #     TIMESTAMP=$(date +'%Y%m%d%H%M')
-      #     echo "VERSION_NAME=ci-${TIMESTAMP}-${COMMIT_HASH}" >> $GITHUB_ENV
-
       - name: Create a zip file excluding certain files
         run: |
           # 创建一个包含文件的 zip 文件，排除掉特定文件或文件夹
-          zip -r $VERSION_NAME.zip src/Amagate -x "__pycache__/*" "*.tmp" "*.ai"
+          cd src/Amagate
+          mkdir -p textures
+          curl -L -o textures/test.bmp https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/test.bmp
+          cp ../../README.md README.md
+          cp ../../LICENSE LICENSE
+          zip -r ../../$VERSION_NAME.zip ./ -x "__pycache__/*" "*.tmp" "*.ai"
 
-      - name: Upload zip file as artifact
-        uses: actions/upload-artifact@v3
-        with:
-          name: ${{ env.VERSION_NAME }}
-          path: ${{ env.VERSION_NAME }}.zip
+      # - name: Upload zip file as artifact
+      #   uses: actions/upload-artifact@v3
+      #   with:
+      #     name: ${{ env.VERSION_NAME }}
+      #     path: ${{ env.VERSION_NAME }}.zip
 
       - name: 创建GitHub发布
         id: create_release
