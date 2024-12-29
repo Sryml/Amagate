@@ -6,11 +6,14 @@ import math
 import pickle
 import struct
 import contextlib
+import shutil
 import threading
+from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
 import bpy
+import bmesh
 from bpy.app.translations import pgettext
 from bpy.props import (
     PointerProperty,
@@ -790,6 +793,140 @@ class OT_Sector_Convert(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 连接扇区
+class OT_Sector_Connect(bpy.types.Operator):
+    bl_idname = "amagate.sector_connect"
+    bl_label = "Connect Sectors"
+    bl_description = "Connect selected sectors"
+    bl_options = {"INTERNAL", "UNDO"}
+
+    def execute(self, context: Context):
+        # 重置连接管理器
+        for sec in data.SELECTED_SECTORS:
+            sec_data = sec.amagate_data.get_sector_data()
+            sec_data["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            attributes = mesh.attributes.get("amagate_connected")
+            if attributes:
+                mesh.attributes.remove(attributes)
+            mesh.attributes.new(
+                name="amagate_connected", type="INT", domain="FACE"
+            )  # BOOLEAN
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for i, sec1 in enumerate(data.SELECTED_SECTORS):
+            for j, sec2 in enumerate(data.SELECTED_SECTORS):
+                if j > i:
+                    self.connect(sec1, sec2)
+
+        success = False
+        for sec in data.SELECTED_SECTORS:
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data["ConnectManager"]["sec_ids"] and not success:
+                success = True
+            for i, sid in sec_data["ConnectManager"]["faces"].items():
+                mesh.attributes["amagate_connected"].data[int(i)].value = sid  # type: ignore
+
+        if success:
+            self.report({"INFO"}, "Sectors connected successfully")
+            return {"FINISHED"}
+        else:
+            self.report({"INFO"}, "No sectors to connect")
+            return {"CANCELLED"}
+
+    def connect(self, sec1: Object, sec2: Object):
+        matrix1 = sec1.matrix_world
+        matrix2 = sec2.matrix_world
+        mesh1 = sec1.data  # type: bpy.types.Mesh # type: ignore
+        mesh2 = sec2.data  # type: bpy.types.Mesh # type: ignore
+        sec1_data = sec1.amagate_data.get_sector_data()
+        sec2_data = sec2.amagate_data.get_sector_data()
+        knife1 = {}
+        knife2 = {}
+        AG_COLL = data.ensure_collection(data.AG_COLL, hide_select=True)
+        sec1_ids = sec1_data["ConnectManager"]["sec_ids"].to_list()
+        sec2_ids = sec2_data["ConnectManager"]["sec_ids"].to_list()
+        for face1_idx, face1 in enumerate(sec1.data.polygons):  # type: ignore
+            for face2_idx, face2 in enumerate(sec2.data.polygons):  # type: ignore
+                normal1 = matrix1.to_quaternion() @ face1.normal
+                normal2 = matrix2.to_quaternion() @ face2.normal
+                # 获取面的顶点坐标
+                co1 = matrix1 @ mesh1.vertices[face1.vertices[0]].co
+                co2 = matrix2 @ mesh2.vertices[face2.vertices[0]].co
+                # 判断顶点是否在同一平面
+                is_same_plane = (co2 - co1).dot(normal1) < 1e-5
+                # 如果面可以连接, 法向完全相反且在同一平面
+                if normal1.dot(normal2) + 1 < 1e-5 and is_same_plane:
+                    # 保留小数为毫米单位后两位
+                    verts1 = {
+                        (matrix1 @ mesh1.vertices[i].co).to_tuple(5)
+                        for i in face1.vertices
+                    }
+                    verts2 = {
+                        (matrix2 @ mesh2.vertices[i].co).to_tuple(5)
+                        for i in face2.vertices
+                    }
+                    if verts1.issubset(verts2) or verts2.issubset(verts1):
+                        if sec2_data.id not in sec1_ids:
+                            sec1_ids.append(sec2_data.id)
+                        if sec1_data.id not in sec2_ids:
+                            sec2_ids.append(sec1_data.id)
+                        sec1_data["ConnectManager"]["faces"][
+                            str(face1_idx)
+                        ] = sec2_data.id
+                        sec2_data["ConnectManager"]["faces"][
+                            str(face2_idx)
+                        ] = sec1_data.id
+                        print(
+                            f"connect: {sec1.name} {face1_idx} <-> {sec2.name} {face2_idx}"
+                        )
+                        continue
+
+                    if knife1.get(face1_idx) is None:
+                        bm = bmesh.new()
+                        bm.faces.new(verts1)
+                        knife_mesh = bpy.data.meshes.new(
+                            f"AG.{sec1.name}_knife{face1_idx}"
+                        )
+                        knife_obj = bpy.data.objects.new(
+                            f"AG.{sec1.name}_knife{face1_idx}", knife_mesh
+                        )
+                        bm.to_mesh(knife_mesh)
+                        knife1[face1_idx] = knife_obj
+                        data.link2coll(knife_obj, AG_COLL)
+                    if knife2.get(face2_idx) is None:
+                        bm = bmesh.new()
+                        bm.faces.new(verts2)
+                        knife_mesh = bpy.data.meshes.new(
+                            f"AG.{sec2.name}_knife{face2_idx}"
+                        )
+                        knife_obj = bpy.data.objects.new(
+                            f"AG.{sec2.name}_knife{face2_idx}", knife_mesh
+                        )
+                        bm.to_mesh(knife_mesh)
+                        knife2[face2_idx] = knife_obj
+                        data.link2coll(knife_obj, AG_COLL)
+
+        sec1_data["ConnectManager"]["sec_ids"] = sec1_ids
+        sec2_data["ConnectManager"]["sec_ids"] = sec2_ids
+
+        for face_idx, knife_obj in knife1.items():
+            ...
+            # has_intersect = False
+            # for vert1 in face1.vertices:
+            #     hit, location, normal, index = sec2.ray_cast(
+            #         matrix2.inverted() @ (matrix1 @ mesh1.vertices[vert1].co),
+            #         matrix2.inverted() @ -normal1,
+            #     )
+            #     # 如果面之间有交集
+            #     if hit and normal == face2.normal:
+            #         has_intersect = True
+            #         break
+            # if has_intersect:
+            #     print("connect", sec1.name, sec2.name)
+
+
 ############################
 ############################ 工具面板
 ############################
@@ -904,8 +1041,8 @@ class OT_InitMap(bpy.types.Operator):
         data.ensure_null_object()
         ## 加载纹理
         if data.DEBUG:
-            filepath = os.path.join(os.path.dirname(__file__), "textures", "test.jpg")
-            OT_Texture_Add.load_image(filepath)
+            filepath = os.path.join(os.path.dirname(__file__), "textures", "test.bmp")
+            OT_Texture_Add.load_image(filepath).builtin = True
         # for i in ("floor_01.jpg", "wall_01.jpg"):
         #     filepath = os.path.join(os.path.dirname(__file__), "textures", i)
         #     OT_Texture_Add.load_image(filepath).builtin = True
@@ -1035,7 +1172,7 @@ class OT_ImportMap(bpy.types.Operator):
 #  -> 导出地图
 class OT_ExportMap(bpy.types.Operator):
     bl_idname = "amagate.exportmap"
-    bl_label = "Export Map"
+    bl_label = "Export Map (with Script)"
     bl_description = "Export Blade Map"
     bl_options = {"INTERNAL"}
 
@@ -1181,7 +1318,6 @@ class OT_ExportMap(bpy.types.Operator):
                 f.write(struct.pack("<ddd", 0, 0, 0))
 
                 # 面数据
-                # XXX 部分面的碰撞不准确，不知是否需要按顺序写面数据
                 sec_vertex_indices = sector_vertex_indices[sec_data.id]
                 depsgraph = bpy.context.evaluated_depsgraph_get()
                 evaluated_obj = sec.evaluated_get(depsgraph)
@@ -1189,11 +1325,13 @@ class OT_ExportMap(bpy.types.Operator):
                 global_face_count += len(mesh.polygons)
                 f.write(struct.pack("<I", len(mesh.polygons)))
                 for face_index, face in enumerate(mesh.polygons):
-                    connected_sid = mesh.attributes["amagate_connected_sector"].data[face_index].value  # type: ignore
+                    connected_sid = sec_data["ConnectManager"]["faces"].get(
+                        str(face_index)
+                    )
                     ## 面类型
-                    if mesh.attributes["amagate_is_sky"].data[face_index].value:  # type: ignore
+                    if mesh.attributes["amagate_tex_id"].data[face_index].value == -1:  # type: ignore
                         face_type = 7005
-                    elif connected_sid != 0:  # type: ignore
+                    elif connected_sid is not None:  # type: ignore
                         face_type = 7002
                     else:
                         face_type = 7001
@@ -1283,6 +1421,23 @@ class OT_ExportMap(bpy.types.Operator):
             f.write(sec_name_buffer.getvalue())
             sec_name_buffer.close()
 
+        # 创建脚本
+        map_dir = os.path.dirname(bpy.data.filepath)
+        sec = sectors_dict[str(sector_ids[0])]["obj"]  # type: Object
+        player_pos = sec.location[0], -sec.location[2], sec.location[1]
+        mapcfg = {
+            "bw_file": os.path.basename(bw_file),
+            "player_pos": player_pos,
+        }
+        with open(os.path.join(map_dir, "mapcfg.py"), "w", encoding="utf-8") as file:
+            file.write("mapcfg = ")
+            pprint(mapcfg, stream=file, indent=0, sort_dicts=False)
+        scripts_dir = os.path.join(os.path.dirname(__file__), "scripts")
+        for f in os.listdir(scripts_dir):
+            shutil.copy(
+                os.path.join(scripts_dir, f), os.path.join(os.path.dirname(bw_file), f)
+            )
+
         # self.report({'WARNING'}, "Export Map Failed")
         self.report(
             {"INFO"},
@@ -1336,7 +1491,6 @@ class OT_ExportNode(bpy.types.Operator):
         #     bpy.data.node_groups["AG.SectorNodes"]
         # )
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
-        from pprint import pprint
 
         with open(filepath + ".tmp", "w", encoding="utf-8") as file:
             pprint(nodes_data, stream=file, indent=0, sort_dicts=False)

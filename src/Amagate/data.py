@@ -149,6 +149,18 @@ def ensure_null_object() -> Object:
     return null_obj
 
 
+# 确保切割摄像机
+def ensure_knife_camera() -> Object:
+    scene_data = bpy.context.scene.amagate_data
+    knife_cam = scene_data.knife_cam  # type: Object
+    if not knife_cam:
+        knife_cam = bpy.data.objects.new("AG.KnifeCamera", None)  # type: ignore
+        knife_cam.data = bpy.data.cameras.new("AG.KnifeCamera")
+        # 正交摄像机
+        knife_cam.data.type = "ORTHO"
+    return knife_cam
+
+
 # 确保集合
 def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
     scene = bpy.context.scene
@@ -176,7 +188,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
         mat.rename(name, mode="ALWAYS")
         filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
-        import_nodes(mat, nodes_data["AG.Mat"])
+        import_nodes(mat, nodes_data["AG.Mat1"])
         mat.use_fake_user = True
         mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
         mat.use_backface_culling = True
@@ -1762,6 +1774,8 @@ class SectorProperty(bpy.types.PropertyGroup):
             "atmo_id": 0,
             "external_id": 0,
         }
+        # 初始化连接管理器
+        self["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
 
         # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
@@ -1784,8 +1798,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         modifier.node_group = scene_data.sec_node  # type: ignore
 
         # 添加网格属性
-        mesh.attributes.new(name="amagate_connected_sector", type="INT", domain="FACE")
-        mesh.attributes.new(name="amagate_is_sky", type="BOOLEAN", domain="FACE")
+        mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
         mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
@@ -1872,6 +1885,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     ensure_null_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     ensure_null_tex: PointerProperty(type=bpy.types.Image)  # type: ignore
     ensure_coll: CollectionProperty(type=CollCollection)  # type: ignore
+    knife_cam: PointerProperty(type=bpy.types.Object)  # type: ignore
     # 存储节点
     sec_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
     eval_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore

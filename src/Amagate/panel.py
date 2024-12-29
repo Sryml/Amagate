@@ -440,13 +440,14 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
             data.SELECTED_SECTORS = SELECTED_SECTORS
             data.ACTIVE_SECTOR = ACTIVE_SECTOR
 
-        col = layout.column(align=True)
+        col = layout.column()
         # 扇区数量
         col.label(
             text=f"{pgettext('Selected sector')}: {len(SELECTED_SECTORS)} / {len(selected_objects)}"
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+        col.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
