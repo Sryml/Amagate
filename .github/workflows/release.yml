@@ -1,10 +1,5 @@
 name: 发布
 
-# Amagate-dev-20240101-0000-abcdef
-# for /f "delims=" %i in ('git rev-parse --short HEAD') do set TAG_NAME=dev-%date:~0,4%%date:~5,2%%date:~8,2%-%time:~0,2%%time:~3,2%-%i
-# git tag %TAG_NAME%
-# git push origin %TAG_NAME%
-
 on:
   workflow_dispatch:
   push:
@@ -38,9 +33,11 @@ jobs:
           cd src/Amagate
           mkdir -p textures
           curl -L -o textures/test.bmp https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/test.bmp
-          cp ../../README.md README.md
-          cp ../../LICENSE LICENSE
-          zip -r ../../$VERSION_NAME.zip ./ -x "__pycache__/*" "*.tmp" "*.ai"
+          cp -r ../../docs ./docs
+          cp -p ../../README.md README.md
+          cp -p ../../LICENSE LICENSE
+          echo ${github.ref_name} > version
+          zip -r ../../${VERSION_NAME}.zip ./ -x "__pycache__/*" "*.tmp" "*.ai"
 
       # - name: Upload zip file as artifact
       #   uses: actions/upload-artifact@v3
