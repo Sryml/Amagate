@@ -10,5 +10,6 @@ TAG_NAME=${TAG_NAME:-"dev-${TIMESTAMP}-${COMMIT_HASH}"}
 
 echo $TAG_NAME > src/Amagate/version
 
-git tag %TAG_NAME%
-git push origin %TAG_NAME%
+git tag $TAG_NAME
+echo git push origin $TAG_NAME
+# git push origin $TAG_NAME

@@ -36,7 +36,7 @@ jobs:
           cp -r ../../docs ./docs
           cp -p ../../README.md README.md
           cp -p ../../LICENSE LICENSE
-          echo ${github.ref_name} > version
+          echo ${{ github.ref_name }} > version
           zip -r ../../${VERSION_NAME}.zip ./ -x "__pycache__/*" "*.tmp" "*.ai"
 
       # - name: Upload zip file as artifact
