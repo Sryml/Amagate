@@ -753,17 +753,23 @@ class OT_Sector_Convert(bpy.types.Operator):
     bl_idname = "amagate.sector_convert"
     bl_label = "Convert to Sector"
     bl_description = "Convert selected objects to sector"
-    bl_options = {"INTERNAL", "UNDO"}
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
 
     def execute(self, context: Context):
         original_selection = context.selected_objects
         if not original_selection:
+            self.report({"INFO"}, "No objects selected")
             return {"CANCELLED"}
 
         mesh_objects = [
             obj for obj in original_selection if obj.type == "MESH"
         ]  # type: list[Object] # type: ignore
         if not mesh_objects:
+            self.report({"INFO"}, "No mesh objects selected")
             return {"CANCELLED"}
 
         # 选择所有 MESH 对象
@@ -798,11 +804,20 @@ class OT_Sector_Connect(bpy.types.Operator):
     bl_idname = "amagate.sector_connect"
     bl_label = "Connect Sectors"
     bl_description = "Connect selected sectors"
-    bl_options = {"INTERNAL", "UNDO"}
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
 
     def execute(self, context: Context):
+        selected_sectors = data.SELECTED_SECTORS
+        if len(selected_sectors) < 2:
+            self.report({"INFO"}, "Select at least two sectors")
+            return {"CANCELLED"}
+
         # 重置连接管理器
-        for sec in data.SELECTED_SECTORS:
+        for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             sec_data["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
@@ -814,13 +829,13 @@ class OT_Sector_Connect(bpy.types.Operator):
             )  # BOOLEAN
 
         bpy.ops.object.mode_set(mode="OBJECT")
-        for i, sec1 in enumerate(data.SELECTED_SECTORS):
-            for j, sec2 in enumerate(data.SELECTED_SECTORS):
+        for i, sec1 in enumerate(selected_sectors):
+            for j, sec2 in enumerate(selected_sectors):
                 if j > i:
                     self.connect(sec1, sec2)
 
         success = False
-        for sec in data.SELECTED_SECTORS:
+        for sec in selected_sectors:
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data["ConnectManager"]["sec_ids"] and not success:
@@ -1041,10 +1056,10 @@ class OT_InitMap(bpy.types.Operator):
         data.ensure_null_object()
         ## 加载纹理
         if data.DEBUG:
-            filepath = os.path.join(os.path.dirname(__file__), "textures", "test.bmp")
+            filepath = os.path.join(data.ADDON_PATH, "textures", "test.bmp")
             OT_Texture_Add.load_image(filepath).builtin = True
         # for i in ("floor_01.jpg", "wall_01.jpg"):
-        #     filepath = os.path.join(os.path.dirname(__file__), "textures", i)
+        #     filepath = os.path.join(data.ADDON_PATH, "textures", i)
         #     OT_Texture_Add.load_image(filepath).builtin = True
         ## 创建默认数据
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
@@ -1194,7 +1209,7 @@ class OT_ExportMap(bpy.types.Operator):
 
         # 导出扇区
         ## blender坐标转换到blade: x,-z,y
-        if context.active_object.mode == "EDIT":
+        if context.active_object and context.active_object.mode == "EDIT":
             bpy.ops.object.mode_set(mode="OBJECT")
 
         bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
@@ -1217,8 +1232,7 @@ class OT_ExportMap(bpy.types.Operator):
                 )
                 f.write(struct.pack("<f", atm.color[-1]))
             ## 写入Amagate元数据
-            base_package = sys.modules[__package__]  # type: ignore
-            buffer = f"Metadata:\nAmagate-{base_package.version} (C) 2024 Sryml\nhttps://github.com/Sryml/Amagate".encode(
+            buffer = f"Metadata:\nAmagate-{data.VERSION} (C) 2024 Sryml\nhttps://github.com/Sryml/Amagate".encode(
                 "utf-8"
             )
             f.write(struct.pack("<I", len(buffer)))
@@ -1432,7 +1446,7 @@ class OT_ExportMap(bpy.types.Operator):
         with open(os.path.join(map_dir, "mapcfg.py"), "w", encoding="utf-8") as file:
             file.write("mapcfg = ")
             pprint(mapcfg, stream=file, indent=0, sort_dicts=False)
-        scripts_dir = os.path.join(os.path.dirname(__file__), "scripts")
+        scripts_dir = os.path.join(data.ADDON_PATH, "scripts")
         for f in os.listdir(scripts_dir):
             shutil.copy(
                 os.path.join(scripts_dir, f), os.path.join(os.path.dirname(bw_file), f)
@@ -1480,7 +1494,7 @@ class OT_ExportNode(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        filepath = os.path.join(data.ADDON_PATH, "nodes.dat")
         # 导出节点
         nodes_data = {}
         nodes_data["AG.Mat1"] = data.export_nodes(bpy.data.materials["AG.Mat1"])
@@ -1503,7 +1517,7 @@ class OT_ImportNode(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        filepath = os.path.join(data.ADDON_PATH, "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
 
         name = "AG.Mat1"

@@ -3,7 +3,6 @@ import importlib
 import bpy
 from . import data, operator, panel, translations  # 导入插件其他模块
 
-version = "0.5.0"
 
 loaded = False
 

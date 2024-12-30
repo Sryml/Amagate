@@ -11,7 +11,7 @@ import traceback
 
 epsilon = 0.00001
 # 允许打印
-allow_print = False
+allow_print = True
 
 
 def print_(*args, **kwargs):
@@ -126,7 +126,7 @@ def parse(file):
             y = unpack("d", f)[0]
             z = unpack("d", f)[0]
             # 打印顶点信息
-            # print_(f"{address} - {i}: ({x}, {y}, {z})")
+            print_(f"{address} - {i}: ({x}, {y}, {z})")
         print("")
 
         # 扇区
@@ -386,12 +386,12 @@ def parse(file):
                 for j in range(num):
                     sector_list.append(unpack("i", f)[0])
                 print_(
-                    f"{i}: External, RGB: {rgb}, Strength: {strength}, Precision: {precision}, Vector: {v}, Sectors: {sector_list}"
+                    f"{i}: External, RGB: {rgb}, Strength: {strength}, Precision: {precision}, Vector: {v}, Sectors: {sector_list} - {address}"
                 )
             elif id1 == 15001:
                 sector = unpack("i", f)[0]
                 print_(
-                    f"{i}: Bulb, RGB: {rgb}, Strength: {strength}, Precision: {precision}, Position: {pos}, Sector: {sector}"
+                    f"{i}: Bulb, RGB: {rgb}, Strength: {strength}, Precision: {precision}, Position: {pos}, Sector: {sector} - {address}"
                 )
             else:
                 print(f"未知的外部光类型: {id1} - {address}")

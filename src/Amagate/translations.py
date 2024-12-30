@@ -74,7 +74,10 @@ translations_dict = {
         ("*", "Selected sector"): "选中的扇区",
         ("Operator", "Convert to Sector"): "转换为扇区",
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
+        ("*", "No mesh objects selected"): "未选择网格物体",
         ("Operator", "Connect Sectors"): "连接扇区",
+        # ("*", "No sectors selected"): "未选择扇区",
+        ("*", "Select at least two sectors"): "至少选择两个扇区",
         #
         # 工具面板
         ("Operator", "New Map"): "新建地图",

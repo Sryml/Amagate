@@ -41,7 +41,12 @@ if TYPE_CHECKING:
     Scene = bpy.__Scene
 
 ############################ 全局变量
-DEBUG = os.path.exists(os.path.join(os.path.dirname(__file__), "DEBUG"))
+ADDON_PATH = os.path.dirname(__file__)
+
+with open(os.path.join(ADDON_PATH, "version"), "r") as v:
+    VERSION = v.read().strip()
+
+DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 
 ICONS: Any = None
 
@@ -57,6 +62,7 @@ SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
 
 FACE_FLAG = {"Floor": -1, "Ceiling": -2, "Wall": -3}
+
 ############################
 
 
@@ -186,7 +192,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
     if not mat:
         mat = bpy.data.materials.new("")
         mat.rename(name, mode="ALWAYS")
-        filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+        filepath = os.path.join(ADDON_PATH, "nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
         import_nodes(mat, nodes_data["AG.Mat1"])
         mat.use_fake_user = True
@@ -199,7 +205,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
 
 # 确保节点
 def ensure_node():
-    filepath = os.path.join(os.path.dirname(__file__), "nodes.dat")
+    filepath = os.path.join(ADDON_PATH, "nodes.dat")
     nodes_data = pickle.load(open(filepath, "rb"))
     scene_data = bpy.context.scene.amagate_data
     #
@@ -1091,7 +1097,7 @@ class TextureProperty(bpy.types.PropertyGroup):
     def set_id(self, value):
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if bpy.context.active_object.mode == "EDIT":
+            if ACTIVE_SECTOR.mode == "EDIT":
                 bpy.ops.object.mode_set(mode="OBJECT")
                 tex = get_texture_by_id(value)[1]
                 mat = ensure_material(tex)
@@ -1152,9 +1158,9 @@ class TextureProperty(bpy.types.PropertyGroup):
         attr = ("xpos", "ypos")[index]
         if self.target == "SectorPublic":
             sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if bpy.context.active_object.mode == "OBJECT":
+            if ACTIVE_SECTOR.mode == "OBJECT":
                 return getattr(sec_data.textures[self.name], attr)
-            elif bpy.context.active_object.mode == "EDIT":
+            elif ACTIVE_SECTOR.mode == "EDIT":
                 ret = 0.0
                 bpy.ops.object.mode_set(mode="OBJECT")
                 mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
@@ -1172,7 +1178,7 @@ class TextureProperty(bpy.types.PropertyGroup):
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if bpy.context.active_object.mode == "EDIT":
+            if ACTIVE_SECTOR.mode == "EDIT":
                 bpy.ops.object.mode_set(mode="OBJECT")
                 for sec in SELECTED_SECTORS:
                     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
@@ -1216,9 +1222,9 @@ class TextureProperty(bpy.types.PropertyGroup):
         attr = ("xzoom", "yzoom")[index]
         if self.target == "SectorPublic":
             sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if bpy.context.active_object.mode == "OBJECT":
+            if ACTIVE_SECTOR.mode == "OBJECT":
                 return getattr(sec_data.textures[self.name], attr)
-            elif bpy.context.active_object.mode == "EDIT":
+            elif ACTIVE_SECTOR.mode == "EDIT":
                 ret = 0.0
                 bpy.ops.object.mode_set(mode="OBJECT")
                 mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
@@ -1247,7 +1253,7 @@ class TextureProperty(bpy.types.PropertyGroup):
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if bpy.context.active_object.mode == "EDIT":
+            if ACTIVE_SECTOR.mode == "EDIT":
                 bpy.ops.object.mode_set(mode="OBJECT")
                 for sec in SELECTED_SECTORS:
                     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
@@ -1296,9 +1302,9 @@ class TextureProperty(bpy.types.PropertyGroup):
         attr = "angle"
         if self.target == "SectorPublic":
             sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if bpy.context.active_object.mode == "OBJECT":
+            if ACTIVE_SECTOR.mode == "OBJECT":
                 return getattr(sec_data.textures[self.name], attr)
-            elif bpy.context.active_object.mode == "EDIT":
+            elif ACTIVE_SECTOR.mode == "EDIT":
                 ret = 0.0
                 bpy.ops.object.mode_set(mode="OBJECT")
                 mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
@@ -1316,7 +1322,7 @@ class TextureProperty(bpy.types.PropertyGroup):
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if bpy.context.active_object.mode == "EDIT":
+            if ACTIVE_SECTOR.mode == "EDIT":
                 bpy.ops.object.mode_set(mode="OBJECT")
                 for sec in SELECTED_SECTORS:
                     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
@@ -1961,12 +1967,11 @@ classes = [
 
 def register():
     global ICONS
-    addon_directory = os.path.dirname(__file__)
 
     import bpy.utils.previews
 
     ICONS = bpy.utils.previews.new()
-    icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+    icons_dir = os.path.join(ADDON_PATH, "icons")
     ICONS.load("star", os.path.join(icons_dir, "star.png"), "IMAGE")
     ICONS.load("blade", os.path.join(icons_dir, "blade.png"), "IMAGE")
 

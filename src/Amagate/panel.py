@@ -24,9 +24,9 @@ class N_Panel:
     bl_category = "Amagate"
 
     @classmethod
-    def poll(cls, context):
+    def poll(cls, context: Context):
         # 自定义条件，仅在blade场景中显示
-        return context.scene.amagate_data.is_blade  # type: ignore
+        return context.scene.amagate_data.is_blade
 
 
 ############################
@@ -377,6 +377,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
 ############################
 ############################ 扇区面板
 ############################
+"""
 class AMAGATE_PT_Sector_E(N_Panel, bpy.types.Panel):
     bl_label = "Sector"
 
@@ -400,6 +401,7 @@ class AMAGATE_PT_Sector_E(N_Panel, bpy.types.Panel):
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+"""
 
 
 class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
@@ -410,40 +412,16 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         super().__init__()
         data.ensure_null_texture()
 
-    @classmethod
-    def poll(cls, context: Context):
-        if not context.scene.amagate_data.is_blade:  # type: ignore
-            return False
-
-        for obj in context.selected_objects:
-            if obj.amagate_data.is_sector:  # type: ignore
-                return True
-        return False
-
     def draw(self, context: Context):
         layout = self.layout
         scene_data: data.SceneProperty = context.scene.amagate_data
 
-        # 当选中物体中包含扇区的情况下才会渲染面板
-        SELECTED_SECTORS = []
-        ACTIVE_SECTOR = None
-        selected_objects = context.selected_objects
-        if selected_objects:
-            for obj in selected_objects:
-                if obj.amagate_data.is_sector:  # type: ignore
-                    SELECTED_SECTORS.append(obj)
-                    if obj == context.active_object:
-                        ACTIVE_SECTOR = obj
-
-            if not ACTIVE_SECTOR:
-                ACTIVE_SECTOR = SELECTED_SECTORS[0]
-            data.SELECTED_SECTORS = SELECTED_SECTORS
-            data.ACTIVE_SECTOR = ACTIVE_SECTOR
+        selected_sectors = data.SELECTED_SECTORS
 
         col = layout.column()
         # 扇区数量
         col.label(
-            text=f"{pgettext('Selected sector')}: {len(SELECTED_SECTORS)} / {len(selected_objects)}"
+            text=f"{pgettext('Selected sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
@@ -455,19 +433,44 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
     bl_parent_id = "AMAGATE_PT_Sector"  # 设置父面板
     # bl_options = {"DEFAULT_CLOSED"}
 
-    def draw(self, context: Context):
-        layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data
-        SELECTED_SECTORS = data.SELECTED_SECTORS
-        if not SELECTED_SECTORS:
-            return
+    @classmethod
+    def poll(cls, context: Context):
+        for obj in context.selected_objects:
+            if obj.amagate_data.is_sector:  # type: ignore
+                return True
+        data.SELECTED_SECTORS = []
+        data.ACTIVE_SECTOR = None
+        return False
 
-        active_sec_data = data.ACTIVE_SECTOR.amagate_data.get_sector_data()
+    def set_selected_sectors(self):
+        context = bpy.context
+        # 当选中物体中包含扇区的情况下才会渲染面板
+        selected_objects = context.selected_objects  # type: list[Object] # type: ignore
+        selected_sectors = [
+            obj for obj in selected_objects if obj.amagate_data.is_sector
+        ]
+        active_sector = (
+            context.active_object
+            if context.active_object in selected_sectors
+            else selected_sectors[0]
+        )
+
+        data.SELECTED_SECTORS = selected_sectors
+        data.ACTIVE_SECTOR = active_sector
+
+    def draw(self, context: Context):
+        self.set_selected_sectors()
+
+        layout = self.layout
+        scene_data = context.scene.amagate_data
+        selected_sectors = data.SELECTED_SECTORS
+        active_sector = data.ACTIVE_SECTOR
+        active_sec_data = active_sector.amagate_data.get_sector_data()
 
         # 大气
         atmo_id = active_sec_data.atmo_id
         is_uniform = True
-        for sec in SELECTED_SECTORS:
+        for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.atmo_id != atmo_id:
                 atmo_id = None
@@ -509,7 +512,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
         layout.separator()
 
         box = layout.box()
-        if context.active_object.mode == "OBJECT":
+        if active_sector.mode == "OBJECT":
             # 地板 天花板 墙壁
             for i, prop in enumerate(scene_data.sector_public.textures):
                 name = prop.name
@@ -527,7 +530,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
                 is_xzoom_uniform = True
                 is_yzoom_uniform = True
 
-                for sec in SELECTED_SECTORS:
+                for sec in selected_sectors:
                     sec_data = sec.amagate_data.get_sector_data()
                     # 检查纹理是否一致
                     if is_tex_uniform and sec_data.textures[name].id != tex_id:
@@ -661,7 +664,7 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
         # 环境光
         is_uniform = True
         ambient_color = active_sec_data.ambient_color
-        for sec in SELECTED_SECTORS:
+        for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.ambient_color != ambient_color:
                 is_uniform = False
@@ -719,6 +722,27 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
         row = layout.row(align=True)
         row.enabled = scene_data.is_blade
         row.operator(OP.OT_ExportMap.bl_idname, icon="EXPORT")
+
+
+############################
+############################ 关于面板
+############################
+class AMAGATE_PT_About(N_Panel, bpy.types.Panel):
+    bl_label = "About"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return True
+
+    def draw(self, context):
+        layout = self.layout
+
+        col = layout.column(align=True)
+        col.label(text="Version:", icon="INFO")
+        col.label(text=f"{data.VERSION}")
+        col.label(text="Amagate (C) 2024 Sryml")
+        col.operator("wm.url_open", text="Amagate on Github", icon="URL").url = "https://github.com/Sryml/Amagate"  # type: ignore
 
 
 ############################
