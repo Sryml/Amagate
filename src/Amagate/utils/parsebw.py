@@ -1,7 +1,7 @@
-r"""
-by Sryml
-python 3.11
-"""
+# Author: Sryml
+# Email: sryml@hotmail.com
+# Python Version: 3.11
+# License: GPL-3.0
 
 import struct
 import os

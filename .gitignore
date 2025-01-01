@@ -1,3 +1,6 @@
 .note/
 .test/
 __pycache__/
+
+**/version
+**/*.tmp

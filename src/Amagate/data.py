@@ -1,3 +1,8 @@
+# Author: Sryml
+# Email: sryml@hotmail.com
+# Python Version: 3.11
+# License: GPL-3.0
+
 from __future__ import annotations
 
 import re
@@ -41,6 +46,8 @@ if TYPE_CHECKING:
     Scene = bpy.__Scene
 
 ############################ 全局变量
+Copyright = "(C) 2024-2025 Sryml"
+
 ADDON_PATH = os.path.dirname(__file__)
 
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
@@ -637,6 +644,9 @@ def check_before_save(filepath):
     if not scene_data.is_blade:
         return
 
+    render_view_index = next((i for i, a in enumerate(bpy.context.screen.areas) if a.type == "VIEW_3D" and a.spaces[0].shading.type == "RENDERED"), -1)  # type: ignore
+    scene_data.render_view_index = render_view_index  # 记录渲染区域索引
+
     scene_data.ensure_coll.values()
     for i in [
         scene_data.ensure_null_obj,
@@ -673,6 +683,8 @@ def check_before_save(filepath):
 def load_post(filepath):
     scene_data = bpy.context.scene.amagate_data
     if scene_data.is_blade:
+        if scene_data.render_view_index != -1:
+            bpy.context.screen.areas[scene_data.render_view_index].spaces[0].shading.type = "RENDERED"  # type: ignore
         bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
         bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post)  # type: ignore
 
@@ -1896,6 +1908,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     sec_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
     eval_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
 
+    # 渲染视图索引
+    render_view_index: IntProperty(name="Render View Index", default=-1)  # type: ignore
+
     # 布局属性
     sector_public: PointerProperty(type=SectorProperty)  # type: ignore
     ############################
@@ -1956,6 +1971,14 @@ class ObjectProperty(bpy.types.PropertyGroup):
 
 
 ############################
+
+
+def register_timer():
+    bpy.app.handlers.load_post.append(load_post)  # type: ignore
+    load_post(None)
+
+
+############################
 ############################
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
 classes = [
@@ -1985,7 +2008,7 @@ def register():
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
     # 注册回调函数
-    bpy.app.handlers.load_post.append(load_post)  # type: ignore
+    bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
 
 
 def unregister():
@@ -2003,4 +2026,9 @@ def unregister():
     ICONS = None
 
     # 注销回调函数
-    bpy.app.handlers.load_post.remove(load_post)  # type: ignore
+    if load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(load_post)  # type: ignore
+    if check_before_save in bpy.app.handlers.save_pre:
+        bpy.app.handlers.save_pre.remove(check_before_save)  # type: ignore
+    if depsgraph_update_post in bpy.app.handlers.depsgraph_update_post:
+        bpy.app.handlers.depsgraph_update_post.remove(depsgraph_update_post)  # type: ignore

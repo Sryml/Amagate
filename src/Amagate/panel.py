@@ -1,3 +1,8 @@
+# Author: Sryml
+# Email: sryml@hotmail.com
+# Python Version: 3.11
+# License: GPL-3.0
+
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
@@ -741,7 +746,7 @@ class AMAGATE_PT_About(N_Panel, bpy.types.Panel):
         col = layout.column(align=True)
         col.label(text="Version:", icon="INFO")
         col.label(text=f"{data.VERSION}")
-        col.label(text="Amagate (C) 2024 Sryml")
+        col.label(text=f"Amagate {data.Copyright}")
         col.operator("wm.url_open", text="Amagate on Github", icon="URL").url = "https://github.com/Sryml/Amagate"  # type: ignore
 
 

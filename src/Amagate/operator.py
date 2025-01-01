@@ -1,3 +1,8 @@
+# Author: Sryml
+# Email: sryml@hotmail.com
+# Python Version: 3.11
+# License: GPL-3.0
+
 from __future__ import annotations
 
 import sys
@@ -1099,6 +1104,7 @@ class OT_InitMap(bpy.types.Operator):
 
 
 def split_editor(context: Context):
+    scene_data = context.scene.amagate_data
     area = next((a for a in context.screen.areas if a.type == "VIEW_3D"), None)
     if not area:
         return
@@ -1109,9 +1115,9 @@ def split_editor(context: Context):
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
         area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
         area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
-        area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
+        # area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
         with contextlib.redirect_stdout(StringIO()):
-            bpy.ops.view3d.toggle_xray()
+            bpy.ops.view3d.toggle_xray()  # 透视模式
 
     # 找到新创建的区域
     new_area = next(
@@ -1141,6 +1147,7 @@ def split_editor(context: Context):
     new_area.spaces[0].overlay.show_faces = False  # type: ignore
     # new_area.spaces[0].overlay.show_overlays = False  # 叠加层  # type: ignore
 
+    # 激活面板
     with context.temp_override(area=area, space_data=area.spaces[0]):
         bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
 
@@ -1232,7 +1239,7 @@ class OT_ExportMap(bpy.types.Operator):
                 )
                 f.write(struct.pack("<f", atm.color[-1]))
             ## 写入Amagate元数据
-            buffer = f"Metadata:\nAmagate-{data.VERSION} (C) 2024 Sryml\nhttps://github.com/Sryml/Amagate".encode(
+            buffer = f"Metadata:\nAmagate-{data.VERSION} {data.Copyright}\nhttps://github.com/Sryml/Amagate".encode(
                 "utf-8"
             )
             f.write(struct.pack("<I", len(buffer)))
@@ -1438,7 +1445,8 @@ class OT_ExportMap(bpy.types.Operator):
         # 创建脚本
         map_dir = os.path.dirname(bpy.data.filepath)
         sec = sectors_dict[str(sector_ids[0])]["obj"]  # type: Object
-        player_pos = sec.location[0], -sec.location[2], sec.location[1]
+        player_pos = (sec.location * 1000).to_tuple(2)
+        player_pos = player_pos[0], -player_pos[2], player_pos[1]
         mapcfg = {
             "bw_file": os.path.basename(bw_file),
             "player_pos": player_pos,
