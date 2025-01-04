@@ -59,22 +59,15 @@ def is_convex(obj: Object):
 
         Faces = [face1]
         normal = face1.normal
-        edge = face1.edges[0]
-        plane_vector = (edge.verts[0].co - edge.verts[1].co).normalized()
+        D = -normal.dot(face1.verts[0].co)
         for face2 in bm.faces:
             if next((1 for lst in BMFaces if face2 in lst), 0):
                 continue
 
             # 判断法向是否一致
-            if face1 != face2 and 1 - face2.normal.dot(normal) < epsilon:
+            if face1 != face2 and 1 - abs(face2.normal.dot(normal)) < epsilon:
                 # 判断是否在同一平面
-                edge = face2.edges[0]
-                vertical_vector = (
-                    (edge.verts[0].co - edge.verts[1].co)
-                    .cross(plane_vector)
-                    .normalized()
-                )
-                if 1 - abs(vertical_vector.dot(normal)) < epsilon:
+                if abs(normal.dot(face2.verts[0].co) + D) < epsilon:
                     Faces.append(face2)
         if len(Faces) > 1:
             BMFaces.append(Faces)
@@ -86,7 +79,7 @@ def is_convex(obj: Object):
     # 如果存在凹边，返回0，否则返回1
     ret = next((0 for i in bm.edges if not i.is_convex), 1)
     bm.free()
-    # print(f"is_convex: {ret}")
+    print(f"is_convex: {ret}")
     return ret
 
     # 创建凸壳
