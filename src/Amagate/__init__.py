@@ -1,6 +1,6 @@
 import importlib
 
-import bpy
+import os
 from . import data, operator, panel, translations  # 导入插件其他模块
 
 
@@ -15,6 +15,11 @@ def register():
 
         for module in ("data", "operator", "panel", "translations"):
             del sys.modules[f"{__package__}.{module}"]
+        del sys.modules[f"{__package__}.scripts"]
+        for file in os.listdir(os.path.join(os.path.dirname(__file__), "scripts")):
+            m_name = f"{__package__}.scripts.{os.path.splitext(file)[0]}"
+            if sys.modules.get(m_name):
+                del sys.modules[m_name]
         # from . import data, operator, panel, translations
         for module in ("data", "operator", "panel", "translations"):
             globals()[module] = importlib.import_module(f"{__package__}.{module}")

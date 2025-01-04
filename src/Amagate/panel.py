@@ -13,6 +13,7 @@ from bpy.app.translations import pgettext
 
 from . import data
 from . import operator as OP
+from .scripts import ag_utils
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -430,7 +431,7 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
-        col.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
+        col.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN").is_button = True  # type: ignore
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
@@ -447,29 +448,16 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
         data.ACTIVE_SECTOR = None
         return False
 
-    def set_selected_sectors(self):
-        context = bpy.context
-        # 当选中物体中包含扇区的情况下才会渲染面板
-        selected_objects = context.selected_objects  # type: list[Object] # type: ignore
-        selected_sectors = [
-            obj for obj in selected_objects if obj.amagate_data.is_sector
-        ]
-        active_sector = (
-            context.active_object
-            if context.active_object in selected_sectors
-            else selected_sectors[0]
-        )
+    def draw(self, context: Context):
+        #
+        selected_sectors, active_sector = ag_utils.get_selected_sectors()
 
         data.SELECTED_SECTORS = selected_sectors
         data.ACTIVE_SECTOR = active_sector
-
-    def draw(self, context: Context):
-        self.set_selected_sectors()
+        #
 
         layout = self.layout
         scene_data = context.scene.amagate_data
-        selected_sectors = data.SELECTED_SECTORS
-        active_sector = data.ACTIVE_SECTOR
         active_sec_data = active_sector.amagate_data.get_sector_data()
 
         # 大气

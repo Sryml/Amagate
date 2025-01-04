@@ -35,6 +35,8 @@ from bpy.props import (
 from mathutils import *  # type: ignore
 
 from . import data
+from .scripts import ag_utils
+
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -811,12 +813,18 @@ class OT_Sector_Connect(bpy.types.Operator):
     bl_description = "Connect selected sectors"
     bl_options = {"UNDO"}
 
+    is_button: BoolProperty(default=False)  # type: ignore
+
     @classmethod
     def poll(cls, context: Context):
         return context.scene.amagate_data.is_blade
 
     def execute(self, context: Context):
-        selected_sectors = data.SELECTED_SECTORS
+        if self.is_button:
+            selected_sectors = data.SELECTED_SECTORS
+        else:
+            selected_sectors = ag_utils.get_selected_sectors()[0]
+
         if len(selected_sectors) < 2:
             self.report({"INFO"}, "Select at least two sectors")
             return {"CANCELLED"}
@@ -1216,7 +1224,7 @@ class OT_ExportMap(bpy.types.Operator):
 
         # 导出扇区
         ## blender坐标转换到blade: x,-z,y
-        if context.active_object and context.active_object.mode == "EDIT":
+        if context.mode == "EDIT":
             bpy.ops.object.mode_set(mode="OBJECT")
 
         bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
@@ -1454,7 +1462,7 @@ class OT_ExportMap(bpy.types.Operator):
         with open(os.path.join(map_dir, "mapcfg.py"), "w", encoding="utf-8") as file:
             file.write("mapcfg = ")
             pprint(mapcfg, stream=file, indent=0, sort_dicts=False)
-        scripts_dir = os.path.join(data.ADDON_PATH, "scripts")
+        scripts_dir = os.path.join(data.ADDON_PATH, "blade_scripts")
         for f in os.listdir(scripts_dir):
             shutil.copy(
                 os.path.join(scripts_dir, f), os.path.join(os.path.dirname(bw_file), f)

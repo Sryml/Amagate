@@ -11,10 +11,12 @@ import math
 import shutil
 import pickle
 import threading
+import contextlib
+from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
 # from collections import Counter
-
+#
 import bpy
 
 # import bmesh
@@ -36,6 +38,10 @@ from bpy.props import (
 import rna_keymap_ui
 from mathutils import *  # type: ignore
 
+#
+from .scripts import ag_utils
+
+#
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -64,6 +70,9 @@ E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
 
 DEPSGRAPH_UPDATE_LOCK = threading.Lock()
+# DELETE_POST_LOCK = threading.Lock()
+
+WM_OPERATORS = 0
 
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
@@ -552,7 +561,7 @@ def unregister_shortcuts():
 ############################
 
 
-def depsgraph_update_post_func():
+def delete_post_func():
     scene_data = bpy.context.scene.amagate_data
 
     # XXX 不起作用，因为复制场景不会触发依赖图更新
@@ -621,20 +630,47 @@ def depsgraph_update_post_func():
             bpy.ops.ed.undo_push(message="Delete Sector")
 
 
-# def depsgraph_update_post_func_release():
-#     DEPSGRAPH_UPDATE_LOCK.release()
+def geometry_modify_post():
+    selected_sectors = ag_utils.get_selected_sectors()[0]
+    for sec in selected_sectors:
+        sec.amagate_data.get_sector_data().is_convex = ag_utils.is_convex(sec)
+
+
+# def delete_post_func_release():
+#     DELETE_POST_LOCK.release()
 
 
 # @bpy.app.handlers.persistent
 def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
+    global WM_OPERATORS
     scene_data = scene.amagate_data
     if not scene_data.is_blade:
         return
 
-    if DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
-        depsgraph_update_post_func()
-        DEPSGRAPH_UPDATE_LOCK.release()
-        # bpy.app.timers.register(depsgraph_update_post_func_release, first_interval=0.2)
+    if not DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
+        return
+
+    # 删除操作后的回调
+    delete_post_func()
+    # if DELETE_POST_LOCK.acquire(blocking=False):
+    # delete_post_func()
+    # DELETE_POST_LOCK.release()
+    # bpy.app.timers.register(delete_post_func_release, first_interval=0.2)
+
+    # 从编辑模式切换到物体模式的回调
+    wm_operators = len(bpy.context.window_manager.operators)
+    if wm_operators != WM_OPERATORS:
+        WM_OPERATORS = wm_operators
+        if WM_OPERATORS != 0:
+            bl_idname = bpy.context.window_manager.operators[-1].bl_idname
+            # print(bl_idname)
+            if bl_idname == "OBJECT_OT_editmode_toggle":
+                if bpy.context.mode == "OBJECT":
+                    geometry_modify_post()
+            elif bl_idname == "OBJECT_OT_modifier_apply":
+                geometry_modify_post()
+
+    DEPSGRAPH_UPDATE_LOCK.release()
 
 
 # 定义检查函数
@@ -681,12 +717,16 @@ def check_before_save(filepath):
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath):
+    global WM_OPERATORS
     scene_data = bpy.context.scene.amagate_data
     if scene_data.is_blade:
         if scene_data.render_view_index != -1:
-            bpy.context.screen.areas[scene_data.render_view_index].spaces[0].shading.type = "RENDERED"  # type: ignore
+            spaces = bpy.context.screen.areas[scene_data.render_view_index].spaces[0]
+            if hasattr(spaces, "shading"):
+                spaces.shading.type = "RENDERED"
         bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
         bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post)  # type: ignore
+        WM_OPERATORS = len(bpy.context.window_manager.operators)
 
 
 ############################
@@ -1531,6 +1571,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     target: StringProperty(name="Target", default="Sector")  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
     has_sky: BoolProperty(default=False)  # type: ignore
+    is_convex: BoolProperty(default=False)  # type: ignore
     # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
@@ -1869,6 +1910,9 @@ class SectorProperty(bpy.types.PropertyGroup):
         self.external_id = scene_data.defaults.external_id
         # 设置环境光
         self.ambient_color = scene_data.defaults.ambient_color
+
+        # 判断是否为凸物体
+        self.is_convex = ag_utils.is_convex(obj)
 
         obj.amagate_data.is_sector = True
 
