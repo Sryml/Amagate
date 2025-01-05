@@ -726,12 +726,17 @@ def check_before_save(filepath):
 
 def draw_callback_3d():
     context = bpy.context
+    scene_data = context.scene.amagate_data
     # 当前区域和窗口
     region = context.region
     area = context.area
 
     # 确保是 VIEW_3D 的 WINDOW 区域
     if area.type != "VIEW_3D" or region.type != "WINDOW":
+        return
+
+    index = next(i for i, a in enumerate(context.screen.areas) if a == area)
+    if not scene_data.areas_show_hud.get(str(index)):
         return
 
     # if context.screen.show_fullscreen:
@@ -1044,6 +1049,14 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 ############################
 ############################ Collection Props
 ############################
+
+
+class IntegerCollection(bpy.types.PropertyGroup):
+    name: StringProperty(default="")  # type: ignore
+    value: IntProperty(default=0, update=lambda self, context: self.update_value(context))  # type: ignore
+
+    def update_value(self, context):
+        self.name = str(self.value)
 
 
 class StringCollection(bpy.types.PropertyGroup):
@@ -2042,7 +2055,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     # 渲染视图索引
     render_view_index: IntProperty(name="Render View Index", default=-1)  # type: ignore
 
-    # 布局属性
+    areas_show_hud: CollectionProperty(type=IntegerCollection)  # type: ignore
+
+    # 通用属性
     sector_public: PointerProperty(type=SectorProperty)  # type: ignore
     ############################
 
@@ -2059,6 +2074,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
     def init(self):
+        #
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults
 

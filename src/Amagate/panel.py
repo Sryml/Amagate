@@ -89,6 +89,28 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
 #         op.execute_type = 0  # type: ignore
 
 
+# 场景面板 -> 属性面板
+class AMAGATE_PT_Scene_Properties(N_Panel, bpy.types.Panel):
+    bl_label = "Properties"
+    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+    bl_options = {"HIDE_HEADER"}
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data
+        col = layout.column()
+
+        row = col.row(align=True)
+        row.alignment = "LEFT"
+        area_index = next(i for i, a in enumerate(context.screen.areas) if a == context.area)
+        icon = (
+            "CHECKBOX_HLT"
+            if scene_data.areas_show_hud.get(str(area_index))
+            else "CHECKBOX_DEHLT"
+        )
+        row.operator(OP.OT_Scene_Props_HUD.bl_idname, emboss=False, icon=icon)
+
+
 # 场景面板 -> 大气面板
 class AMAGATE_PT_Scene_Atmosphere(N_Panel, bpy.types.Panel):
     bl_label = "Atmosphere"
@@ -140,7 +162,7 @@ class AMAGATE_PT_Scene_ExternalLight(N_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data
+        scene_data = context.scene.amagate_data
 
         row = layout.row(align=True)
         row.alignment = "LEFT"
@@ -181,7 +203,7 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data
+        scene_data = context.scene.amagate_data
         images = bpy.data.images
 
         # 显示纹理列表
@@ -231,7 +253,7 @@ class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
         layout = self.layout
         # layout.use_property_split = True
         # layout.use_property_decorate = False
-        scene_data: data.SceneProperty = context.scene.amagate_data
+        scene_data = context.scene.amagate_data
 
         # 大气
         # layout.prop_search(scene_data.defaults, "atmo", scene_data, "atmospheres", text="Atmosphere")
@@ -420,15 +442,15 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        scene_data: data.SceneProperty = context.scene.amagate_data
+        scene_data = context.scene.amagate_data
 
         selected_sectors = data.SELECTED_SECTORS
 
         col = layout.column()
         # 扇区数量
-        col.label(
-            text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
-        )
+        # col.label(
+        #     text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
+        # )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
         col.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN").is_button = True  # type: ignore

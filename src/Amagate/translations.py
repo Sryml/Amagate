@@ -21,6 +21,8 @@ translations_dict = {
         ("Operator", "Delete Sector"): "删除扇区",
         ("Property", "Yes"): "是",
         ("Property", "No"): "否",
+        # 场景属性面板
+        ("Operator", "Show HUD"): "显示 HUD",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",

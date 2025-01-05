@@ -66,6 +66,31 @@ def simulate_keypress():
 
 
 ############################
+############################ 场景面板 -> 属性面板
+############################
+
+
+class OT_Scene_Props_HUD(bpy.types.Operator):
+    bl_idname = "amagate.scene_props_hud"
+    bl_label = "Show HUD"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        area_index = next(
+            i for i, a in enumerate(context.screen.areas) if a == context.area
+        )
+        item_index = scene_data.areas_show_hud.find(str(area_index))
+        # print(f"item_index: {item_index}")
+        if item_index != -1:
+            scene_data.areas_show_hud.remove(item_index)
+        else:
+            scene_data.areas_show_hud.add().value = area_index
+        data.region_redraw("WINDOW")
+        return {"FINISHED"}
+
+
+############################
 ############################ 场景面板 -> 大气面板
 ############################
 class OT_Scene_Atmo_Add(bpy.types.Operator):
@@ -245,7 +270,7 @@ class OT_Scene_External_Remove(bpy.types.Operator):
     undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context: Context):
-        scene_data: data.SceneProperty = context.scene.amagate_data
+        scene_data = context.scene.amagate_data
         active_idx = scene_data.active_external
         externals = scene_data.externals
         if active_idx >= len(externals):
@@ -1055,7 +1080,7 @@ class OT_InitMap(bpy.types.Operator):
         scene.rename(name, mode="ALWAYS")
         # context.window.scene = scene
         bpy.data.scenes.remove(old_scene)
-        scene_data: data.SceneProperty = scene.amagate_data
+        scene_data = scene.amagate_data
 
         # 初始化场景数据
         scene_data.id = 1
@@ -1116,9 +1141,14 @@ class OT_InitMap(bpy.types.Operator):
 
 def split_editor(context: Context):
     scene_data = context.scene.amagate_data
-    area = next((a for a in context.screen.areas if a.type == "VIEW_3D"), None)
+    area_index, area = next(
+        ((i, a) for i, a in enumerate(context.screen.areas) if a.type == "VIEW_3D"),
+        (-1, None),
+    )
     if not area:
         return
+
+    scene_data.areas_show_hud.add().value = area_index
 
     region = next(r for r in area.regions if r.type == "WINDOW")
     rv3d = region.data
