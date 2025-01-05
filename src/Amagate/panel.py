@@ -427,7 +427,7 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         col = layout.column()
         # 扇区数量
         col.label(
-            text=f"{pgettext('Selected sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
+            text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
         )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
@@ -756,6 +756,7 @@ class AMAGATE_PT_Debug(N_Panel, bpy.types.Panel):
         col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
         col.operator(OP.OT_ExportNode.bl_idname)
         col.operator(OP.OT_ImportNode.bl_idname)
+        col.operator(OP.OT_Test.bl_idname)
 
 
 ############################

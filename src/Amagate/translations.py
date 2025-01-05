@@ -19,6 +19,8 @@ translations_dict = {
         ("Operator", "Cancel"): "取消",
         ("Operator", "Initialize Scene"): "初始化场景",
         ("Operator", "Delete Sector"): "删除扇区",
+        ("Property", "Yes"): "是",
+        ("Property", "No"): "否",
         # 大气面板
         ("*", "Atmosphere"): "大气",
         ("*", "Atmospheres"): "大气数量",
@@ -71,7 +73,8 @@ translations_dict = {
         # 扇区面板
         ("*", "Select NULL for sky"): "选择 NULL 作为天空",
         ("*", "Sector"): "扇区",
-        ("*", "Selected sector"): "选中的扇区",
+        ("*", "Selected Sector"): "选中的扇区",
+        ("*", "Convex Polyhedron"): "凸多面体",
         ("Operator", "Convert to Sector"): "转换为扇区",
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         ("*", "No mesh objects selected"): "未选择网格物体",

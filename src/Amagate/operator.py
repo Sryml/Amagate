@@ -1065,8 +1065,9 @@ class OT_InitMap(bpy.types.Operator):
         data.ensure_collection(data.GS_COLL)
         data.ensure_collection(data.E_COLL)
         data.ensure_collection(data.C_COLL)
-        ## 创建空对象
+        ## 创建默认对象
         data.ensure_null_object()
+        data.ensure_render_camera()
         ## 加载纹理
         if data.DEBUG:
             filepath = os.path.join(data.ADDON_PATH, "textures", "test.bmp")
@@ -1085,8 +1086,11 @@ class OT_InitMap(bpy.types.Operator):
         world = bpy.data.worlds.new("")
         world.rename("BWorld", mode="ALWAYS")
         world.use_nodes = True
-        world.node_tree.nodes["Background"].inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
-        world.node_tree.nodes["Background"].inputs[1].default_value = 0.02  # type: ignore
+        Background = next(
+            n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
+        )
+        Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
+        Background.inputs[1].default_value = 0.02  # type: ignore
         scene.world = world
         ##
         scene.tool_settings.use_snap = True  # 吸附开关
@@ -1104,8 +1108,7 @@ class OT_InitMap(bpy.types.Operator):
         split_editor(context)
         scene_data.is_blade = True
 
-        bpy.app.handlers.save_pre.append(data.check_before_save)  # type: ignore
-        bpy.app.handlers.depsgraph_update_post.append(data.depsgraph_update_post)  # type: ignore
+        data.load_post()
 
         bpy.ops.ed.undo_push(message="Initialize Scene")
         return {"FINISHED"}
@@ -1116,6 +1119,10 @@ def split_editor(context: Context):
     area = next((a for a in context.screen.areas if a.type == "VIEW_3D"), None)
     if not area:
         return
+
+    region = next(r for r in area.regions if r.type == "WINDOW")
+    rv3d = region.data
+    rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
 
     with context.temp_override(area=area):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
@@ -1153,7 +1160,12 @@ def split_editor(context: Context):
     new_area.spaces[0].overlay.show_axis_y = False  # type: ignore
     new_area.spaces[0].overlay.show_cursor = False  # type: ignore
     new_area.spaces[0].overlay.show_faces = False  # type: ignore
+    new_area.spaces[0].lock_camera = True  # 锁定相机 # type: ignore
     # new_area.spaces[0].overlay.show_overlays = False  # 叠加层  # type: ignore
+    region = next(r for r in new_area.regions if r.type == "WINDOW")
+    rv3d = region.data
+    rv3d.view_perspective = "CAMERA"
+    rv3d.view_camera_zoom = 9
 
     # 激活面板
     with context.temp_override(area=area, space_data=area.spaces[0]):
@@ -1479,6 +1491,31 @@ class OT_ExportMap(bpy.types.Operator):
 ############################
 ############################ 调试面板
 ############################
+
+
+class OT_Test(bpy.types.Operator):
+    bl_idname = "amagate.test"
+    bl_label = "Test"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        area = context.area
+        if area.type == "VIEW_3D":
+            for region in area.regions:
+                if region.type == "WINDOW":
+                    print(f"width: {region.width}, height: {region.height}")
+                    rv3d = region.data
+                    # 设置视图为顶部视图
+                    # rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
+                    # rv3d.view_distance = 15.0
+                    # rv3d.view_location = (0.0, 0.0, 0.0)
+                    # print(f"view_rotation: {rv3d.view_rotation.to_euler()}")
+                    # print(f"view_distance: {rv3d.view_distance}")
+                    # print(f"view_location: {rv3d.view_location}")
+                    # rv3d.view_perspective="ORTHO"
+                    # print(f"view_camera_zoom: {rv3d.view_camera_zoom}")
+                    break
+        return {"FINISHED"}
 
 
 # 重载插件

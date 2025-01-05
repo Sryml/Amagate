@@ -36,6 +36,7 @@ from bpy.props import (
     StringProperty,
 )
 import rna_keymap_ui
+import blf
 from mathutils import *  # type: ignore
 
 #
@@ -73,6 +74,7 @@ DEPSGRAPH_UPDATE_LOCK = threading.Lock()
 # DELETE_POST_LOCK = threading.Lock()
 
 WM_OPERATORS = 0
+draw_handler = None
 
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
@@ -172,15 +174,22 @@ def ensure_null_object() -> Object:
 
 
 # 确保切割摄像机
-def ensure_knife_camera() -> Object:
+def ensure_render_camera() -> Object:
     scene_data = bpy.context.scene.amagate_data
-    knife_cam = scene_data.knife_cam  # type: Object
-    if not knife_cam:
-        knife_cam = bpy.data.objects.new("AG.KnifeCamera", None)  # type: ignore
-        knife_cam.data = bpy.data.cameras.new("AG.KnifeCamera")
+    render_cam = scene_data.render_cam  # type: Object
+    if not render_cam:
+        cam_data = bpy.data.cameras.new("AG.RenderCamera")
+        render_cam = bpy.data.objects.new("AG.RenderCamera", cam_data)  # type: ignore
+        cam_data.sensor_width = 100
+        cam_data.passepartout_alpha = 0.9
+        # cam_data.show_limits = True
+        render_cam.rotation_euler = (math.pi / 2, 0, 0)
         # 正交摄像机
-        knife_cam.data.type = "ORTHO"
-    return knife_cam
+        # render_cam.data.type = "ORTHO"
+        link2coll(render_cam, ensure_collection(C_COLL))
+        bpy.context.scene.camera = render_cam
+        scene_data.render_cam = render_cam
+    return render_cam
 
 
 # 确保集合
@@ -647,6 +656,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
     if not scene_data.is_blade:
         return
 
+    # XXX 待优化。目前没有获取撤销堆栈的Python API，因此在模态模式也会执行回调
     if not DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
         return
 
@@ -714,10 +724,79 @@ def check_before_save(filepath):
                 )
 
 
+def draw_callback_3d():
+    context = bpy.context
+    # 当前区域和窗口
+    region = context.region
+    area = context.area
+
+    # 确保是 VIEW_3D 的 WINDOW 区域
+    if area.type != "VIEW_3D" or region.type != "WINDOW":
+        return
+
+    # if context.screen.show_fullscreen:
+    #     return
+
+    # 获取区域宽高
+    width = region.width
+    height = region.height
+
+    texts = []
+    selected_sectors = ag_utils.get_selected_sectors()[0]
+    sector_num = len(selected_sectors)
+
+    #
+    is_convex = pgettext("None")
+    color = ag_utils.DefColor.nofocus
+    if selected_sectors:
+        color = ag_utils.DefColor.red
+        is_convex = selected_sectors[0].amagate_data.get_sector_data().is_convex
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.is_convex != is_convex:
+                is_convex = "*"
+                break
+        if is_convex == 1:
+            is_convex = pgettext("Yes", "Property")
+            color = ag_utils.DefColor.white
+        elif is_convex == 0:
+            is_convex = pgettext("No", "Property")
+    texts.append((f"{pgettext('Convex Polyhedron')}: {is_convex}", color))
+    #
+    text = (
+        f"{pgettext('Selected Sector')}: {sector_num} / {len(context.selected_objects)}"
+    )
+    if sector_num == 0:
+        color = ag_utils.DefColor.nofocus
+    else:
+        color = ag_utils.DefColor.white
+    texts.append((text, color))
+    #
+    font_id = 0  # 内置字体
+    for i in range(len(texts)):
+        text, color = texts[i]
+        # 设置文本属性
+        blf.size(font_id, 18)
+        blf.color(font_id, *color)
+
+        text_width, text_height = blf.dimensions(font_id, text)
+        # 计算右下角的绘制位置
+        # x = width - text_width - 40  # 右边距
+        # 计算左下角的绘制位置
+        x = 20  # 左边距
+        y = text_height * i + 10 * (i + 1)  # 下边距
+
+        # 绘制文本
+        blf.position(font_id, x, y, 0)
+        blf.draw(font_id, text)
+
+    # print("draw_callback_3d")
+
+
 # 加载后回调
 @bpy.app.handlers.persistent
-def load_post(filepath):
-    global WM_OPERATORS
+def load_post(filepath=""):
+    global WM_OPERATORS, draw_handler
     scene_data = bpy.context.scene.amagate_data
     if scene_data.is_blade:
         if scene_data.render_view_index != -1:
@@ -726,7 +805,15 @@ def load_post(filepath):
                 spaces.shading.type = "RENDERED"
         bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
         bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post)  # type: ignore
+        if draw_handler is None:
+            draw_handler = bpy.types.SpaceView3D.draw_handler_add(
+                draw_callback_3d, (), "WINDOW", "POST_PIXEL"
+            )
         WM_OPERATORS = len(bpy.context.window_manager.operators)
+    else:
+        if draw_handler is not None:
+            bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
+            draw_handler = None
 
 
 ############################
@@ -1947,7 +2034,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     ensure_null_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     ensure_null_tex: PointerProperty(type=bpy.types.Image)  # type: ignore
     ensure_coll: CollectionProperty(type=CollCollection)  # type: ignore
-    knife_cam: PointerProperty(type=bpy.types.Object)  # type: ignore
+    render_cam: PointerProperty(type=bpy.types.Object)  # type: ignore
     # 存储节点
     sec_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
     eval_node: PointerProperty(type=bpy.types.NodeTree)  # type: ignore
@@ -2056,7 +2143,7 @@ def register():
 
 
 def unregister():
-    global ICONS
+    global ICONS, draw_handler
     del bpy.types.Object.amagate_data  # type: ignore
     del bpy.types.Scene.amagate_data  # type: ignore
     del bpy.types.Image.amagate_data  # type: ignore
@@ -2076,3 +2163,6 @@ def unregister():
         bpy.app.handlers.save_pre.remove(check_before_save)  # type: ignore
     if depsgraph_update_post in bpy.app.handlers.depsgraph_update_post:
         bpy.app.handlers.depsgraph_update_post.remove(depsgraph_update_post)  # type: ignore
+    if draw_handler is not None:
+        bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
+        draw_handler = None
