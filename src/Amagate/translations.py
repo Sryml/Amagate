@@ -15,6 +15,7 @@ translations_dict = {
         ("*", "Camera Collection"): "摄像机集合",
         ("*", "Sectors"): "扇区",
         # ("*", "non-uniform"): "不一致的",
+        ("Operator", "Convex Check"): "凸面检查",
         ("Operator", "Don't Save"): "不保存",
         ("Operator", "Cancel"): "取消",
         ("Operator", "Initialize Scene"): "初始化场景",
@@ -81,8 +82,13 @@ translations_dict = {
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         ("*", "No mesh objects selected"): "未选择网格物体",
         ("Operator", "Connect Sectors"): "连接扇区",
+        ("*", "Auto Separate Convex"): "自动分离凸部分",
+        ("*", "Connect selected sectors"): "连接所选扇区",
         # ("*", "No sectors selected"): "未选择扇区",
         ("*", "Select at least two sectors"): "至少选择两个扇区",
+        ("Operator", "Separate Convex"): "分离凸部分",
+        ("*", "Separate selected sectors into convex parts"): "将所选扇区分离为凸部分",
+        ("*", "Select at least one sector"): "至少选择一个扇区",
         #
         # 工具面板
         ("Operator", "New Map"): "新建地图",

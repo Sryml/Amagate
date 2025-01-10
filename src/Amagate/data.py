@@ -639,10 +639,13 @@ def delete_post_func():
             bpy.ops.ed.undo_push(message="Delete Sector")
 
 
-def geometry_modify_post():
-    selected_sectors = ag_utils.get_selected_sectors()[0]
+def geometry_modify_post(selected_sectors: list[Object] = []):
+    if not selected_sectors:
+        selected_sectors = ag_utils.get_selected_sectors()[0]
     for sec in selected_sectors:
         sec.amagate_data.get_sector_data().is_convex = ag_utils.is_convex(sec)
+    # 凸面检查
+    bpy.ops.ed.undo_push(message="Convex Check")
 
 
 # def delete_post_func_release():
@@ -1666,6 +1669,12 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
     # TODO
 
 
+# 操作属性
+class OperatorProperty(bpy.types.PropertyGroup):
+    # OT_Sector_Connect
+    sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
+
+
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
     target: StringProperty(name="Target", default="Sector")  # type: ignore
@@ -1939,6 +1948,9 @@ class SectorProperty(bpy.types.PropertyGroup):
         # 在属性面板显示ID
         obj[f"AG - Sector ID"] = id_
 
+        # 凹多面体投影切割数据
+        self["ConcaveData"] = {"faces": [], "proj_normal": None}
+
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"
         obj.rename(name, mode="ALWAYS")
@@ -2056,6 +2068,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     render_view_index: IntProperty(name="Render View Index", default=-1)  # type: ignore
 
     areas_show_hud: CollectionProperty(type=IntegerCollection)  # type: ignore
+
+    # 操作属性
+    operator_props: PointerProperty(type=OperatorProperty)  # type: ignore
 
     # 通用属性
     sector_public: PointerProperty(type=SectorProperty)  # type: ignore

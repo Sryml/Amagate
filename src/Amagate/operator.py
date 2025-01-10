@@ -839,6 +839,7 @@ class OT_Sector_Connect(bpy.types.Operator):
     bl_options = {"UNDO"}
 
     is_button: BoolProperty(default=False)  # type: ignore
+    # 自动分离
 
     @classmethod
     def poll(cls, context: Context):
@@ -851,7 +852,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             selected_sectors = ag_utils.get_selected_sectors()[0]
 
         if len(selected_sectors) < 2:
-            self.report({"INFO"}, "Select at least two sectors")
+            self.report({"WARNING"}, "Select at least two sectors")
             return {"CANCELLED"}
 
         # 重置连接管理器
@@ -865,6 +866,8 @@ class OT_Sector_Connect(bpy.types.Operator):
             mesh.attributes.new(
                 name="amagate_connected", type="INT", domain="FACE"
             )  # BOOLEAN
+
+        # TODO: 自动分离 scene_data.operator_props.sec_connect_sep_convex
 
         bpy.ops.object.mode_set(mode="OBJECT")
         for i, sec1 in enumerate(selected_sectors):
@@ -911,13 +914,13 @@ class OT_Sector_Connect(bpy.types.Operator):
                 is_same_plane = (co2 - co1).dot(normal1) < 1e-5
                 # 如果面可以连接, 法向完全相反且在同一平面
                 if normal1.dot(normal2) + 1 < 1e-5 and is_same_plane:
-                    # 保留小数为毫米单位后两位
+                    # 保留小数为毫米单位后一位
                     verts1 = {
-                        (matrix1 @ mesh1.vertices[i].co).to_tuple(5)
+                        (matrix1 @ mesh1.vertices[i].co).to_tuple(4)
                         for i in face1.vertices
                     }
                     verts2 = {
-                        (matrix2 @ mesh2.vertices[i].co).to_tuple(5)
+                        (matrix2 @ mesh2.vertices[i].co).to_tuple(4)
                         for i in face2.vertices
                     }
                     if verts1.issubset(verts2) or verts2.issubset(verts1):
@@ -978,6 +981,174 @@ class OT_Sector_Connect(bpy.types.Operator):
             #         break
             # if has_intersect:
             #     print("connect", sec1.name, sec2.name)
+
+
+# 分离凸多面体
+class OT_Sector_SeparateConvex(bpy.types.Operator):
+    bl_idname = "amagate.sector_separate_convex"
+    bl_label = "Separate Convex"
+    bl_description = "Separate selected sectors into convex parts"
+    bl_options = {"UNDO"}
+
+    is_button: BoolProperty(default=False)  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
+
+    def execute(self, context: Context):
+        if self.is_button:
+            selected_sectors = data.SELECTED_SECTORS
+        else:
+            selected_sectors = ag_utils.get_selected_sectors()[0]
+
+        if len(selected_sectors) == 0:
+            self.report({"WARNING"}, "Select at least one sector")
+            return {"CANCELLED"}
+
+        #
+        if context.mode == "EDIT_MESH":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            data.geometry_modify_post(selected_sectors)
+
+        region = next(r for r in context.area.regions if r.type == "WINDOW")
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            # 跳过凸多面体
+            if sec_data.is_convex:
+                continue
+
+            proj_normal = sec_data["ConcaveData"]["proj_normal"]
+            # 跳过复杂凹多面体
+            if not proj_normal:
+                continue
+
+            proj_normal = Vector(proj_normal)
+            matrix_world = sec.matrix_world
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            sec_bm = bmesh.new()
+            sec_bm.from_mesh(mesh)
+            sec_bm.faces.ensure_lookup_table()
+            recalc_proj_normal = False
+            faces = [
+                sec_bm.faces[i] for i in sec_data["ConcaveData"]["faces"]
+            ]  # type: list[bmesh.types.BMFace]
+            # 判断是否需要重新计算投影法线
+            for f in faces:
+                if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
+                    recalc_proj_normal = True
+                    break
+
+            if recalc_proj_normal:
+                faces2 = []  # type: list[bmesh.types.BMFace]
+                for f in faces:
+                    dot_n = abs(f.normal.dot(proj_normal))
+                    # 法向与投影法线不一致
+                    if dot_n < ag_utils.epsilon2:
+                        faces2.append(f)
+                if len(faces2) > 2:
+                    new_proj_normal = Vector((0, 0, 0))
+                    normal = faces2[0].normal
+                    for f in faces2[1:]:
+                        # 如果法向不一致，计算垂直向量作为新的投影法线
+                        if abs(f.normal.dot(normal)) < ag_utils.epsilon2:
+                            new_proj_normal = f.normal.cross(normal).normalized()
+                            break
+                    # 判断是否与所有管道面垂直
+                    if new_proj_normal.length:
+                        for f in faces2:
+                            if abs(f.normal.dot(new_proj_normal)) > ag_utils.epsilon:
+                                break
+                        # 与所有管道面垂直，修正投影法线
+                        else:
+                            # 如果与旧投影法线不一致，则更新投影法线
+                            dot_n = new_proj_normal.dot(proj_normal)
+                            if abs(dot_n) < ag_utils.epsilon2:
+                                if dot_n < 0:
+                                    proj_normal = -new_proj_normal
+                                else:
+                                    proj_normal = new_proj_normal
+            # 应用物体变换
+            proj_normal_prime = (
+                matrix_world.to_quaternion() @ proj_normal
+            ).normalized()
+            proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
+            # print(f"proj_normal: {proj_normal}")
+
+            # 创建刀具
+            knife_bm = bmesh.new()
+            exist_verts = {}
+            for f in faces:
+                # 跳过垂直面
+                if abs(f.normal.dot(proj_normal)) < ag_utils.epsilon:
+                    continue
+                verts = []
+                for i in f.verts:
+                    co = Vector((matrix_world @ i.co).to_tuple(4))
+                    dist = (-co).dot(proj_normal_prime)
+                    co = proj_normal_prime * dist + co
+                    # print(f"co: {co}")
+                    key = co.to_tuple()  # 4
+                    v = exist_verts.get(key)
+                    if not v:
+                        v = knife_bm.verts.new(co)
+                        exist_verts[key] = v
+                    # 跳过垂直面
+                    if v in verts:
+                        continue
+                    verts.append(v)
+                knife_bm.faces.new(verts)
+
+            knife_mesh = bpy.data.meshes.new(f"AG.{sec.name}_knife")
+            knife_bm.to_mesh(knife_mesh)
+            knife_obj = bpy.data.objects.new(f"AG.{sec.name}_knife", knife_mesh)
+            data.link2coll(knife_obj, data.ensure_collection(data.C_COLL))
+            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+            context.view_layer.objects.active = knife_obj  # 设置活动物体
+            # knife_obj.select_set(True) # 选择刀具
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+            bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
+            face_num = len(bm_tmp.faces)
+            with contextlib.redirect_stdout(StringIO()):
+                bpy.ops.mesh.intersect(mode="SELECT")
+            # 如果存在交集
+            if len(bm_tmp.faces) != face_num:
+                # print(f"{knife_obj.name} has intersect")
+                bpy.ops.object.mode_set(mode="OBJECT")
+                bpy.data.meshes.remove(knife_mesh)
+                sec_bm.free()
+                knife_bm.free()
+                continue
+            # 不存在交集
+            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+            bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
+            bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
+            bpy.ops.object.mode_set(mode="OBJECT")
+            context.active_object.select_set(True)
+            rv3d = region.data  # type: bpy.types.RegionView3D
+            view_rotation = rv3d.view_rotation
+            view_perspective = rv3d.view_perspective
+            ag_utils.set_view_rotation(region, proj_normal_prime)
+            rv3d.view_perspective = "ORTHO"  # 切换到正交视角
+            # 强制刷新视图，确保视角更新
+            bpy.ops.wm.redraw_timer(type="DRAW_WIN_SWAP", iterations=1)
+            # 投影切割
+            knifes = context.selected_objects
+            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+            context.view_layer.objects.active = sec  # 设置活动物体
+            bpy.ops.object.mode_set(mode="EDIT")
+            for knife in knifes:
+                knife.select_set(True)
+            bpy.ops.mesh.knife_project()
+
+            # 恢复视角
+            # rv3d.view_rotation = view_rotation
+            # rv3d.view_perspective = view_perspective
+
+            sec_bm.free()
+            knife_bm.free()
+        return {"FINISHED"}
 
 
 ############################
@@ -1151,7 +1322,7 @@ def split_editor(context: Context):
     scene_data.areas_show_hud.add().value = area_index
 
     region = next(r for r in area.regions if r.type == "WINDOW")
-    rv3d = region.data
+    rv3d = region.data  # type: bpy.types.RegionView3D
     rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
 
     with context.temp_override(area=area):
@@ -1159,8 +1330,8 @@ def split_editor(context: Context):
         # 调整工作区域属性
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
         area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
-        area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
-        # area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
+        # area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
+        area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.view3d.toggle_xray()  # 透视模式
 
@@ -1266,7 +1437,7 @@ class OT_ExportMap(bpy.types.Operator):
 
         # 导出扇区
         ## blender坐标转换到blade: x,-z,y
-        if context.mode == "EDIT":
+        if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
 
         bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
@@ -1306,8 +1477,8 @@ class OT_ExportMap(bpy.types.Operator):
                 mesh = sec.data  # type: bpy.types.Mesh # type: ignore
                 matrix_world = sec.matrix_world
                 for v in mesh.vertices:
-                    # 变换顶点坐标并转换为毫米单位，保留两位小数
-                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(2)
+                    # 变换顶点坐标并转换为毫米单位，保留一位小数
+                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
                     if v_key not in global_vertex_map:
                         global_vertex_map[v_key] = global_vertex_count
                         global_vertex_count += 1
@@ -1495,7 +1666,7 @@ class OT_ExportMap(bpy.types.Operator):
         # 创建脚本
         map_dir = os.path.dirname(bpy.data.filepath)
         sec = sectors_dict[str(sector_ids[0])]["obj"]  # type: Object
-        player_pos = (sec.location * 1000).to_tuple(2)
+        player_pos = (sec.location * 1000).to_tuple(1)
         player_pos = player_pos[0], -player_pos[2], player_pos[1]
         mapcfg = {
             "bw_file": os.path.basename(bw_file),
@@ -1526,25 +1697,25 @@ class OT_ExportMap(bpy.types.Operator):
 class OT_Test(bpy.types.Operator):
     bl_idname = "amagate.test"
     bl_label = "Test"
-    bl_options = {"INTERNAL"}
+    bl_options = {"INTERNAL", "UNDO"}
 
-    def execute(self, context):
-        area = context.area
-        if area.type == "VIEW_3D":
-            for region in area.regions:
-                if region.type == "WINDOW":
-                    print(f"width: {region.width}, height: {region.height}")
-                    rv3d = region.data
-                    # 设置视图为顶部视图
-                    # rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
-                    # rv3d.view_distance = 15.0
-                    # rv3d.view_location = (0.0, 0.0, 0.0)
-                    # print(f"view_rotation: {rv3d.view_rotation.to_euler()}")
-                    # print(f"view_distance: {rv3d.view_distance}")
-                    # print(f"view_location: {rv3d.view_location}")
-                    # rv3d.view_perspective="ORTHO"
-                    # print(f"view_camera_zoom: {rv3d.view_camera_zoom}")
-                    break
+    def execute(self, context: Context):
+        # area = context.area
+        # if area.type == "VIEW_3D":
+        #     for region in area.regions:
+        #         if region.type == "WINDOW":
+        #             print(f"width: {region.width}, height: {region.height}")
+        #             rv3d = region.data
+        # 设置视图为顶部视图
+        # rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
+        # rv3d.view_distance = 15.0
+        # rv3d.view_location = (0.0, 0.0, 0.0)
+        # print(f"view_rotation: {rv3d.view_rotation.to_euler()}")
+        # print(f"view_distance: {rv3d.view_distance}")
+        # print(f"view_location: {rv3d.view_location}")
+        # rv3d.view_perspective="ORTHO"
+        # print(f"view_camera_zoom: {rv3d.view_camera_zoom}")
+        # break
         return {"FINISHED"}
 
 

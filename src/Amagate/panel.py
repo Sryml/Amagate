@@ -102,7 +102,9 @@ class AMAGATE_PT_Scene_Properties(N_Panel, bpy.types.Panel):
 
         row = col.row(align=True)
         row.alignment = "LEFT"
-        area_index = next(i for i, a in enumerate(context.screen.areas) if a == context.area)
+        area_index = next(
+            i for i, a in enumerate(context.screen.areas) if a == context.area
+        )
         icon = (
             "CHECKBOX_HLT"
             if scene_data.areas_show_hud.get(str(area_index))
@@ -453,7 +455,16 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         # )
 
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
-        col.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN").is_button = True  # type: ignore
+        row = col.row()
+        # split = row.split(factor=0.5)
+        row_1 = row.row(align=True)
+        op = row_1.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
+        op.is_button = True  # type: ignore
+        row_1.prop(
+            scene_data.operator_props, "sec_connect_sep_convex", text="", toggle=True
+        )
+
+        row.operator(OP.OT_Sector_SeparateConvex.bl_idname, icon="NONE").is_button = True  # type: ignore
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
