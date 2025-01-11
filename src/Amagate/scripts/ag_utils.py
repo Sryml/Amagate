@@ -12,6 +12,8 @@ import bpy
 import bmesh
 from mathutils import *  # type: ignore
 
+from .. import data
+
 if TYPE_CHECKING:
     import bpy_stub as bpy
 
@@ -40,6 +42,33 @@ class DefColor:
 
 
 ############################
+
+
+# 获取同一直线的边
+def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None):  # type: ignore
+    """获取同一直线的边"""
+    edges_index = []
+    if not vert:
+        edges_index.append(edge.index)
+        for v in edge.verts:
+            ret = get_edges_along_line(edge, limit_face, v)
+            edges_index.extend(ret)
+    else:
+        dir1 = (edge.other_vert(vert).co - vert.co).normalized()  # type: Vector
+        for e in vert.link_edges:
+            if e == edge:
+                continue
+            if limit_face and limit_face not in e.link_faces:
+                continue
+            vert2 = e.other_vert(vert)
+            dir2 = (vert.co - vert2.co).normalized()  # type: Vector
+            # 判断是否在同一直线
+            if dir1.dot(dir2) > epsilon2:
+                edges_index.append(e.index)
+                ret = get_edges_along_line(e, limit_face, vert2)
+                edges_index.extend(ret)
+
+    return edges_index
 
 
 # 设置视图旋转
@@ -206,3 +235,125 @@ def is_convex(obj: Object):
     sec_bm.free()
     bm.free()
     return convex
+
+
+############################
+############################ For Separate Convex
+############################
+
+separate_data = {}
+
+
+def pre_knife_project():
+    """投影切割预处理"""
+    context = bpy.context
+    knife_project = separate_data[
+        "knife_project"
+    ]  # type: list[tuple[Object, list[Object], Vector]]
+    region = separate_data["region"]  # type: bpy.types.Region
+    sec, knifes, proj_normal_prime = knife_project.pop()
+
+    bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+    context.view_layer.objects.active = sec  # 设置活动物体
+    bpy.ops.object.mode_set(mode="EDIT")
+    for knife in knifes:
+        knife.select_set(True)
+    set_view_rotation(region, proj_normal_prime)
+    region.data.view_perspective = "ORTHO"
+
+    separate_data["active_knifes"] = knifes
+    bpy.app.timers.register(knife_project_timer, first_interval=0.05)
+
+
+def knife_project_timer():
+    """投影切割定时器"""
+    context = bpy.context
+    with context.temp_override(
+        area=separate_data["area"],
+        region=separate_data["region"],
+    ):
+        bpy.ops.mesh.knife_project()
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for obj in separate_data["active_knifes"]:
+            bpy.data.meshes.remove(obj.data)  # type: ignore
+
+    knife_project = separate_data[
+        "knife_project"
+    ]  # type: list[tuple[Object, list[int], list[Object], Vector]]
+    if knife_project:
+        pre_knife_project()
+    else:
+        knife_project_done()
+
+
+def knife_project_done():
+    """投影切割完成"""
+    context = bpy.context
+
+    #
+    separate_list = separate_data[
+        "separate_list"
+    ]  # type: list[tuple[Object, list[int], Vector]]
+    for sec, faces_index, proj_normal_prime in separate_list:
+        matrix_world = sec.matrix_world
+        proj_normal_prime = matrix_world.inverted() @ proj_normal_prime
+        proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
+        sec_bm = bmesh.new()
+        sec_bm.from_mesh(sec.data)  # type: ignore
+        sec_bm.faces.ensure_lookup_table()
+        sec_bm.edges.ensure_lookup_table()
+        #
+        for face_idx in faces_index:
+            f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
+            faces = [f]
+            edges = []
+            edges_set = set()
+            for e in f.edges:
+                if e.index in edges_set:
+                    continue
+                ret = get_edges_along_line(e, limit_face=f)
+                edges.append(ret)
+                edges_set.update(set(ret))
+            #
+            for edges_index in edges:
+                verts = set(v for i in edges_index for v in sec_bm.edges[i].verts)
+                for v1 in verts.copy():
+                    dir1 = (v1.co - proj_normal_prime).normalized()
+                    for v2 in sec_bm.verts:
+                        if v2 == v1:
+                            continue
+                        dir2 = (v2.co - v1.co).normalized()
+                        # 如果顶点2在顶点1的投影法向上，添加到列表
+                        if dir1.dot(dir2) > epsilon2:
+                            verts.add(v2)
+                # 判断verts中是否存在面
+                for f2 in sec_bm.faces:
+                    if f2 == f:
+                        continue
+                    if verts.issubset(set(f2.verts)):
+                        break
+                else:
+                    f2 = sec_bm.faces.new(verts)
+                faces.append(f2)
+            # TODO
+            # sep_bm = bmesh.new()
+            # bmesh.ops.duplicate(sec_bm, geom=faces, dest=sep_bm)
+            # sep_mesh = bpy.data.meshes.new(f"AG.{sec.name}_sep")
+            # sep_bm.to_mesh(sep_mesh)
+            # sep_obj = bpy.data.objects.new(f"AG.{sec.name}_sep", sep_mesh)
+            # data.link2coll(sep_obj, context.scene.collection)
+        sec_bm.to_mesh(sec.data)  # type: ignore
+
+    area = separate_data["area"]  # type: bpy.types.Area
+    region = separate_data["region"]  # type: bpy.types.Region
+    region.data.view_rotation = separate_data["view_rotation"]
+    region.data.view_perspective = separate_data["view_perspective"]
+    area.spaces[0].shading.type = separate_data["shading_type"]  # type: ignore
+
+    if separate_data["undo"]:
+        bpy.ops.ed.undo_push(message="Separate Convex")
+
+
+############################
+############################
+############################

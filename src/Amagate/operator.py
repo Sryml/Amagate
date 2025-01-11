@@ -988,9 +988,11 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
     bl_idname = "amagate.sector_separate_convex"
     bl_label = "Separate Convex"
     bl_description = "Separate selected sectors into convex parts"
-    bl_options = {"UNDO"}
+    # bl_options = {"UNDO"}
 
     is_button: BoolProperty(default=False)  # type: ignore
+    from_connect: BoolProperty(default=False)  # type: ignore
+    undo: BoolProperty(default=True)  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
@@ -1011,7 +1013,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
             data.geometry_modify_post(selected_sectors)
 
-        region = next(r for r in context.area.regions if r.type == "WINDOW")
+        knife_project = []
+        separate_list = []
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             # 跳过凸多面体
@@ -1026,22 +1029,39 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             proj_normal = Vector(proj_normal)
             matrix_world = sec.matrix_world
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            recalc_proj_normal = False
+            faces = sec_data["ConcaveData"]["faces"].to_list()  # type: list[int]
+
+            # 拆分凹面
+            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+            context.view_layer.objects.active = sec  # 设置活动物体
+            bpy.ops.object.mode_set(mode="EDIT")
+            sec_bm = bmesh.from_edit_mesh(mesh)
+            sec_bm.faces.ensure_lookup_table()
+            bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+            for i in faces:
+                sec_bm.faces[i].select_set(True)  # 选择面
+            bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+            face_num = len(sec_bm.faces)
+            bpy.ops.mesh.vert_connect_concave()
+            if len(sec_bm.faces) != face_num:
+                faces = [f.index for f in sec_bm.faces if f.select]
+            bpy.ops.object.mode_set(mode="OBJECT")
             sec_bm = bmesh.new()
             sec_bm.from_mesh(mesh)
             sec_bm.faces.ensure_lookup_table()
-            recalc_proj_normal = False
-            faces = [
-                sec_bm.faces[i] for i in sec_data["ConcaveData"]["faces"]
-            ]  # type: list[bmesh.types.BMFace]
+
             # 判断是否需要重新计算投影法线
-            for f in faces:
+            for i in faces:
+                f = sec_bm.faces[i]  # type: bmesh.types.BMFace
                 if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
                     recalc_proj_normal = True
                     break
 
             if recalc_proj_normal:
                 faces2 = []  # type: list[bmesh.types.BMFace]
-                for f in faces:
+                for i in faces:
+                    f = sec_bm.faces[i]  # type: bmesh.types.BMFace
                     dot_n = abs(f.normal.dot(proj_normal))
                     # 法向与投影法线不一致
                     if dot_n < ag_utils.epsilon2:
@@ -1075,14 +1095,18 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
             # print(f"proj_normal: {proj_normal}")
 
-            # 创建刀具
+            # 创建刀具BMesh
             knife_bm = bmesh.new()
             exist_verts = {}
-            for f in faces:
+            for face_idx in faces.copy():
+                f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
                 # 跳过垂直面
                 if abs(f.normal.dot(proj_normal)) < ag_utils.epsilon:
+                    faces.remove(face_idx)
                     continue
                 verts = []
+                # 重复顶点
+                is_dup_vert = False
                 for i in f.verts:
                     co = Vector((matrix_world @ i.co).to_tuple(4))
                     dist = (-co).dot(proj_normal_prime)
@@ -1093,19 +1117,22 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                     if not v:
                         v = knife_bm.verts.new(co)
                         exist_verts[key] = v
-                    # 跳过垂直面
                     if v in verts:
-                        continue
+                        is_dup_vert = True
+                        break
                     verts.append(v)
+                # 跳过重复顶点的面
+                if is_dup_vert:
+                    faces.remove(face_idx)
+                    continue
                 knife_bm.faces.new(verts)
-
+            # 刀具BMesh转Mesh
             knife_mesh = bpy.data.meshes.new(f"AG.{sec.name}_knife")
             knife_bm.to_mesh(knife_mesh)
             knife_obj = bpy.data.objects.new(f"AG.{sec.name}_knife", knife_mesh)
-            data.link2coll(knife_obj, data.ensure_collection(data.C_COLL))
+            data.link2coll(knife_obj, context.scene.collection)
             bpy.ops.object.select_all(action="DESELECT")  # 取消选择
             context.view_layer.objects.active = knife_obj  # 设置活动物体
-            # knife_obj.select_set(True) # 选择刀具
             bpy.ops.object.mode_set(mode="EDIT")
             bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
             bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
@@ -1125,29 +1152,36 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
             bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
             bpy.ops.object.mode_set(mode="OBJECT")
-            context.active_object.select_set(True)
-            rv3d = region.data  # type: bpy.types.RegionView3D
-            view_rotation = rv3d.view_rotation
-            view_perspective = rv3d.view_perspective
-            ag_utils.set_view_rotation(region, proj_normal_prime)
-            rv3d.view_perspective = "ORTHO"  # 切换到正交视角
-            # 强制刷新视图，确保视角更新
-            bpy.ops.wm.redraw_timer(type="DRAW_WIN_SWAP", iterations=1)
-            # 投影切割
-            knifes = context.selected_objects
-            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
-            context.view_layer.objects.active = sec  # 设置活动物体
-            bpy.ops.object.mode_set(mode="EDIT")
-            for knife in knifes:
-                knife.select_set(True)
-            bpy.ops.mesh.knife_project()
+            context.active_object.select_set(True)  # 刀具本体也需选择
 
-            # 恢复视角
-            # rv3d.view_rotation = view_rotation
-            # rv3d.view_perspective = view_perspective
+            # 添加到投影切割列表
+            knife_project.append((sec, context.selected_objects, proj_normal_prime))
+            separate_list.append((sec, faces, proj_normal_prime))
 
             sec_bm.free()
             knife_bm.free()
+
+        # 检查切割列表是否为空
+        area = context.area
+        region = next(r for r in area.regions if r.type == "WINDOW")
+        if knife_project:
+            ag_utils.separate_data = {
+                "knife_project": knife_project,
+                "separate_list": separate_list,
+                "area": area,
+                "region": region,
+                "view_rotation": region.data.view_rotation.copy(),
+                "view_perspective": region.data.view_perspective,
+                "shading_type": area.spaces[0].shading.type,  # type: ignore
+                "undo": self.undo,
+            }
+            area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
+            ag_utils.pre_knife_project()
+        else:
+            self.report({"INFO"}, "No need to separate")
+            if self.undo:
+                bpy.ops.ed.undo_push(message="Separate Convex")
+
         return {"FINISHED"}
 
 
@@ -1705,7 +1739,10 @@ class OT_Test(bpy.types.Operator):
         #     for region in area.regions:
         #         if region.type == "WINDOW":
         #             print(f"width: {region.width}, height: {region.height}")
-        #             rv3d = region.data
+        #             rv3d = region.data  # type: bpy.types.RegionView3D
+        # # rv3d.view_perspective = "CAMERA"
+        # context.scene.camera = bpy.data.objects["Camera"]
+        # bpy.ops.mesh.knife_project()
         # 设置视图为顶部视图
         # rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
         # rv3d.view_distance = 15.0

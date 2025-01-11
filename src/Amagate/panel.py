@@ -464,7 +464,8 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
             scene_data.operator_props, "sec_connect_sep_convex", text="", toggle=True
         )
 
-        row.operator(OP.OT_Sector_SeparateConvex.bl_idname, icon="NONE").is_button = True  # type: ignore
+        op = row.operator(OP.OT_Sector_SeparateConvex.bl_idname, icon="NONE")
+        op.is_button = True  # type: ignore
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):

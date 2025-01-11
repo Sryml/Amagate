@@ -1785,7 +1785,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         light = self.external_obj
         if not light:
-            name = f"AG - Sector{self.id}.Sun"
+            name = f"AG.Sector{self.id}.Sun"
             light = bpy.data.objects.get(name)
             if not light:
                 light = bpy.data.objects.new(name, object_data=light_data)
@@ -1842,7 +1842,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 
     def ensure_ambient_light(self):
         scene_data = bpy.context.scene.amagate_data
-        name = f"AG - Sector{self.id}.Ambient"
+        name = f"AG.Sector{self.id}.Ambient"
         light_data = bpy.data.lights.get(name)
         if not light_data:
             light_data = bpy.data.lights.new(name, type="SUN")
@@ -1946,7 +1946,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         self["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
 
         # 在属性面板显示ID
-        obj[f"AG - Sector ID"] = id_
+        obj[f"AG.Sector ID"] = id_
 
         # 凹多面体投影切割数据
         self["ConcaveData"] = {"faces": [], "proj_normal": None}
