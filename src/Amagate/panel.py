@@ -454,6 +454,8 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         #     text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
         # )
 
+        # TODO 创建路径，创建并设置样条类型为多线段
+
         col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
         row = col.row()
         # split = row.split(factor=0.5)

@@ -1015,6 +1015,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
 
         knife_project = []
         separate_list = []
+        failed_list = []
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             # 跳过凸多面体
@@ -1043,7 +1044,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 sec_bm.faces[i].select_set(True)  # 选择面
             bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
             face_num = len(sec_bm.faces)
-            bpy.ops.mesh.vert_connect_concave()
+            bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
             if len(sec_bm.faces) != face_num:
                 faces = [f.index for f in sec_bm.faces if f.select]
             bpy.ops.object.mode_set(mode="OBJECT")
@@ -1112,7 +1113,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                     dist = (-co).dot(proj_normal_prime)
                     co = proj_normal_prime * dist + co
                     # print(f"co: {co}")
-                    key = co.to_tuple()  # 4
+                    key = co.to_tuple(4)
                     v = exist_verts.get(key)
                     if not v:
                         v = knife_bm.verts.new(co)
@@ -1146,6 +1147,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 bpy.data.meshes.remove(knife_mesh)
                 sec_bm.free()
                 knife_bm.free()
+                failed_list.append(sec)
                 continue
             # 不存在交集
             bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -1177,12 +1179,22 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             }
             area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
             ag_utils.pre_knife_project()
+            if failed_list:
+                self.report(
+                    {"WARNING"},
+                    "Failed to separate: " + ", ".join(s.name for s in failed_list),
+                )
+            return {"FINISHED"}
+        elif failed_list:
+            self.report(
+                {"WARNING"},
+                "Failed to separate: " + ", ".join(s.name for s in failed_list),
+            )
         else:
             self.report({"INFO"}, "No need to separate")
-            if self.undo:
-                bpy.ops.ed.undo_push(message="Separate Convex")
-
-        return {"FINISHED"}
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Separate Convex")
+        return {"CANCELLED"}
 
 
 ############################
