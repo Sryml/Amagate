@@ -998,6 +998,167 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
     def poll(cls, context: Context):
         return context.scene.amagate_data.is_blade
 
+    def separate_simple(self, context: Context, sec: Object):
+        sec_data = sec.amagate_data.get_sector_data()
+
+    def separate_normal(self, context: Context, sec: Object):
+        sec_data = sec.amagate_data.get_sector_data()
+        mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        matrix_world = sec.matrix_world
+
+        knife_project = []
+        separate_list = []
+        complex_list = []
+
+        # 拆分凹面（平面）
+        bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+        context.view_layer.objects.active = sec  # 设置活动物体
+        bpy.ops.object.mode_set(mode="EDIT")  # 进入编辑模式
+        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
+
+        bpy.ops.object.mode_set(mode="OBJECT")
+        sec_bm = bmesh.new()
+        sec_bm.from_mesh(mesh)
+        sec_bm.verts.ensure_lookup_table()
+        sec_bm.faces.ensure_lookup_table()
+        # 获取刀具面索引
+        verts = set(sec_bm.verts[i] for i in sec_data["ConcaveData"]["vert_index"])
+        edges = []  # type: list[bmesh.types.BMEdge]
+        faces_index = set()  # type: set[int]
+        for e in sec_bm.edges:
+            s = set(e.verts)
+            if s.issubset(verts):
+                edges.append(e)
+        for e in edges:
+            faces_index.update(f.index for f in e.link_faces)
+
+        # sec_bm = bmesh.from_edit_mesh(mesh)
+        # sec_bm.faces.ensure_lookup_table()
+        # bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+        # for i in faces:
+        #     sec_bm.faces[i].select_set(True)  # 选择面
+        # bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        # face_num = len(sec_bm.faces)
+        # bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
+        # if len(sec_bm.faces) != face_num:
+        #     faces = [f.index for f in sec_bm.faces if f.select]
+
+        proj_normal = Vector(sec_data["ConcaveData"]["proj_normal"])
+        recalc_proj_normal = False
+        # 判断是否需要重新计算投影法线
+        for i in faces_index:
+            f = sec_bm.faces[i]  # type: bmesh.types.BMFace
+            if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
+                recalc_proj_normal = True
+                break
+
+        if recalc_proj_normal:
+            faces2 = []  # type: list[bmesh.types.BMFace]
+            for i in faces_index:
+                f = sec_bm.faces[i]  # type: bmesh.types.BMFace
+                dot_n = abs(f.normal.dot(proj_normal))
+                # 法向与投影法线不一致
+                if dot_n < ag_utils.epsilon2:
+                    faces2.append(f)
+            if len(faces2) > 2:
+                new_proj_normal = Vector((0, 0, 0))
+                normal = faces2[0].normal
+                for f in faces2[1:]:
+                    # 如果法向不一致，计算垂直向量作为新的投影法线
+                    if abs(f.normal.dot(normal)) < ag_utils.epsilon2:
+                        new_proj_normal = f.normal.cross(normal).normalized()
+                        break
+                # 判断是否与所有管道面垂直
+                if new_proj_normal.length:
+                    for f in faces2:
+                        if abs(f.normal.dot(new_proj_normal)) > ag_utils.epsilon:
+                            break
+                    # 与所有管道面垂直，修正投影法线
+                    else:
+                        # 如果与旧投影法线不一致，则更新投影法线
+                        dot_n = new_proj_normal.dot(proj_normal)
+                        if abs(dot_n) < ag_utils.epsilon2:
+                            if dot_n < 0:
+                                proj_normal = -new_proj_normal
+                            else:
+                                proj_normal = new_proj_normal
+        # 投影法线应用物体变换
+        proj_normal_prime = (matrix_world.to_quaternion() @ proj_normal).normalized()
+        proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
+        # print(f"proj_normal: {proj_normal}")
+
+        # 创建刀具BMesh
+        knife_bm = bmesh.new()
+        exist_verts = {}
+        for face_idx in faces_index.copy():
+            f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
+            # 跳过垂直面
+            if abs(f.normal.dot(proj_normal)) < ag_utils.epsilon:
+                faces_index.remove(face_idx)
+                continue
+            verts = []
+            # 重复顶点
+            is_dup_vert = False
+            for i in f.verts:
+                co = Vector((matrix_world @ i.co).to_tuple(4))
+                dist = (-co).dot(proj_normal_prime)
+                co = proj_normal_prime * dist + co
+                # print(f"co: {co}")
+                key = co.to_tuple(4)
+                v = exist_verts.get(key)
+                if not v:
+                    v = knife_bm.verts.new(co)
+                    exist_verts[key] = v
+                if v in verts:
+                    is_dup_vert = True
+                    break
+                verts.append(v)
+            # 跳过重复顶点的面
+            if is_dup_vert:
+                faces_index.remove(face_idx)
+                continue
+            knife_bm.faces.new(verts)
+        # 刀具BMesh转Mesh
+        knife_mesh = bpy.data.meshes.new(f"AG.{sec.name}_knife")
+        knife_bm.to_mesh(knife_mesh)
+        knife_obj = bpy.data.objects.new(f"AG.{sec.name}_knife", knife_mesh)
+        data.link2coll(knife_obj, context.scene.collection)
+        bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+        context.view_layer.objects.active = knife_obj  # 设置活动物体
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
+        face_num = len(bm_tmp.faces)
+        with contextlib.redirect_stdout(StringIO()):
+            bpy.ops.mesh.intersect(mode="SELECT")
+        # 如果存在交集
+        if len(bm_tmp.faces) != face_num:
+            # print(f"{knife_obj.name} has intersect")
+            bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.data.meshes.remove(knife_mesh)
+            complex_list.append(sec)
+        # 不存在交集
+        else:
+            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+            bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
+            bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
+            bpy.ops.object.mode_set(mode="OBJECT")
+            context.active_object.select_set(True)  # 刀具本体也需选择
+
+            # 添加到投影切割列表
+            knife_project.append((sec, context.selected_objects, proj_normal_prime))
+            separate_list.append((sec, faces_index, proj_normal_prime))
+
+        sec_bm.free()
+        knife_bm.free()
+
+        return {
+            "knife_project": knife_project,
+            "separate_list": separate_list,
+            "complex_list": complex_list,
+        }
+
     def execute(self, context: Context):
         if self.is_button:
             selected_sectors = data.SELECTED_SECTORS
@@ -1015,157 +1176,39 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
 
         knife_project = []
         separate_list = []
-        failed_list = []
+        complex_list = []
+        has_separate_simple = False
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             # 跳过凸多面体
             if sec_data.is_convex:
                 continue
 
-            proj_normal = sec_data["ConcaveData"]["proj_normal"]
+            concave_type = sec_data["ConcaveData"]["concave_type"]
             # 跳过复杂凹多面体
-            if not proj_normal:
+            if concave_type == ag_utils.CONCAVE_T_COMPLEX:
+                complex_list.append(sec)
                 continue
 
-            proj_normal = Vector(proj_normal)
-            matrix_world = sec.matrix_world
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            recalc_proj_normal = False
-            faces = sec_data["ConcaveData"]["faces"].to_list()  # type: list[int]
-
-            # 拆分凹面
-            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
-            context.view_layer.objects.active = sec  # 设置活动物体
-            bpy.ops.object.mode_set(mode="EDIT")
-            sec_bm = bmesh.from_edit_mesh(mesh)
-            sec_bm.faces.ensure_lookup_table()
-            bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-            for i in faces:
-                sec_bm.faces[i].select_set(True)  # 选择面
-            bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-            face_num = len(sec_bm.faces)
-            bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
-            if len(sec_bm.faces) != face_num:
-                faces = [f.index for f in sec_bm.faces if f.select]
-            bpy.ops.object.mode_set(mode="OBJECT")
-            sec_bm = bmesh.new()
-            sec_bm.from_mesh(mesh)
-            sec_bm.faces.ensure_lookup_table()
-
-            # 判断是否需要重新计算投影法线
-            for i in faces:
-                f = sec_bm.faces[i]  # type: bmesh.types.BMFace
-                if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
-                    recalc_proj_normal = True
-                    break
-
-            if recalc_proj_normal:
-                faces2 = []  # type: list[bmesh.types.BMFace]
-                for i in faces:
-                    f = sec_bm.faces[i]  # type: bmesh.types.BMFace
-                    dot_n = abs(f.normal.dot(proj_normal))
-                    # 法向与投影法线不一致
-                    if dot_n < ag_utils.epsilon2:
-                        faces2.append(f)
-                if len(faces2) > 2:
-                    new_proj_normal = Vector((0, 0, 0))
-                    normal = faces2[0].normal
-                    for f in faces2[1:]:
-                        # 如果法向不一致，计算垂直向量作为新的投影法线
-                        if abs(f.normal.dot(normal)) < ag_utils.epsilon2:
-                            new_proj_normal = f.normal.cross(normal).normalized()
-                            break
-                    # 判断是否与所有管道面垂直
-                    if new_proj_normal.length:
-                        for f in faces2:
-                            if abs(f.normal.dot(new_proj_normal)) > ag_utils.epsilon:
-                                break
-                        # 与所有管道面垂直，修正投影法线
-                        else:
-                            # 如果与旧投影法线不一致，则更新投影法线
-                            dot_n = new_proj_normal.dot(proj_normal)
-                            if abs(dot_n) < ag_utils.epsilon2:
-                                if dot_n < 0:
-                                    proj_normal = -new_proj_normal
-                                else:
-                                    proj_normal = new_proj_normal
-            # 应用物体变换
-            proj_normal_prime = (
-                matrix_world.to_quaternion() @ proj_normal
-            ).normalized()
-            proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
-            # print(f"proj_normal: {proj_normal}")
-
-            # 创建刀具BMesh
-            knife_bm = bmesh.new()
-            exist_verts = {}
-            for face_idx in faces.copy():
-                f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
-                # 跳过垂直面
-                if abs(f.normal.dot(proj_normal)) < ag_utils.epsilon:
-                    faces.remove(face_idx)
-                    continue
-                verts = []
-                # 重复顶点
-                is_dup_vert = False
-                for i in f.verts:
-                    co = Vector((matrix_world @ i.co).to_tuple(4))
-                    dist = (-co).dot(proj_normal_prime)
-                    co = proj_normal_prime * dist + co
-                    # print(f"co: {co}")
-                    key = co.to_tuple(4)
-                    v = exist_verts.get(key)
-                    if not v:
-                        v = knife_bm.verts.new(co)
-                        exist_verts[key] = v
-                    if v in verts:
-                        is_dup_vert = True
-                        break
-                    verts.append(v)
-                # 跳过重复顶点的面
-                if is_dup_vert:
-                    faces.remove(face_idx)
-                    continue
-                knife_bm.faces.new(verts)
-            # 刀具BMesh转Mesh
-            knife_mesh = bpy.data.meshes.new(f"AG.{sec.name}_knife")
-            knife_bm.to_mesh(knife_mesh)
-            knife_obj = bpy.data.objects.new(f"AG.{sec.name}_knife", knife_mesh)
-            data.link2coll(knife_obj, context.scene.collection)
-            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
-            context.view_layer.objects.active = knife_obj  # 设置活动物体
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-            bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
-            face_num = len(bm_tmp.faces)
-            with contextlib.redirect_stdout(StringIO()):
-                bpy.ops.mesh.intersect(mode="SELECT")
-            # 如果存在交集
-            if len(bm_tmp.faces) != face_num:
-                # print(f"{knife_obj.name} has intersect")
-                bpy.ops.object.mode_set(mode="OBJECT")
-                bpy.data.meshes.remove(knife_mesh)
-                sec_bm.free()
-                knife_bm.free()
-                failed_list.append(sec)
-                continue
-            # 不存在交集
-            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-            bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
-            bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
-            bpy.ops.object.mode_set(mode="OBJECT")
-            context.active_object.select_set(True)  # 刀具本体也需选择
-
-            # 添加到投影切割列表
-            knife_project.append((sec, context.selected_objects, proj_normal_prime))
-            separate_list.append((sec, faces, proj_normal_prime))
-
-            sec_bm.free()
-            knife_bm.free()
-
-        # 检查切割列表是否为空
+            # 简单凹面的情况
+            if concave_type == ag_utils.CONCAVE_T_SIMPLE:
+                self.separate_simple(context, sec)
+                has_separate_simple = True
+            # 普通凹面的情况
+            else:
+                ret = self.separate_normal(context, sec)
+                knife_project.extend(ret["knife_project"])
+                separate_list.extend(ret["separate_list"])
+                complex_list.extend(ret["complex_list"])
+        #
+        if complex_list:
+            self.report(
+                {"WARNING"},
+                f'{pgettext("Cannot separate complex polyhedron")}: {", ".join(s.name for s in complex_list)}',
+            )
         area = context.area
         region = next(r for r in area.regions if r.type == "WINDOW")
+        # 检查切割列表是否为空
         if knife_project:
             ag_utils.separate_data = {
                 "knife_project": knife_project,
@@ -1179,22 +1222,18 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             }
             area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
             ag_utils.pre_knife_project()
-            if failed_list:
-                self.report(
-                    {"WARNING"},
-                    "Failed to separate: " + ", ".join(s.name for s in failed_list),
-                )
             return {"FINISHED"}
-        elif failed_list:
-            self.report(
-                {"WARNING"},
-                "Failed to separate: " + ", ".join(s.name for s in failed_list),
-            )
-        else:
-            self.report({"INFO"}, "No need to separate")
+
+        #
+        ret = {"FINISHED"}
+        if not has_separate_simple:
+            ret = {"CANCELLED"}
+            # 没有切割简单/普通凹面，且不存在复杂凹面
+            if not complex_list:
+                self.report({"INFO"}, "No need to separate")
         if self.undo:
             bpy.ops.ed.undo_push(message="Separate Convex")
-        return {"CANCELLED"}
+        return ret
 
 
 ############################

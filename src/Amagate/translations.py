@@ -90,6 +90,7 @@ translations_dict = {
         # ("*", "No sectors selected"): "未选择扇区",
         ("*", "Select at least two sectors"): "至少选择两个扇区",
         ("Operator", "Separate Convex"): "分离凸部分",
+        ("*", "Cannot separate complex polyhedron"): "无法分离复杂多面体",
         ("*", "No need to separate"): "无需分离",
         ("*", "Separate selected sectors into convex parts"): "将所选扇区分离为凸部分",
         ("*", "Select at least one sector"): "至少选择一个扇区",

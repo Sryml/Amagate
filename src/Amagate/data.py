@@ -1949,7 +1949,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         obj[f"AG.Sector ID"] = id_
 
         # 凹多面体投影切割数据
-        self["ConcaveData"] = {"verts": [], "faces": [], "proj_normal": None}
+        self["ConcaveData"] = {"vert_index": [], "proj_normal": None, "concave_type": 0}
 
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"

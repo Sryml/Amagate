@@ -41,6 +41,10 @@ class DefColor:
     nofocus = (0.4, 0.4, 0.4, 1)
 
 
+# 凹面类型: 简单，普通，复杂
+CONCAVE_T_SIMPLE = 0
+CONCAVE_T_NORMAL = 1
+CONCAVE_T_COMPLEX = 2
 ############################
 
 
@@ -131,17 +135,16 @@ def is_point_in_polygon(pt, poly):
     return inside  # 奇数为内部，偶数为外部
 
 
-# 判断点是否在线段上
+# 判断点是否在线段上 (不考虑端点)
 def is_point_on_segment(pt, p1, p2):
     """判断点 pt 是否在线段 p1-p2 上"""
     x, y = pt
     x1, y1 = p1
     x2, y2 = p2
-    # 检查点是否在边的范围内，且向量叉积为 0（共线）
-    if min(x1, x2) <= x <= max(x1, x2) and min(y1, y2) <= y <= max(y1, y2):
-        cross = (x - x1) * (y2 - y1) - (y - y1) * (x2 - x1)
-        return abs(cross) < epsilon  # 允许小的浮点误差
-    return False
+    # 检查点是否在边的范围内，且向量点积为 0（共线）
+    v1 = Vector((x2 - x1, y2 - y1))
+    v2 = Vector((x - x1, y - y1))
+    return v1.normalized().dot(v2.normalized()) > epsilon2 and v2.length < v1.length
 
 
 # 判断物体是否为凸多面体
@@ -151,6 +154,9 @@ def is_convex(obj: Object):
     sec_bm = bmesh.new()
     sec_bm.from_mesh(obj.data)  # type: ignore
     bm = sec_bm.copy()
+
+    # 顶点映射
+    vert_map = {v.co.to_tuple(4): i for i, v in enumerate(sec_bm.verts)}
 
     # 融并内插面
     # bmesh.ops.dissolve_limit(bm, angle_limit=0.001, verts=bm.verts, edges=bm.edges)
@@ -166,7 +172,7 @@ def is_convex(obj: Object):
             if next((1 for lst in BMFaces if face2 in lst), 0):
                 continue
 
-            # 判断法向是否一致
+            # 判断法向是否在同一直线
             if face1 != face2 and abs(face2.normal.dot(normal)) > epsilon2:
                 # 判断是否在同一平面
                 if abs(normal.dot(face2.verts[0].co) + D) < epsilon:
@@ -186,76 +192,137 @@ def is_convex(obj: Object):
     # 创建凸壳
     convex_hull = bmesh.ops.convex_hull(bm, input=bm.verts, use_existing_faces=True)  # type: ignore
     # verts_interior = [v.index for v in convex_hull["geom_interior"]]  # type: list[int]
+    geom_interior = convex_hull["geom_interior"]  # type: list[bmesh.types.BMVert]
     # 如果没有未参与凸壳计算的顶点，则为凸多面体
-    convex = convex_hull["geom_interior"] == []
+    convex = geom_interior == []
     # print(convex_hull['geom'])
     # print("geom_interior", verts_interior)
     # print("geom_unused", [i.index for i in convex_hull["geom_unused"]])
     # print("geom_holes", [i.index for i in convex_hull["geom_holes"]])
-
+    # 如果不是凸多面体
     if not convex:
         # 判断内部顶点是否共面
+        is_interior_coplanar = True
+        if len(geom_interior) > 2:
+            pt = geom_interior[0].co
+            dir1 = geom_interior[1].co - pt
+            normal = None  # type: Vector # type: ignore
+            for v in geom_interior[2:]:
+                dir2 = v.co - pt
+                normal2 = dir1.cross(dir2).normalized()
+                # 长度为0，跳过共线顶点
+                if normal2.length == 0:
+                    continue
+                # 初次赋值
+                if normal is None:
+                    normal = normal2
+                    continue
+                # 如果法向不在同一直线
+                if abs(normal.dot(normal2)) < epsilon2:
+                    is_interior_coplanar = False
+                    break
+        ########
+        vert_index = []
+        proj_normal = None
+        concave_type = CONCAVE_T_SIMPLE
+
+        def get_vert_index():
+            vert_index = []
+            for i in geom_interior:
+                idx = vert_map.get(i.co.to_tuple(4), None)
+                if idx is None:
+                    print(f"error: {i.co.to_tuple(4)} not in vert_map")
+                    vert_index = []
+                    break
+                vert_index.append(idx)
+            return vert_index
+
+        ########
+        # 内部顶点共面的情况
+        if is_interior_coplanar:
+            vert_index = get_vert_index()
+            # 如果找不到对应顶点，归为复杂凹多面体
+            if not vert_index:
+                concave_type = CONCAVE_T_COMPLEX
+            else:
+                concave_type = CONCAVE_T_SIMPLE
+        # 内部顶点不共面的情况
+        else:
+            # 判断唯一法向
+            normal = None  # type: Vector # type: ignore
+            for geo in convex_hull["geom"]:
+                if isinstance(geo, bmesh.types.BMFace):
+                    if normal is None:
+                        normal = geo.normal
+                    else:
+                        # 法向不唯一，复杂凹多面体
+                        if abs(geo.normal.dot(normal)) < epsilon2:
+                            concave_type = CONCAVE_T_COMPLEX
+                            break
+            # 如果不是复杂凹面
+            if concave_type != CONCAVE_T_COMPLEX:
+                vert_index = get_vert_index()
+                # 如果找不到对应顶点，归为复杂凹多面体
+                if not vert_index:
+                    concave_type = CONCAVE_T_COMPLEX
+                else:
+                    proj_normal = normal
+                    concave_type = CONCAVE_T_NORMAL
+        #
+        sec_data["ConcaveData"] = {
+            "vert_index": vert_index,
+            "proj_normal": proj_normal,
+            "concave_type": concave_type,
+        }
 
         # 生成空洞BMesh
-        hole_bm = bmesh.new()
-        # 创建一个字典来存储新顶点的引用
-        vertex_map = {}
-        # 将凸包的顶点添加到新的 BMesh 对象
-        for geo in convex_hull["geom"]:
-            if isinstance(geo, bmesh.types.BMVert):  # 顶点
-                # 创建新的顶点并保存在字典中
-                vertex = hole_bm.verts.new(geo.co)
-                vertex_map[geo] = vertex
+        # hole_bm = bmesh.new()
+        # # 创建一个字典来存储新顶点的引用
+        # vertex_map = {}
+        # # 将凸包的顶点添加到新的 BMesh 对象
+        # for geo in convex_hull["geom"]:
+        #     if isinstance(geo, bmesh.types.BMVert):  # 顶点
+        #         # 创建新的顶点并保存在字典中
+        #         vertex = hole_bm.verts.new(geo.co)
+        #         vertex_map[geo] = vertex
 
-        # 处理边和面
-        for geo in convex_hull["geom"]:
-            if isinstance(geo, bmesh.types.BMEdge):  # 边
-                # 使用 vertex_map 来获取对应的顶点
-                v1, v2 = geo.verts
-                hole_bm.edges.new([vertex_map[v1], vertex_map[v2]])
+        # # 创建新的面
+        # for geo in convex_hull["geom"]:
+        #     if isinstance(geo, bmesh.types.BMFace):  # 面
+        #         # 使用 vertex_map 来获取对应的顶点
+        #         verts = [vertex_map[v] for v in geo.verts]
+        #         hole_bm.faces.new(verts)
 
-            elif isinstance(geo, bmesh.types.BMFace):  # 面
-                # 使用 vertex_map 来获取对应的顶点
-                verts = [vertex_map[v] for v in geo.verts]
-                hole_bm.faces.new(verts)
+        # hole_bm.normal_update()
+        # # 判断唯一法向
+        # hole_bm.faces.ensure_lookup_table()
+        # normal = hole_bm.faces[0].normal
+        # is_normal_unique = True
+        # for face in hole_bm.faces:
+        #     if face.index != 0 and face.normal.dot(normal) < epsilon2:
 
-        hole_bm.normal_update()
-        # 判断唯一法向
-        hole_bm.faces.ensure_lookup_table()
-        normal = hole_bm.faces[0].normal
-        is_normal_unique = True
-        for face in hole_bm.faces:
-            if face.index != 0 and face.normal.dot(normal) < epsilon2:
-                # print(f"dot: {face.normal.dot(normal)}")
-                # print(f"faces: {len(hole_bm.faces)}")
-                # print([i.index for i in convex_hull["geom_interior"]])
-                # print([i.index for i in convex_hull["geom_unused"]])
-                # print([i.index for i in convex_hull["geom_holes"]])
-                # hole_mesh = bpy.data.meshes.new("hole_mesh")
-                # hole_bm.to_mesh(hole_mesh)
-                # hole_obj = bpy.data.objects.new("hole_obj", hole_mesh)
-                # data.link2coll(hole_obj, bpy.context.scene.collection)
-
-                is_normal_unique = False
-                break
+        #         is_normal_unique = False
+        #         break
         # print(f"is_normal_unique: {is_normal_unique}")
-        if is_normal_unique:
-            # 投影方向
-            projection_dir = hole_bm.faces[0].normal
-            # 刀具面索引
-            geom_holes_idx = set(i.index for i in convex_hull["geom_holes"])
-            faces = set(range(len(sec_bm.faces))) - geom_holes_idx
-            # print(f"faces: {faces}")
-            sec_data["ConcaveData"] = {
-                "verts": [],
-                "faces": list(faces),
-                "proj_normal": projection_dir,
-            }
-        else:
-            # 复杂凹多面体
-            sec_data["ConcaveData"] = {"verts": [], "faces": [], "proj_normal": None}
+        # if is_normal_unique:
+        #     # 投影方向
+        #     projection_dir = hole_bm.faces[0].normal
+        #     # 刀具面索引
+        #     geom_holes_idx = set(i.index for i in convex_hull["geom_holes"])
+        #     faces = set(range(len(sec_bm.faces))) - geom_holes_idx
+        #     # print(f"faces: {faces}")
+        #     sec_data["ConcaveData"] = {
+        #         "verts": [],
+        #         "faces": list(faces),
+        #         "geom_holes": [i.index for i in convex_hull["geom_holes"]],
+        #         "proj_normal": projection_dir,
+        #         "is_complex": False,
+        #     }
+        # else:
+        #     # 复杂凹多面体
+        #     sec_data["ConcaveData"] = {"verts": [], "faces": [], "geom_holes": [], "proj_normal": None, "is_complex": True}
 
-        hole_bm.free()
+        # hole_bm.free()
         """
             sec_bm.verts.ensure_lookup_table()
             visited_verts = set()
@@ -278,7 +345,6 @@ def is_convex(obj: Object):
                 ...
         """
 
-    # bm.faces.ensure_lookup_table()
     # geom=[], geom_interior=[], geom_unused=[], geom_holes=[]
     sec_bm.free()
     bm.free()
@@ -341,7 +407,7 @@ def knife_project_done():
     #
     separate_list = separate_data[
         "separate_list"
-    ]  # type: list[tuple[Object, list[int], Vector]]
+    ]  # type: list[tuple[Object, set[int], Vector]]
     for sec, faces_index, proj_normal_prime in separate_list:
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
@@ -358,7 +424,6 @@ def knife_project_done():
         faces = [sec_bm.faces[i] for i in faces_index]
         # 遍历刀具面
         for f in faces:
-            # sec_bm.verts.ensure_lookup_table()
             # f = sec_bm.faces[face_idx]
             v1 = f.verts[0]
             # coords_set = set(v.co.to_tuple(4) for v in f.verts)
@@ -377,6 +442,7 @@ def knife_project_done():
             u.normalize()
             v = normal.cross(u).normalized()  # type: Vector
             polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in f.verts]
+            # print(f"polygon: {polygon}")
             #
             for v2 in sec_bm.verts:
                 if v2 in f.verts:
@@ -397,12 +463,23 @@ def knife_project_done():
                         verts_index.add(v2.index)
 
             #
+
             bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
             for f in sec_bm.faces:
                 v_index = set(v.index for v in f.verts)
                 if v_index.issubset(verts_index):
                     f.select_set(True)
             bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+            #### test
+            # print(f"vert: {[i.index for i in sec_bm.verts]}")
+            # print(f"verts_index: {verts_index}")
+            # bpy.ops.mesh.select_mode(type="VERT")
+            # sec_bm.verts.ensure_lookup_table()
+            # for i in verts_index:
+            #     sec_bm.verts[i].select_set(True)
+            # if faces.index(f) == 1:
+            #     break
+            #### test
             bpy.ops.mesh.separate(type="SELECTED")  # 按选中项分离
         #
         bpy.ops.object.mode_set(mode="OBJECT")
