@@ -1,4 +1,4 @@
-from . import data as ag_data
+from .scripts import data as ag_data
 
 import bpy
 from bpy import *

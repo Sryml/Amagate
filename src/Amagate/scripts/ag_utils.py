@@ -12,7 +12,7 @@ import bpy
 import bmesh
 from mathutils import *  # type: ignore
 
-from .. import data
+from . import data
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -41,10 +41,11 @@ class DefColor:
     nofocus = (0.4, 0.4, 0.4, 1)
 
 
-# 凹面类型: 简单，普通，复杂
-CONCAVE_T_SIMPLE = 0
-CONCAVE_T_NORMAL = 1
-CONCAVE_T_COMPLEX = 2
+# 凹面类型: 无，简单，普通，复杂
+CONCAVE_T_NONE = 0
+CONCAVE_T_SIMPLE = 1
+CONCAVE_T_NORMAL = 2
+CONCAVE_T_COMPLEX = 3
 ############################
 
 
@@ -222,9 +223,9 @@ def is_convex(obj: Object):
                     is_interior_coplanar = False
                     break
         ########
-        vert_index = []
-        proj_normal = None
-        concave_type = CONCAVE_T_SIMPLE
+        verts_index = []
+        # proj_normal = None
+        concave_type = CONCAVE_T_NONE
 
         def get_vert_index():
             vert_index = []
@@ -238,40 +239,39 @@ def is_convex(obj: Object):
             return vert_index
 
         ########
+        verts_index = get_vert_index()
+        # 如果找不到对应顶点，归为复杂凹多面体
+        if not verts_index:
+            concave_type = CONCAVE_T_COMPLEX
         # 内部顶点共面的情况
-        if is_interior_coplanar:
-            vert_index = get_vert_index()
-            # 如果找不到对应顶点，归为复杂凹多面体
-            if not vert_index:
-                concave_type = CONCAVE_T_COMPLEX
-            else:
-                concave_type = CONCAVE_T_SIMPLE
+        elif is_interior_coplanar:
+            concave_type = CONCAVE_T_SIMPLE
         # 内部顶点不共面的情况
-        else:
-            # 判断唯一法向
-            normal = None  # type: Vector # type: ignore
-            for geo in convex_hull["geom"]:
-                if isinstance(geo, bmesh.types.BMFace):
-                    if normal is None:
-                        normal = geo.normal
-                    else:
-                        # 法向不唯一，复杂凹多面体
-                        if abs(geo.normal.dot(normal)) < epsilon2:
-                            concave_type = CONCAVE_T_COMPLEX
-                            break
-            # 如果不是复杂凹面
-            if concave_type != CONCAVE_T_COMPLEX:
-                vert_index = get_vert_index()
-                # 如果找不到对应顶点，归为复杂凹多面体
-                if not vert_index:
-                    concave_type = CONCAVE_T_COMPLEX
-                else:
-                    proj_normal = normal
-                    concave_type = CONCAVE_T_NORMAL
+        # else:
+        #     # 判断唯一法向
+        #     normal = None  # type: Vector # type: ignore
+        #     for geo in convex_hull["geom"]:
+        #         if isinstance(geo, bmesh.types.BMFace):
+        #             if normal is None:
+        #                 normal = geo.normal
+        #             else:
+        #                 # 法向不唯一，复杂凹多面体
+        #                 if abs(geo.normal.dot(normal)) < epsilon2:
+        #                     concave_type = CONCAVE_T_COMPLEX
+        #                     break
+        #     # 如果不是复杂凹面
+        #     if concave_type != CONCAVE_T_COMPLEX:
+        #         vert_index = get_vert_index()
+        #         # 如果找不到对应顶点，归为复杂凹多面体
+        #         if not vert_index:
+        #             concave_type = CONCAVE_T_COMPLEX
+        #         else:
+        #             proj_normal = normal
+        #             concave_type = CONCAVE_T_NORMAL
         #
         sec_data["ConcaveData"] = {
-            "vert_index": vert_index,
-            "proj_normal": proj_normal,
+            "verts_index": verts_index,
+            # "proj_normal": proj_normal,
             "concave_type": concave_type,
         }
 
@@ -361,54 +361,92 @@ separate_data = {}  # type: Any
 def pre_knife_project():
     """投影切割预处理"""
     context = bpy.context
-    knife_project = separate_data[
-        "knife_project"
-    ]  # type: list[tuple[Object, list[Object], Vector]]
+    separate = separate_data["separate_list"][
+        separate_data["index"]
+    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], Vector]
+    (
+        sec,
+        faces_index,
+        faces_index_prime,
+        faces_exterior_idx,
+        knife_project,
+        proj_normal_prime,
+    ) = separate
     region = separate_data["region"]  # type: bpy.types.Region
-    sec, knifes, proj_normal_prime = knife_project.pop()
+    # sec, faces_index, knifes, proj_normal_prime = knife_project.pop()
 
     bpy.ops.object.select_all(action="DESELECT")  # 取消选择
     context.view_layer.objects.active = sec  # 设置活动物体
     bpy.ops.object.mode_set(mode="EDIT")
-    for knife in knifes:
+    for knife in knife_project:
         knife.select_set(True)
     set_view_rotation(region, proj_normal_prime)
     region.data.view_perspective = "ORTHO"
 
-    separate_data["active_knifes"] = knifes
     bpy.app.timers.register(knife_project_timer, first_interval=0.05)
 
 
 def knife_project_timer():
     """投影切割定时器"""
     context = bpy.context
+    separate = separate_data["separate_list"][
+        separate_data["index"]
+    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], Vector]
+    (
+        sec,
+        faces_index,  # 刀具面
+        faces_index_prime,  # 排除垂直面的刀具面
+        faces_exterior_idx,  # 与刀具面共边的外部面
+        knife_project,  # 投影切割刀具
+        proj_normal_prime,
+    ) = separate
+    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+    # 隐藏刀具面
+    bm = bmesh.from_edit_mesh(mesh)
+    bm.faces.ensure_lookup_table()
+    for i in faces_index:
+        bm.faces[i].hide = True
+    bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+    # 投影切割
     with context.temp_override(
         area=separate_data["area"],
         region=separate_data["region"],
     ):
         bpy.ops.mesh.knife_project()
-        bpy.ops.object.mode_set(mode="OBJECT")
-        for obj in separate_data["active_knifes"]:
+        for obj in knife_project:
             bpy.data.meshes.remove(obj.data)  # type: ignore
+    # 显示刀具面
+    bm.faces.ensure_lookup_table()
+    for i in faces_index:
+        bm.faces[i].hide = False
+    bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+    bpy.ops.object.mode_set(mode="OBJECT")
 
-    knife_project = separate_data[
-        "knife_project"
-    ]  # type: list[tuple[Object, list[int], list[Object], Vector]]
-    if knife_project:
+    separate_data["index"] += 1
+    if separate_data["index"] < len(separate_data["separate_list"]):
         pre_knife_project()
     else:
         knife_project_done()
 
 
 def knife_project_done():
-    """投影切割完成"""
+    """投影切割完成，开始分离"""
     context = bpy.context
 
     #
     separate_list = separate_data[
         "separate_list"
-    ]  # type: list[tuple[Object, set[int], Vector]]
-    for sec, faces_index, proj_normal_prime in separate_list:
+    ]  # type: list[tuple[Object, set[int], set[int], list[int], list[Object], Vector]]
+    for (
+        sec,
+        faces_index,
+        faces_index_prime,
+        faces_exterior_idx,
+        knife_project,
+        proj_normal_prime,
+    ) in separate_list:
+        main_sec = sec
+        sec_data = sec.amagate_data.get_sector_data()
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
         proj_normal_prime = matrix_world.to_quaternion().inverted() @ proj_normal_prime
@@ -421,14 +459,20 @@ def knife_project_done():
         bpy.ops.mesh.select_mode(type="FACE")  # 选择面模式
         sec_bm = bmesh.from_edit_mesh(mesh)  # type: ignore
         sec_bm.faces.ensure_lookup_table()
-        faces = [sec_bm.faces[i] for i in faces_index]
+        sec_bm.verts.ensure_lookup_table()
+        faces = [sec_bm.faces[i] for i in faces_index_prime]
+        verts_index = sec_data["ConcaveData"]["verts_index"]
+        # 与刀具面共边的外部面顶点
+        verts_exterior = set(
+            v for i in faces_exterior_idx for v in sec_bm.faces[i].verts
+        )
+
         # 遍历刀具面
-        for f in faces:
-            # f = sec_bm.faces[face_idx]
-            v1 = f.verts[0]
-            # coords_set = set(v.co.to_tuple(4) for v in f.verts)
-            verts_index = set(v.index for v in f.verts)
-            normal = f.normal
+        for face in faces:
+            v1 = face.verts[0]
+            # coords_set = set(v.co.to_tuple(4) for v in face.verts)
+            verts_index = set()
+            normal = face.normal
             dot = proj_normal_prime.dot(normal)
             if dot < 0:
                 normal = -normal
@@ -441,30 +485,46 @@ def knife_project_done():
                 u = normal.cross(Vector((0, 1, 0)))
             u.normalize()
             v = normal.cross(u).normalized()  # type: Vector
-            polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in f.verts]
+            polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in face.verts]
             # print(f"polygon: {polygon}")
-            #
+            # 获取投影在刀具面中的所有顶点
             for v2 in sec_bm.verts:
-                if v2 in f.verts:
+                if v2 in face.verts:
                     continue
                 t = (v1.co - v2.co).dot(normal) / dot
+                # 点在刀具面外部，跳过
+                if t < 0:
+                    continue
+
                 proj_point = v2.co + proj_normal_prime * t
 
                 # key = proj_point.to_tuple(4)
                 # if key in coords_set:
                 #     verts_index.add(v2.index)
-                for v3 in f.verts:
-                    if (proj_point - v3.co).length < 0.0001:
+                for v3 in face.verts:
+                    # 投影到顶点的情况
+                    if (proj_point - v3.co).length < 1e-4:
                         verts_index.add(v2.index)
+                        # 如果是外部顶点的子集
+                        if {v2, v3}.issubset(verts_exterior):
+                            for e in v2.link_edges:
+                                # v2与v3存在边，跳过
+                                if e.other_vert(v2) == v3:
+                                    break
+                            # v2与v3不存在边，添加边
+                            else:
+                                bmesh.ops.connect_vert_pair(sec_bm, verts=[v2, v3])
+                                bmesh.update_edit_mesh(mesh)
                         break
+                # 没有投影到顶点，也许在边上或者在面的内部
                 else:
                     proj_point_2d = u.dot(proj_point), v.dot(proj_point)
                     if is_point_in_polygon(proj_point_2d, polygon):
                         verts_index.add(v2.index)
 
-            #
-
+            # 按照顶点选中面并分离
             bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+            verts_index.update(v.index for v in face.verts)
             for f in sec_bm.faces:
                 v_index = set(v.index for v in f.verts)
                 if v_index.issubset(verts_index):
@@ -483,42 +543,34 @@ def knife_project_done():
             bpy.ops.mesh.separate(type="SELECTED")  # 按选中项分离
         #
         bpy.ops.object.mode_set(mode="OBJECT")
-        # faces = [f]
-        # edges = []
-        # edges_set = set()
-        # for e in f.edges:
-        #     if e.index in edges_set:
-        #         continue
-        #     ret = get_edges_along_line(e, limit_face=f)
-        #     edges.append(ret)
-        #     edges_set.update(set(ret))
-        # #
-        # for edges_index in edges:
-        #     verts = set(v for i in edges_index for v in sec_bm.edges[i].verts)
-        #     for v1 in verts.copy():
-        #         dir1 = (v1.co - proj_normal_prime).normalized()
-        #         for v2 in sec_bm.verts:
-        #             if v2 == v1:
-        #                 continue
-        #             dir2 = (v2.co - v1.co).normalized()
-        #             # 如果顶点2在顶点1的投影法向上，添加到列表
-        #             if dir1.dot(dir2) > epsilon2:
-        #                 verts.add(v2)
-        #     # 判断verts中是否存在面
-        #     for f2 in sec_bm.faces:
-        #         if f2 == f:
-        #             continue
-        #         if verts.issubset(set(f2.verts)):
-        #             break
-        #     else:
-        #         f2 = sec_bm.faces.new(verts)
-        #     faces.append(f2)
-        # sep_bm = bmesh.new()
-        # bmesh.ops.duplicate(sec_bm, geom=faces, dest=sep_bm)
-        # sep_mesh = bpy.data.meshes.new(f"AG.{sec.name}_sep")
-        # sep_bm.to_mesh(sep_mesh)
-        # sep_obj = bpy.data.objects.new(f"AG.{sec.name}_sep", sep_mesh)
-        # data.link2coll(sep_obj, context.scene.collection)
+        # 删除空网格
+        if main_sec.data.vertices == 0:  # type: ignore
+            bpy.data.meshes.remove(mesh)
+        selected_objects = (
+            context.selected_objects.copy()
+        )  # type: list[Object] # type: ignore
+        # 修正扇区属性
+        for sec in selected_objects.copy():
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            # 按距离合并顶点
+            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+            context.view_layer.objects.active = sec  # 设置活动物体
+            bpy.ops.object.mode_set(mode="EDIT")
+            bpy.ops.mesh.select_mode(type="VERT")  # 选择顶点模式
+            bpy.ops.mesh.select_all(action="SELECT")  # 全选
+            bpy.ops.mesh.remove_doubles(threshold=0.0001)  # 合并顶点
+            bpy.ops.object.mode_set(mode="OBJECT")
+            # 删除平面物体
+            normal = mesh.polygons[0].normal
+            for f in mesh.polygons[1:]:
+                if abs(f.normal.dot(normal)) < epsilon2:
+                    break
+            else:
+                selected_objects.remove(sec)
+                bpy.data.meshes.remove(mesh)
+                continue
+            #
+            sec_data = sec.amagate_data.get_sector_data()
 
     area = separate_data["area"]  # type: bpy.types.Area
     region = separate_data["region"]  # type: bpy.types.Region

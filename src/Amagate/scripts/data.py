@@ -40,7 +40,7 @@ import blf
 from mathutils import *  # type: ignore
 
 #
-from .scripts import ag_utils
+from . import ag_utils
 
 #
 
@@ -55,7 +55,8 @@ if TYPE_CHECKING:
 ############################ 全局变量
 Copyright = "(C) 2024-2025 Sryml"
 
-ADDON_PATH = os.path.dirname(__file__)
+PACKAGE = ".".join(__package__.split(".")[:-1])
+ADDON_PATH = os.path.abspath(f"{os.path.dirname(__file__)}/..")
 
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
     VERSION = v.read().strip()
@@ -217,7 +218,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
     if not mat:
         mat = bpy.data.materials.new("")
         mat.rename(name, mode="ALWAYS")
-        filepath = os.path.join(ADDON_PATH, "nodes.dat")
+        filepath = os.path.join(ADDON_PATH, "bin/nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
         import_nodes(mat, nodes_data["AG.Mat1"])
         mat.use_fake_user = True
@@ -230,7 +231,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
 
 # 确保节点
 def ensure_node():
-    filepath = os.path.join(ADDON_PATH, "nodes.dat")
+    filepath = os.path.join(ADDON_PATH, "bin/nodes.dat")
     nodes_data = pickle.load(open(filepath, "rb"))
     scene_data = bpy.context.scene.amagate_data
     #
@@ -480,7 +481,7 @@ addon_keymaps = []
 
 
 class AmagatePreferences(bpy.types.AddonPreferences):
-    bl_idname = __package__  # type: ignore
+    bl_idname = PACKAGE  # type: ignore
 
     # 用于保存面板的展开状态
     fold_state: BoolProperty(name="Fold State", default=True)  # type: ignore
@@ -533,7 +534,7 @@ class AmagatePreferences(bpy.types.AddonPreferences):
 
 def register_shortcuts():
     global addon_keymaps
-    # preferences = bpy.context.preferences.addons[__package__].preferences  # type: ignore
+    # preferences = bpy.context.preferences.addons[PACKAGE].preferences  # type: ignore
 
     wm = bpy.context.window_manager  # type: ignore
     kc = wm.keyconfigs.addon
@@ -705,10 +706,11 @@ def check_before_save(filepath):
     ] + [item.obj for item in scene_data.ensure_coll]:
         if i:
             i.use_fake_user = True
-
+    # 保存内置纹理
     if not scene_data.builtin_tex_saved:
         scene_data.builtin_tex_saved = True
         img = None  # type: Image # type: ignore
+        img_list = []
         for img in bpy.data.images:  # type: ignore
             img_data = img.amagate_data
             if img_data.builtin:
@@ -722,9 +724,12 @@ def check_before_save(filepath):
                     os.path.basename(img.filepath),
                 )
                 shutil.copy(img.filepath, new_path)
-                img.filepath = (
-                    f"//{os.path.relpath(new_path, os.path.dirname(filepath))}"
+                img_list.append(
+                    (img, f"//{os.path.relpath(new_path, os.path.dirname(filepath))}")
                 )
+        # 保存内置纹理后，延迟设置文件路径
+        if img_list:
+            bpy.app.timers.register(lambda: tuple(map(lambda x: setattr(x[0], "filepath", x[1]), img_list)) and None, first_interval=0.2)  # type: ignore
 
 
 def draw_callback_3d():
@@ -1926,6 +1931,12 @@ class SectorProperty(bpy.types.PropertyGroup):
         return id_
 
     ############################
+    def reset_concave_data(self):
+        self["ConcaveData"] = {
+            "verts_index": [],
+            "concave_type": ag_utils.CONCAVE_T_NONE,
+        }
+
     def init(self):
         scene = bpy.context.scene
         scene_data = scene.amagate_data
@@ -1949,7 +1960,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         obj[f"AG.Sector ID"] = id_
 
         # 凹多面体投影切割数据
-        self["ConcaveData"] = {"vert_index": [], "proj_normal": None, "concave_type": 0}
+        self.reset_concave_data()
 
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"

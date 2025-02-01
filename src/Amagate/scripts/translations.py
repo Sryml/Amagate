@@ -1,4 +1,5 @@
 import bpy
+from . import data
 
 translations_dict = {
     "zh_HANS": {
@@ -107,8 +108,8 @@ translations_dict = {
 
 
 def register():
-    bpy.app.translations.register(__package__, translations_dict)
+    bpy.app.translations.register(data.PACKAGE, translations_dict)
 
 
 def unregister():
-    bpy.app.translations.unregister(__package__)
+    bpy.app.translations.unregister(data.PACKAGE)

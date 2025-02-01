@@ -35,7 +35,7 @@ from bpy.props import (
 from mathutils import *  # type: ignore
 
 from . import data
-from .scripts import ag_utils
+from . import ag_utils
 
 
 if TYPE_CHECKING:
@@ -850,6 +850,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             selected_sectors = data.SELECTED_SECTORS
         else:
             selected_sectors = ag_utils.get_selected_sectors()[0]
+        self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         if len(selected_sectors) < 2:
             self.report({"WARNING"}, "Select at least two sectors")
@@ -1006,49 +1007,90 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
 
-        knife_project = []
-        separate_list = []
-        complex_list = []
+        separate = ()
+        is_complex = False
 
-        # 拆分凹面（平面）
-        bpy.ops.object.select_all(action="DESELECT")  # 取消选择
-        context.view_layer.objects.active = sec  # 设置活动物体
-        bpy.ops.object.mode_set(mode="EDIT")  # 进入编辑模式
-        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
-
-        bpy.ops.object.mode_set(mode="OBJECT")
         sec_bm = bmesh.new()
         sec_bm.from_mesh(mesh)
         sec_bm.verts.ensure_lookup_table()
         sec_bm.faces.ensure_lookup_table()
         # 获取刀具面索引
-        verts = set(sec_bm.verts[i] for i in sec_data["ConcaveData"]["vert_index"])
+        verts_interior = set(
+            sec_bm.verts[i] for i in sec_data["ConcaveData"]["verts_index"]
+        )
         edges = []  # type: list[bmesh.types.BMEdge]
         faces_index = set()  # type: set[int]
         for e in sec_bm.edges:
             s = set(e.verts)
-            if s.issubset(verts):
+            if s.issubset(verts_interior):
                 edges.append(e)
         for e in edges:
             faces_index.update(f.index for f in e.link_faces)
 
-        # sec_bm = bmesh.from_edit_mesh(mesh)
-        # sec_bm.faces.ensure_lookup_table()
-        # bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        # for i in faces:
-        #     sec_bm.faces[i].select_set(True)  # 选择面
-        # bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-        # face_num = len(sec_bm.faces)
-        # bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
-        # if len(sec_bm.faces) != face_num:
-        #     faces = [f.index for f in sec_bm.faces if f.select]
+        # 拆分凹面（平面）
+        bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+        context.view_layer.objects.active = sec  # 设置活动物体
+        bpy.ops.object.mode_set(mode="EDIT")  # 进入编辑模式
+        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+        bm_tmp = bmesh.from_edit_mesh(mesh)
+        bm_tmp.faces.ensure_lookup_table()
+        for i in faces_index:
+            bm_tmp.faces[i].select_set(True)  # 选择面
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        face_num = len(bm_tmp.faces)
+        bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
+        if len(bm_tmp.faces) != face_num:
+            faces_index = set(f.index for f in bm_tmp.faces if f.select)
+        bpy.ops.object.mode_set(mode="OBJECT")
 
-        proj_normal = Vector(sec_data["ConcaveData"]["proj_normal"])
+        # 外部顶点
+        verts_exterior = set(i for i in sec_bm.verts if i not in verts_interior)
+
+        # 计算投影法线
         recalc_proj_normal = False
+        for i in faces_index:
+            f = sec_bm.faces[i]
+            for v in f.verts:
+                # 包含外部顶点的内部面
+                if v in verts_exterior:
+                    ref_normal = -f.normal
+                    # dot = 0
+                    # # 获取法向在内部面的法向直线上最近的外部面
+                    # for f2 in faces_exterior:
+                    #     dot2 = abs(f2.normal.dot(f.normal))
+                    #     if dot2 > dot:
+                    #         dot = dot2
+                    #         proj_normal = f2.normal
+                    break
+        visited_edges = set()
+        verts_co = []
+        for v in verts_exterior:
+            for e in v.link_edges:
+                if e in visited_edges:
+                    continue
+                visited_edges.add(e)
+                if e.other_vert(v) in verts_interior:
+                    verts_co.append(v.co)
+                    break
+        proj_normal = geometry.normal(verts_co[:3])
+        # 检查其他点是否都在该平面上
+        base_point = verts_co[0]
+        for v in verts_co[3:]:
+            distance = abs(proj_normal.dot(v - base_point))  # 点到平面的距离
+            if distance > ag_utils.epsilon:
+                # 超过容差范围的点，不共面，复杂凹多面体
+                # print(f"complex: {sec.name}")
+                sec_bm.free()
+                sec_data["ConcaveData"]["concave_type"] = ag_utils.CONCAVE_T_COMPLEX
+                is_complex = True
+                return {"is_complex": is_complex, "separate": separate}
+        #
+        if proj_normal.dot(ref_normal) < 0:
+            proj_normal = -proj_normal
+
         # 判断是否需要重新计算投影法线
         for i in faces_index:
-            f = sec_bm.faces[i]  # type: bmesh.types.BMFace
+            f = sec_bm.faces[i]
             if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
                 recalc_proj_normal = True
                 break
@@ -1088,14 +1130,26 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
         # print(f"proj_normal: {proj_normal}")
 
+        # 与刀具面共边的外部面
+        knife_edges = set(e for i in faces_index for e in sec_bm.faces[i].edges)
+        faces_exterior = set(f for f in sec_bm.faces if f.index not in faces_index)
+        faces_exterior_idx = []  # type: list[int]
+        for f in faces_exterior:
+            for e in f.edges:
+                if e in knife_edges:
+                    faces_exterior_idx.append(f.index)
+                    break
+
+        # 排除垂直面
+        faces_index_prime = faces_index.copy()
         # 创建刀具BMesh
         knife_bm = bmesh.new()
         exist_verts = {}
-        for face_idx in faces_index.copy():
+        for face_idx in faces_index:
             f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
             # 跳过垂直面
             if abs(f.normal.dot(proj_normal)) < ag_utils.epsilon:
-                faces_index.remove(face_idx)
+                faces_index_prime.remove(face_idx)
                 continue
             verts = []
             # 重复顶点
@@ -1116,7 +1170,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 verts.append(v)
             # 跳过重复顶点的面
             if is_dup_vert:
-                faces_index.remove(face_idx)
+                faces_index_prime.remove(face_idx)
                 continue
             knife_bm.faces.new(verts)
         # 刀具BMesh转Mesh
@@ -1137,7 +1191,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             # print(f"{knife_obj.name} has intersect")
             bpy.ops.object.mode_set(mode="OBJECT")
             bpy.data.meshes.remove(knife_mesh)
-            complex_list.append(sec)
+            is_complex = True
         # 不存在交集
         else:
             bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -1147,23 +1201,27 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             context.active_object.select_set(True)  # 刀具本体也需选择
 
             # 添加到投影切割列表
-            knife_project.append((sec, context.selected_objects, proj_normal_prime))
-            separate_list.append((sec, faces_index, proj_normal_prime))
+            knife_project = context.selected_objects
+            separate = (
+                sec,
+                faces_index,
+                faces_index_prime,
+                faces_exterior_idx,
+                knife_project,
+                proj_normal_prime,
+            )
 
         sec_bm.free()
         knife_bm.free()
 
-        return {
-            "knife_project": knife_project,
-            "separate_list": separate_list,
-            "complex_list": complex_list,
-        }
+        return {"is_complex": is_complex, "separate": separate}
 
     def execute(self, context: Context):
         if self.is_button:
             selected_sectors = data.SELECTED_SECTORS
         else:
             selected_sectors = ag_utils.get_selected_sectors()[0]
+        self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
@@ -1174,7 +1232,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
             data.geometry_modify_post(selected_sectors)
 
-        knife_project = []
+        # knife_project = []
         separate_list = []
         complex_list = []
         has_separate_simple = False
@@ -1185,7 +1243,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 continue
 
             concave_type = sec_data["ConcaveData"]["concave_type"]
-            # 跳过复杂凹多面体
+            # # 跳过复杂凹多面体
             if concave_type == ag_utils.CONCAVE_T_COMPLEX:
                 complex_list.append(sec)
                 continue
@@ -1194,12 +1252,17 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             if concave_type == ag_utils.CONCAVE_T_SIMPLE:
                 self.separate_simple(context, sec)
                 has_separate_simple = True
-            # 普通凹面的情况
+            # 其它情况
             else:
                 ret = self.separate_normal(context, sec)
-                knife_project.extend(ret["knife_project"])
-                separate_list.extend(ret["separate_list"])
-                complex_list.extend(ret["complex_list"])
+                if ret["is_complex"]:
+                    complex_list.append(sec)
+                else:
+                    separate_list.append(ret["separate"])
+
+                # knife_project.extend(ret["knife_project"])
+                # separate_list.extend(ret["separate_list"])
+                # complex_list.extend(ret["complex_list"])
         #
         if complex_list:
             self.report(
@@ -1209,9 +1272,9 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         area = context.area
         region = next(r for r in area.regions if r.type == "WINDOW")
         # 检查切割列表是否为空
-        if knife_project:
+        if separate_list:
             ag_utils.separate_data = {
-                "knife_project": knife_project,
+                "index": 0,
                 "separate_list": separate_list,
                 "area": area,
                 "region": region,
@@ -1815,15 +1878,15 @@ class OT_ReloadAddon(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        base_package = sys.modules[__package__]  # type: ignore
+        base_package = sys.modules[data.PACKAGE]  # type: ignore
 
-        bpy.ops.preferences.addon_disable(module=__package__)  # type: ignore
+        bpy.ops.preferences.addon_disable(module=data.PACKAGE)  # type: ignore
         # base_package.unregister()
         bpy.app.timers.register(
-            lambda: bpy.ops.preferences.addon_enable(module=__package__) and None,  # type: ignore
+            lambda: bpy.ops.preferences.addon_enable(module=data.PACKAGE) and None,  # type: ignore
             first_interval=0.5,
         )
-        # bpy.ops.preferences.addon_enable(module=__package__)  # type: ignore
+        # bpy.ops.preferences.addon_enable(module=data.PACKAGE)  # type: ignore
         # base_package.register(reload=True)
         print("插件已热更新！")
         return {"FINISHED"}
@@ -1836,7 +1899,7 @@ class OT_ExportNode(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        filepath = os.path.join(data.ADDON_PATH, "nodes.dat")
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         # 导出节点
         nodes_data = {}
         nodes_data["AG.Mat1"] = data.export_nodes(bpy.data.materials["AG.Mat1"])
@@ -1859,7 +1922,7 @@ class OT_ImportNode(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context):
-        filepath = os.path.join(data.ADDON_PATH, "nodes.dat")
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
 
         name = "AG.Mat1"

@@ -13,7 +13,7 @@ from bpy.app.translations import pgettext
 
 from . import data
 from . import operator as OP
-from .scripts import ag_utils
+from . import ag_utils
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
