@@ -608,34 +608,12 @@ def delete_post_func():
                 return
 
             bpy.ops.ed.undo()
-            scene_data = bpy.context.scene.amagate_data
             coll = ensure_collection(S_COLL)
-            SectorManage = scene_data["SectorManage"]
+            # scene_data = bpy.context.scene.amagate_data
+            # SectorManage = scene_data["SectorManage"]
 
             for id_key in deleted_ids:
-                obj = SectorManage["sectors"][id_key]["obj"]
-                if obj.data.users == 1:
-                    bpy.data.meshes.remove(obj.data)
-                else:
-                    bpy.data.objects.remove(obj)
-                for l in SectorManage["sectors"][id_key]["light_objs"]:
-                    l.hide_viewport = True
-                atmo = get_atmo_by_id(
-                    scene_data, SectorManage["sectors"][id_key]["atmo_id"]
-                )[1]
-                if atmo:
-                    atmo.users_obj.remove(atmo.users_obj.find(id_key))
-                external = get_external_by_id(
-                    scene_data, SectorManage["sectors"][id_key]["external_id"]
-                )[1]
-                if external:
-                    external.users_obj.remove(external.users_obj.find(id_key))
-
-                if int(id_key) != SectorManage["max_id"]:
-                    SectorManage["deleted_id_count"] += 1
-                else:
-                    SectorManage["max_id"] -= 1
-                SectorManage["sectors"].pop(id_key)
+                ag_utils.delete_sector(id_key=id_key)
 
             bpy.ops.ed.undo_push(message="Delete Sector")
 
@@ -1183,6 +1161,8 @@ class Texture_Select(bpy.types.PropertyGroup):
 
 # 大气属性
 class AtmosphereProperty(bpy.types.PropertyGroup):
+    """id从1开始"""
+
     id: IntProperty(name="ID", default=0, get=lambda self: int(self["name"]))  # type: ignore
     name: StringProperty(name="id key", default="0")  # type: ignore
     item_name: StringProperty(name="Atmosphere Name", default="", get=lambda self: self.get_item_name(), set=lambda self, value: self.set_item_name(value))  # type: ignore
@@ -1719,14 +1699,6 @@ class SectorProperty(bpy.types.PropertyGroup):
     comment: StringProperty(name="Comment", description="", default="")  # type: ignore
 
     ############################
-    def update_atmo(self, atmo):
-        self.atmo_color = atmo.color[:3]
-        f = 1.0
-        if tuple(self.atmo_color) == (0.0, 0.0, 0.0):
-            f = 2.0
-        self.atmo_density = atmo.color[-1] * f
-        self.id_data.update_tag(refresh={"OBJECT"})
-
     def get_atmo_id(self):
         return self.get("_atmo_id", 0)
 
@@ -1746,10 +1718,20 @@ class SectorProperty(bpy.types.PropertyGroup):
             if old_atmo:
                 old_atmo.users_obj.remove(old_atmo.users_obj.find(f"{self.id}"))
 
+        if not atmo.users_obj.get(f"{self.id}"):
             atmo.users_obj.add().obj = obj
-            self["_atmo_id"] = value
-            scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
+
+        self["_atmo_id"] = value
+        scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
         self.update_atmo(atmo)
+
+    def update_atmo(self, atmo):
+        self.atmo_color = atmo.color[:3]
+        f = 1.0
+        if tuple(self.atmo_color) == (0.0, 0.0, 0.0):
+            f = 2.0
+        self.atmo_density = atmo.color[-1] * f
+        self.id_data.update_tag(refresh={"OBJECT"})
 
     ############################
     def get_external_id(self):
@@ -1774,9 +1756,11 @@ class SectorProperty(bpy.types.PropertyGroup):
             if old_external:
                 old_external.users_obj.remove(old_external.users_obj.find(f"{self.id}"))
 
+        if not external.users_obj.get(f"{self.id}"):
             external.users_obj.add().obj = obj
-            self["_external_id"] = value
-            scene_data["SectorManage"]["sectors"][str(self.id)]["external_id"] = value
+
+        self["_external_id"] = value
+        scene_data["SectorManage"]["sectors"][str(self.id)]["external_id"] = value
         self.update_external(external)
 
     def update_external(self, external, rotation_euler=None):
@@ -1916,7 +1900,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             mesh.polygons[i].material_index = slot_index
 
     ############################
-    def get_id(self):
+    def get_id(self) -> int:
         scene_data = bpy.context.scene.amagate_data
         SectorManage = scene_data["SectorManage"]
 
@@ -1931,13 +1915,22 @@ class SectorProperty(bpy.types.PropertyGroup):
         return id_
 
     ############################
+
+    def mesh_unique(self):
+        """确保网格数据为单用户的"""
+        sec = self.id_data  # type: Object
+        if sec.data.users > 1:
+            sec.data = sec.data.copy()
+            sec.data.rename(f"Sector{self.id}", mode="ALWAYS")
+
+    ############################
     def reset_concave_data(self):
         self["ConcaveData"] = {
             "verts_index": [],
             "concave_type": ag_utils.CONCAVE_T_NONE,
         }
 
-    def init(self):
+    def init(self, post_copy=False):
         scene = bpy.context.scene
         scene_data = scene.amagate_data
 
@@ -1975,64 +1968,71 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # self.flat_light.color = scene_data.defaults.flat_light.color
 
-        # 添加修改器
-        modifier = obj.modifiers.new("", type="NODES")
-        modifier.node_group = scene_data.sec_node  # type: ignore
+        # 非复制的情况
+        if not post_copy:
+            # 添加修改器
+            modifier = obj.modifiers.new("", type="NODES")
+            modifier.node_group = scene_data.sec_node  # type: ignore
 
-        # 添加网格属性
-        mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
-        mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
-        mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
-        mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
-        mesh.attributes.new(name="amagate_tex_rotate", type="FLOAT", domain="FACE")
-        mesh.attributes.new(name="amagate_tex_scale", type="FLOAT2", domain="FACE")
+            # 添加网格属性
+            mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
+            mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_rotate", type="FLOAT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_scale", type="FLOAT2", domain="FACE")
 
-        # 设置预设纹理
-        for i in ("Floor", "Ceiling", "Wall"):
-            def_prop = scene_data.defaults.textures[i]
+            # 设置预设纹理
+            for i in ("Floor", "Ceiling", "Wall"):
+                def_prop = scene_data.defaults.textures[i]
 
-            prop = self.textures.add()
-            prop.target = "Sector"
-            prop.name = i
-            prop.id = def_prop.id
-            prop.xpos = def_prop.xpos
-            prop.ypos = def_prop.ypos
-            prop.xzoom = def_prop.xzoom
-            prop.yzoom = def_prop.yzoom
-            prop.angle = def_prop.angle
+                prop = self.textures.add()
+                prop.target = "Sector"
+                prop.name = i
+                prop.id = def_prop.id
+                prop.xpos = def_prop.xpos
+                prop.ypos = def_prop.ypos
+                prop.xzoom = def_prop.xzoom
+                prop.yzoom = def_prop.yzoom
+                prop.angle = def_prop.angle
 
-        for face in mesh.polygons:  # polygons 代表面
-            face_index = face.index  # 面的索引
-            face_normal = face.normal  # 面的法线方向（Vector）
+            for face in mesh.polygons:  # polygons 代表面
+                face_index = face.index  # 面的索引
+                face_normal = face.normal  # 面的法线方向（Vector）
 
-            # 设置纹理
-            dp = face_normal.dot(Vector((0, 0, 1)))
-            if dp > 0.99999:  # 地板
-                face_flag_name = "Floor"
-            elif dp < -0.99999:  # 天花板
-                face_flag_name = "Ceiling"
-            else:  # 墙壁
-                face_flag_name = "Wall"
+                # 设置纹理
+                dp = face_normal.dot(Vector((0, 0, 1)))
+                if dp > 0.99999:  # 地板
+                    face_flag_name = "Floor"
+                elif dp < -0.99999:  # 天花板
+                    face_flag_name = "Ceiling"
+                else:  # 墙壁
+                    face_flag_name = "Wall"
 
-            tex_prop = self.textures[face_flag_name]
-            tex_id = tex_prop.id
-            mesh.attributes["amagate_flag"].data[face_index].value = FACE_FLAG[face_flag_name]  # type: ignore
-            mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
-            mat = None
-            tex = get_texture_by_id(tex_id)[1]
-            self.set_matslot(ensure_material(tex), [face_index])
+                tex_prop = self.textures[face_flag_name]
+                tex_id = tex_prop.id
+                mesh.attributes["amagate_flag"].data[face_index].value = FACE_FLAG[face_flag_name]  # type: ignore
+                mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
+                mat = None
+                tex = get_texture_by_id(tex_id)[1]
+                self.set_matslot(ensure_material(tex), [face_index])
 
-            # 设置纹理参数
-            mesh.attributes["amagate_tex_pos"].data[face_index].vector = tex_prop.pos  # type: ignore
-            mesh.attributes["amagate_tex_rotate"].data[face_index].value = tex_prop.angle  # type: ignore
-            mesh.attributes["amagate_tex_scale"].data[face_index].vector = tex_prop.zoom  # type: ignore
+                # 设置纹理参数
+                mesh.attributes["amagate_tex_pos"].data[face_index].vector = tex_prop.pos  # type: ignore
+                mesh.attributes["amagate_tex_rotate"].data[face_index].value = tex_prop.angle  # type: ignore
+                mesh.attributes["amagate_tex_scale"].data[face_index].vector = tex_prop.zoom  # type: ignore
 
-        # 指定大气
-        self.atmo_id = scene_data.defaults.atmo_id
-        # 指定外部光
-        self.external_id = scene_data.defaults.external_id
-        # 设置环境光
-        self.ambient_color = scene_data.defaults.ambient_color
+            # 指定大气
+            self.atmo_id = scene_data.defaults.atmo_id
+            # 指定外部光
+            self.external_id = scene_data.defaults.external_id
+            # 设置环境光
+            self.ambient_color = scene_data.defaults.ambient_color
+        # 复制的情况，仅需刷新数据
+        else:
+            self.atmo_id = self.atmo_id
+            self.external_id = self.external_id
+            self.ambient_color = self.ambient_color
 
         # 判断是否为凸物体
         self.is_convex = ag_utils.is_convex(obj)

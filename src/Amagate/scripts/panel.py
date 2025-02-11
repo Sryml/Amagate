@@ -13,6 +13,7 @@ from bpy.app.translations import pgettext
 
 from . import data
 from . import operator as OP
+from . import operator_sector as OP_SECTOR
 from . import ag_utils
 
 if TYPE_CHECKING:
@@ -456,17 +457,17 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
 
         # TODO 创建路径，创建并设置样条类型为多线段
 
-        col.operator(OP.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+        col.operator(OP_SECTOR.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
         row = col.row()
         # split = row.split(factor=0.5)
         row_1 = row.row(align=True)
-        op = row_1.operator(OP.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
+        op = row_1.operator(OP_SECTOR.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
         op.is_button = True  # type: ignore
         row_1.prop(
             scene_data.operator_props, "sec_connect_sep_convex", text="", toggle=True
         )
 
-        op = row.operator(OP.OT_Sector_SeparateConvex.bl_idname, icon="NONE")
+        op = row.operator(OP_SECTOR.OT_Sector_SeparateConvex.bl_idname, icon="NONE")
         op.is_button = True  # type: ignore
 
 
