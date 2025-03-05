@@ -13,6 +13,7 @@ import struct
 import contextlib
 import shutil
 import threading
+import typing
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -535,30 +536,39 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         return context.scene.amagate_data.is_blade
 
     def separate_simple(self, context: Context, sec: Object):
+        """分割（简单）"""
         sec_data = sec.amagate_data.get_sector_data()
 
-    def separate_normal(self, context: Context, sec: Object):
+    def pre_separate_normal(self, context: Context, sec: Object):
+        """预分割（普通）"""
         sec_data = sec.amagate_data.get_sector_data()
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
 
-        separate = ()
+        separate = ()  # 分割数据
         is_complex = False
+        # 内部顶点序号
+        verts_inter_idx = sec_data["ConcaveData"]["verts_index"]
 
         sec_bm = bmesh.new()
         sec_bm.from_mesh(mesh)
         sec_bm.verts.ensure_lookup_table()
         sec_bm.faces.ensure_lookup_table()
-        # 获取刀具面索引
+
+        # START: 获取刀具面索引
+        # 内部顶点
         verts_interior = set(
-            sec_bm.verts[i] for i in sec_data["ConcaveData"]["verts_index"]
-        )
-        edges = []  # type: list[bmesh.types.BMEdge]
+            sec_bm.verts[i] for i in verts_inter_idx
+        )  # type: set[bmesh.types.BMVert]
+        # 刀具面索引
         faces_index = set()  # type: set[int]
+        # 内部顶点围成的边
+        edges = []  # type: list[bmesh.types.BMEdge]
         for e in sec_bm.edges:
             s = set(e.verts)
             if s.issubset(verts_interior):
                 edges.append(e)
+        # 边连接的面
         for e in edges:
             faces_index.update(f.index for f in e.link_faces)
 
@@ -576,42 +586,49 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
         if len(bm_tmp.faces) != face_num:
             faces_index = set(f.index for f in bm_tmp.faces if f.select)
+            # 更新sec_bm数据
+            sec_bm.free()
+            sec_bm = bm_tmp.copy()
+            sec_bm.verts.ensure_lookup_table()
+            sec_bm.faces.ensure_lookup_table()
+            # 内部顶点
+            verts_interior = set(sec_bm.verts[i] for i in verts_inter_idx)
         bpy.ops.object.mode_set(mode="OBJECT")
+        # END: 获取刀具面索引
 
         # 外部顶点
-        verts_exterior = set(i for i in sec_bm.verts if i not in verts_interior)
+        verts_exterior = set(i for i in sec_bm.verts if i.index not in verts_inter_idx)
 
-        # 计算投影法线
-        recalc_proj_normal = False
-        for i in faces_index:
-            f = sec_bm.faces[i]
-            for v in f.verts:
-                # 包含外部顶点的内部面
-                if v in verts_exterior:
-                    ref_normal = -f.normal
-                    # dot = 0
-                    # # 获取法向在内部面的法向直线上最近的外部面
-                    # for f2 in faces_exterior:
-                    #     dot2 = abs(f2.normal.dot(f.normal))
-                    #     if dot2 > dot:
-                    #         dot = dot2
-                    #         proj_normal = f2.normal
-                    break
+        # 判断与内部点相连的外部点
+        verts_ext_conn = []  # type: list[bmesh.types.BMVert]
         visited_edges = set()
-        verts_co = []
-        for v in verts_exterior:
+        for v in verts_interior:
+            vert_conn = None  # type: typing.Optional[bmesh.types.BMVert]
             for e in v.link_edges:
                 if e in visited_edges:
                     continue
                 visited_edges.add(e)
-                if e.other_vert(v) in verts_interior:
-                    verts_co.append(v.co)
-                    break
-        proj_normal = geometry.normal(verts_co[:3])
-        # 检查其他点是否都在该平面上
-        base_point = verts_co[0]
-        for v in verts_co[3:]:
-            distance = abs(proj_normal.dot(v - base_point))  # 点到平面的距离
+
+                v2 = e.other_vert(v)
+                # 如果连接了外部点
+                if v2 in verts_exterior:
+                    # 如果连接的外部点大于1个，则跳过
+                    if vert_conn is not None:
+                        break
+                    vert_conn = v2
+            # 如果连接的外部点 <= 1个
+            else:
+                # 如果存在连接的外部点，且该点不在现有列表中
+                if (vert_conn is not None) and (vert_conn not in verts_ext_conn):
+                    verts_ext_conn.append(vert_conn)
+
+        # 取投影法线
+        proj_normal = geometry.normal([verts_ext_conn[i].co for i in range(3)])
+        # 检查所有点是否都在同一平面
+        base_point = verts_ext_conn[0].co
+        for v in verts_ext_conn[3:]:
+            co = v.co
+            distance = abs(proj_normal.dot(co - base_point))  # 点到平面的距离
             if distance > ag_utils.epsilon:
                 # 超过容差范围的点，不共面，复杂凹多面体
                 # print(f"complex: {sec.name}")
@@ -619,56 +636,62 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 sec_data["ConcaveData"]["concave_type"] = ag_utils.CONCAVE_T_COMPLEX
                 is_complex = True
                 return {"is_complex": is_complex, "separate": separate}
-        #
-        if proj_normal.dot(ref_normal) < 0:
-            proj_normal = -proj_normal
 
-        # 判断是否需要重新计算投影法线
-        for i in faces_index:
-            f = sec_bm.faces[i]
-            if abs(f.normal.dot(proj_normal)) > ag_utils.epsilon2:
-                recalc_proj_normal = True
+        # 纠正投影法线
+        v1 = verts_ext_conn[0]
+        for e in v1.link_edges:
+            v2 = e.other_vert(v1)
+            dot_n = proj_normal.dot(v2.co - v1.co)
+            # 如果不是垂直的
+            if abs(dot_n) > ag_utils.epsilon:
+                if dot_n > 0:
+                    proj_normal = -proj_normal
                 break
 
-        if recalc_proj_normal:
-            faces2 = []  # type: list[bmesh.types.BMFace]
+        # 投影法线是否重新计算
+        is_recalc_proj_normal = False
+        for i in faces_index:
+            f = sec_bm.faces[i]
+            normal1 = f.normal
+            # 如果是同方向的
+            if normal1.dot(proj_normal) > ag_utils.epsilon:
+                # 相连面
+                faces_conn = set(f for e in f.edges for f in e.link_faces)
+                for f2 in faces_conn:
+                    normal2 = normal1.cross(f2.normal)  # type: Vector
+                    normal2.normalize()
+                    dot_n = normal2.dot(proj_normal)
+                    # 如果与投影法线垂直，则为不合法的法向，跳过
+                    if abs(dot_n) < ag_utils.epsilon:
+                        continue
+                    # 纠正到与投影法线同方向
+                    if dot_n < 0:
+                        normal2 = -normal2
+                    proj_normal = normal2
+                    is_recalc_proj_normal = True
+                    break
+            if is_recalc_proj_normal:
+                break
+        # 如果重新计算了投影法线，判断该法线是否合法
+        if is_recalc_proj_normal:
             for i in faces_index:
-                f = sec_bm.faces[i]  # type: bmesh.types.BMFace
-                dot_n = abs(f.normal.dot(proj_normal))
-                # 法向与投影法线不一致
-                if dot_n < ag_utils.epsilon2:
-                    faces2.append(f)
-            if len(faces2) > 2:
-                new_proj_normal = Vector((0, 0, 0))
-                normal = faces2[0].normal
-                for f in faces2[1:]:
-                    # 如果法向不一致，计算垂直向量作为新的投影法线
-                    if abs(f.normal.dot(normal)) < ag_utils.epsilon2:
-                        new_proj_normal = f.normal.cross(normal).normalized()
-                        break
-                # 判断是否与所有管道面垂直
-                if new_proj_normal.length:
-                    for f in faces2:
-                        if abs(f.normal.dot(new_proj_normal)) > ag_utils.epsilon:
-                            break
-                    # 与所有管道面垂直，修正投影法线
-                    else:
-                        # 如果与旧投影法线不一致，则更新投影法线
-                        dot_n = new_proj_normal.dot(proj_normal)
-                        if abs(dot_n) < ag_utils.epsilon2:
-                            if dot_n < 0:
-                                proj_normal = -new_proj_normal
-                            else:
-                                proj_normal = new_proj_normal
+                f = sec_bm.faces[i]
+                # 如果是同方向的，不合法，复杂凹多面体
+                if f.normal.dot(proj_normal) > ag_utils.epsilon:
+                    sec_bm.free()
+                    sec_data["ConcaveData"]["concave_type"] = ag_utils.CONCAVE_T_COMPLEX
+                    is_complex = True
+                    return {"is_complex": is_complex, "separate": separate}
+
         # 投影法线应用物体变换
         proj_normal_prime = (matrix_world.to_quaternion() @ proj_normal).normalized()
         proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
         # print(f"proj_normal: {proj_normal}")
 
         # 与刀具面共边的外部面
+        faces_exterior_idx = []  # type: list[int]
         knife_edges = set(e for i in faces_index for e in sec_bm.faces[i].edges)
         faces_exterior = set(f for f in sec_bm.faces if f.index not in faces_index)
-        faces_exterior_idx = []  # type: list[int]
         for f in faces_exterior:
             for e in f.edges:
                 if e in knife_edges:
@@ -720,10 +743,11 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
         face_num = len(bm_tmp.faces)
         with contextlib.redirect_stdout(StringIO()):
+            # 交集(切割)
             bpy.ops.mesh.intersect(mode="SELECT")
         # 如果存在交集
         if len(bm_tmp.faces) != face_num:
-            # print(f"{knife_obj.name} has intersect")
+            print(f"{knife_obj.name} has intersect")
             bpy.ops.object.mode_set(mode="OBJECT")
             bpy.data.meshes.remove(knife_mesh)
             is_complex = True
@@ -790,7 +814,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 has_separate_simple = True
             # 其它情况
             else:
-                ret = self.separate_normal(context, sec)
+                ret = self.pre_separate_normal(context, sec)
                 if ret["is_complex"]:
                     complex_list.append(sec)
                 else:
@@ -807,7 +831,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             )
         area = context.area
         region = next(r for r in area.regions if r.type == "WINDOW")
-        # 检查切割列表是否为空
+        # 如果切割列表不为空
         if separate_list:
             separate_data = {
                 "index": 0,
