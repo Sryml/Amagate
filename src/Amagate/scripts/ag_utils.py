@@ -212,58 +212,68 @@ def is_convex(obj: Object):
     convex_hull = bmesh.ops.convex_hull(bm, input=bm.verts, use_existing_faces=True)  # type: ignore
     # verts_interior = [v.index for v in convex_hull["geom_interior"]]  # type: list[int]
     geom_interior = convex_hull["geom_interior"]  # type: list[bmesh.types.BMVert]
+    geom_holes = convex_hull["geom_holes"]  # type: list[bmesh.types.BMFace]
     # 如果没有未参与凸壳计算的顶点，则为凸多面体
     convex = geom_interior == []
     # print(convex_hull['geom'])
-    # print("geom_interior", verts_interior)
+    # print("geom_interior", [v.index for v in convex_hull["geom_interior"]])
     # print("geom_unused", [i.index for i in convex_hull["geom_unused"]])
     # print("geom_holes", [i.index for i in convex_hull["geom_holes"]])
+
+    def get_vert_index(verts) -> list[int]:
+        vert_index = []
+        # 遍历未参与凸壳计算的顶点
+        for v in verts:
+            idx = vert_map.get(v.co.to_tuple(4), None)
+            if idx is None:
+                print(f"error: {v.co.to_tuple(4)} not in vert_map")
+                vert_index = []
+                break
+            vert_index.append(idx)
+        return vert_index
+
     # 如果不是凸多面体
     if not convex:
-        # 判断内部顶点是否共面
-        is_interior_coplanar = True
-        if len(geom_interior) > 2:
-            pt = geom_interior[0].co
-            dir1 = geom_interior[1].co - pt
-            normal = None  # type: Vector # type: ignore
-            for v in geom_interior[2:]:
-                dir2 = v.co - pt
-                normal2 = dir1.cross(dir2).normalized()
-                # 长度为0，跳过共线顶点
-                if normal2.length == 0:
-                    continue
-                # 初次赋值
-                if normal is None:
-                    normal = normal2
-                    continue
-                # 如果法向不在同一直线
-                if abs(normal.dot(normal2)) < epsilon2:
-                    is_interior_coplanar = False
-                    break
         ########
         verts_index = []
         # proj_normal = None
         concave_type = CONCAVE_T_NONE
-
-        def get_vert_index():
-            vert_index = []
-            for i in geom_interior:
-                idx = vert_map.get(i.co.to_tuple(4), None)
-                if idx is None:
-                    print(f"error: {i.co.to_tuple(4)} not in vert_map")
-                    vert_index = []
-                    break
-                vert_index.append(idx)
-            return vert_index
-
         ########
-        verts_index = get_vert_index()
-        # 如果找不到对应顶点，归为复杂凹多面体
-        if not verts_index:
+
+        # 获取准确的内部顶点，geom_interior并不准确
+        verts_exterior = set(v for f in geom_holes for v in f.verts)
+        verts_ext_idx = get_vert_index(verts_exterior)
+        # 如果找不到对应顶点，也就是出错了，归为复杂凹多面体
+        if not verts_ext_idx:
             concave_type = CONCAVE_T_COMPLEX
-        # 内部顶点共面的情况
-        elif is_interior_coplanar:
-            concave_type = CONCAVE_T_SIMPLE
+        else:
+            geom_interior = [v for v in sec_bm.verts if v.index not in verts_ext_idx]
+            verts_index = [v.index for v in geom_interior]
+
+            # 判断内部顶点是否共面
+            is_interior_coplanar = True
+            if len(geom_interior) > 2:
+                pt = geom_interior[0].co
+                dir1 = geom_interior[1].co - pt
+                normal = None  # type: Vector # type: ignore
+                for v in geom_interior[2:]:
+                    dir2 = v.co - pt
+                    normal2 = dir1.cross(dir2).normalized()  # type: Vector
+                    # 长度为0，跳过共线顶点
+                    if normal2.length == 0:
+                        continue
+                    # 初次赋值
+                    if normal is None:
+                        normal = normal2
+                        continue
+                    # 如果法向不在同一直线
+                    if abs(normal.dot(normal2)) < epsilon2:
+                        is_interior_coplanar = False
+                        break
+
+            # 内部顶点共面的情况
+            if is_interior_coplanar:
+                concave_type = CONCAVE_T_SIMPLE
 
         sec_data["ConcaveData"] = {
             "verts_index": verts_index,
