@@ -174,7 +174,7 @@ def ensure_null_object() -> Object:
     return null_obj
 
 
-# 确保切割摄像机
+# 确保渲染摄像机
 def ensure_render_camera() -> Object:
     scene_data = bpy.context.scene.amagate_data
     render_cam = scene_data.render_cam  # type: Object

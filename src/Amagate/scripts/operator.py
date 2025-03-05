@@ -868,6 +868,7 @@ class OT_InitMap(bpy.types.Operator):
         data.ensure_collection(data.E_COLL)
         data.ensure_collection(data.C_COLL)
         ## 创建默认对象
+        data.ensure_null_texture()
         data.ensure_null_object()
         data.ensure_render_camera()
         ## 加载纹理
