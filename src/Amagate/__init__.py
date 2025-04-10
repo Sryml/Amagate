@@ -1,7 +1,7 @@
 import importlib
 
 import os
-
+import bpy
 from .scripts import data, operator, operator_sector, panel, translations
 
 
@@ -38,6 +38,24 @@ def register():
     panel.register()
     translations.register()
     data.register_shortcuts()
+
+    # 检查包是否已安装
+    try:
+        import cvxpy
+        import ecos
+
+        data.PY_PACKAGES_INSTALLED = True
+    except ImportError:
+        # 如果未安装，显示N面板并延迟安装包
+        bpy.app.timers.register(
+            lambda: data.show_region_ui() and None,  # type: ignore
+            first_interval=0.1,
+        )
+        # 延迟安装包
+        bpy.app.timers.register(
+            lambda: data.install_packages() and None,  # type: ignore
+            first_interval=0.25,
+        )
 
     loaded = True
     print("Amagate register")

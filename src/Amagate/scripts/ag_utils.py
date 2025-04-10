@@ -5,6 +5,10 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import locale
 import ctypes
 import time
 import contextlib
@@ -51,7 +55,36 @@ CONCAVE_T_NONE = 0
 CONCAVE_T_SIMPLE = 1
 CONCAVE_T_NORMAL = 2
 CONCAVE_T_COMPLEX = 3
+
+
+# Blender 的 Python 路径
+python_exe = sys.executable
+
+# 根据系统语言设置pip源
+# 如果是中文系统,使用阿里云镜像源加快下载速度
+# 否则使用默认pip源
+if locale.setlocale(locale.LC_ALL, "").startswith("Chinese"):
+    pip_index_url = "https://mirrors.aliyun.com/pypi/simple"
+else:
+    pip_index_url = ""
+
 ############################
+
+
+# 安装包
+def install_package(packages_name):
+    # 检查是否设置了pip镜像源，根据设置，构建pip命令参数
+    if pip_index_url:
+        args = f" -i {pip_index_url}"
+    else:
+        args = ""
+    # 构建完整的命令行命令，包括安装pip，升级pip和安装指定的包
+    combined_cmd = f"{python_exe} -m ensurepip && {python_exe} -m pip install --upgrade pip && {python_exe} -m pip install {' '.join(packages_name)}{args}"
+    # 调用子进程执行命令行命令
+    subprocess.call(combined_cmd, shell=True)
+    # 安装完成后打印已安装的包名称
+    print(f">>> Installed packages: {' '.join(packages_name)}")
+    # python.exe -m pip uninstall ecos cvxpy -y
 
 
 # 定义 Windows API 中的 keybd_event 函数

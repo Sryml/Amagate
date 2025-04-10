@@ -37,6 +37,32 @@ class N_Panel:
 
 
 ############################
+############################ py包安装面板
+############################
+class AMAGATE_PT_PyPackages(N_Panel, bpy.types.Panel):
+    bl_label = "Python Packages"
+    # bl_options = {"HIDE_HEADER"}
+
+    @classmethod
+    def poll(cls, context):
+        return not data.PY_PACKAGES_INSTALLED
+
+    def draw(self, context: Context):
+        layout = self.layout
+        col = layout.column()
+
+        if data.PY_PACKAGES_INSTALLING:
+            col.alert = True
+            col.label(text="Installing Python packages...", icon="CONSOLE")
+        else:
+            col.alert = True
+            col.label(text="Failed to install Python packages,", icon="ERROR")
+            col.label(text="please try again!")
+            col.alert = False
+            col.operator(OP.OT_InstallPyPackages.bl_idname)
+
+
+############################
 ############################ 场景面板
 ############################
 class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
@@ -45,7 +71,7 @@ class AMAGATE_PT_Scene(N_Panel, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        return True
+        return data.PY_PACKAGES_INSTALLED
 
     # 在4.4版本中会出错，已用其它方案实现
     # def __init__(self):
@@ -739,7 +765,7 @@ class AMAGATE_PT_Tools(N_Panel, bpy.types.Panel):
 
     @classmethod
     def poll(cls, context):
-        return True
+        return data.PY_PACKAGES_INSTALLED
 
     def draw(self, context: Context):
         layout = self.layout

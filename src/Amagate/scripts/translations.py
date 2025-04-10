@@ -23,6 +23,12 @@ translations_dict = {
         ("Operator", "Delete Sector"): "删除扇区",
         ("Property", "Yes"): "是",
         ("Property", "No"): "否",
+        # py包安装面板
+        ("*", "Installing Python packages..."): "正在安装Python包...",
+        ("*", "Failed to install Python packages,"): "Python包安装失败,",
+        ("*", "please try again!"): "请点击按钮重试!",
+        ("*", "Successfully installed!"): "安装成功!",
+        ("Operator", "Install Python Packages"): "安装Python包",
         # 场景属性面板
         ("Operator", "Show HUD"): "显示 HUD",
         # 大气面板

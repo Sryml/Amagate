@@ -55,8 +55,15 @@ if TYPE_CHECKING:
 ############################ 全局变量
 Copyright = "(C) 2024-2025 Sryml"
 
+# 获取插件包名
 PACKAGE = ".".join(__package__.split(".")[:-1])
+# 获取插件根目录路径
 ADDON_PATH = os.path.abspath(f"{os.path.dirname(__file__)}/..")
+# python包是否安装
+PY_PACKAGES_INSTALLED = False
+# python包正在安装
+PY_PACKAGES_INSTALLING = False
+
 
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
     VERSION = v.read().strip()
@@ -95,6 +102,16 @@ def area_redraw(target):
     for area in bpy.context.screen.areas:
         if area.type == target:
             area.tag_redraw()
+
+
+def active_panel_category(region, category):
+    def warp():
+        try:
+            region.active_panel_category = category  # type: ignore
+        except:
+            pass
+
+    return warp
 
 
 # XXX 弃用的
@@ -487,9 +504,9 @@ class AmagatePreferences(bpy.types.AddonPreferences):
     fold_state: BoolProperty(name="Fold State", default=True)  # type: ignore
     is_user_modified: BoolProperty(default=False)  # type: ignore
 
-    def __init__(self):
-        super().__init__()
-        # self.fold_state = False
+    # def __init__(self):
+    #     super().__init__()
+    # self.fold_state = False
 
     def draw(self, context: Context):
         self.is_user_modified = False
@@ -2208,3 +2225,44 @@ def unregister():
     if draw_handler is not None:
         bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
         draw_handler = None
+
+
+def show_region_ui():
+    global PY_PACKAGES_INSTALLING
+    PY_PACKAGES_INSTALLING = True
+    area = next(
+        (area for area in bpy.context.screen.areas if area.type == "VIEW_3D"), None
+    )
+
+    if area:
+        # 显示N面板
+        with bpy.context.temp_override(area=area):
+            bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
+
+        region = next(r for r in area.regions if r.type == "UI")
+        bpy.app.timers.register(
+            active_panel_category(region, "Amagate"), first_interval=0.05
+        )
+        # 更新UI
+        area_redraw("VIEW_3D")
+
+
+def install_packages():
+    global PY_PACKAGES_INSTALLED, PY_PACKAGES_INSTALLING
+    packages = ["cvxpy", "ecos"]
+
+    # 安装包
+    ag_utils.install_package(packages)
+    PY_PACKAGES_INSTALLING = False
+
+    # 检查包是否安装成功
+    try:
+        import cvxpy
+        import ecos
+
+        PY_PACKAGES_INSTALLED = True
+    except ImportError:
+        pass
+
+    # 更新UI
+    area_redraw("VIEW_3D")

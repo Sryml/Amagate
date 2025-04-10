@@ -48,6 +48,41 @@ if TYPE_CHECKING:
 
 
 ############################
+############################ 通用操作
+############################
+
+
+# 反馈消息
+class OT_ReportMessage(bpy.types.Operator):
+    bl_idname = "amagate.report_message"
+    bl_label = "Report Message"
+    bl_options = {"INTERNAL"}
+
+    message: StringProperty(default="No message provided")  # type: ignore
+    type: StringProperty(default="INFO")  # type: ignore
+
+    def execute(self, context: Context):
+        self.report({self.type}, self.message)
+        return {"FINISHED"}
+
+
+############################
+############################ py包安装面板
+############################
+class OT_InstallPyPackages(bpy.types.Operator):
+    bl_idname = "amagate.install_py_packages"
+    bl_label = "Install Python Packages"
+    bl_description = "Install Python packages"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        data.install_packages()
+        if data.PY_PACKAGES_INSTALLED:
+            self.report({"INFO"}, "Successfully installed!")
+        return {"FINISHED"}
+
+
+############################
 ############################ 场景面板 -> 属性面板
 ############################
 
@@ -908,6 +943,7 @@ class OT_InitMap(bpy.types.Operator):
 
         # TODO 添加默认摄像机 添加默认扇区 调整视角
 
+        ## 分割编辑器
         split_editor(context)
         scene_data.is_blade = True
 
@@ -981,18 +1017,8 @@ def split_editor(context: Context):
 
     region = next(r for r in area.regions if r.type == "UI")
     bpy.app.timers.register(
-        active_panel_category(region, "Amagate"), first_interval=0.05
+        data.active_panel_category(region, "Amagate"), first_interval=0.05
     )
-
-
-def active_panel_category(region, category):
-    def warp():
-        try:
-            region.active_panel_category = category  # type: ignore
-        except:
-            pass
-
-    return warp
 
 
 # 合并地图
