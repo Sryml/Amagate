@@ -1,6 +1,8 @@
 .note/
 .test/
 __pycache__/
+_BAT/
+_LOG/
 
 **/version
 **/*.tmp
