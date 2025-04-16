@@ -88,6 +88,8 @@ translations_dict = {
         ("*", "Sector"): "扇区",
         ("*", "Selected Sector"): "选中的扇区",
         ("*", "Convex Polyhedron"): "凸多面体",
+        ("*", "Is 2-Sphere"): "二维球面",
+
         ("Operator", "Convert to Sector"): "转换为扇区",
         ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
         ("*", "No mesh objects selected"): "未选择网格物体",

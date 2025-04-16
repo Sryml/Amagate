@@ -291,6 +291,18 @@ def is_point_on_segment(pt, p1, p2):
     return v1.normalized().dot(v2.normalized()) > epsilon2 and v2.length < v1.length
 
 
+# 判断物体拓扑类型是否为二维球面
+def is_2d_sphere(obj: Object):
+    """判断物体拓扑类型是否为二维球面"""
+    sec_data = obj.amagate_data.get_sector_data()
+    mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+    # 检查欧拉特征
+    euler_characteristic = len(mesh.vertices) - len(mesh.edges) + len(mesh.polygons)
+    if euler_characteristic != 2:
+        return False
+    return True
+
+
 # 判断物体是否为凸多面体
 def is_convex(obj: Object):
     """判断物体是否为凸多面体"""

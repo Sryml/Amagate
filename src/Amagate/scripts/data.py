@@ -665,6 +665,8 @@ def geometry_modify_post(selected_sectors: list[Object] = []):
         selected_sectors = ag_utils.get_selected_sectors()[0]
     for sec in selected_sectors:
         sec.amagate_data.get_sector_data().is_convex = ag_utils.is_convex(sec)
+        sec.amagate_data.get_sector_data().is_2d_sphere = ag_utils.is_2d_sphere(sec)
+
     # 凸面检查
     bpy.ops.ed.undo_push(message="Convex Check")
 
@@ -778,7 +780,25 @@ def draw_callback_3d():
     selected_sectors = ag_utils.get_selected_sectors()[0]
     sector_num = len(selected_sectors)
 
-    #
+    # 二维球面
+    is_2d_sphere = pgettext("None")
+    color = ag_utils.DefColor.nofocus
+    if selected_sectors:
+        color = ag_utils.DefColor.red
+        is_2d_sphere = selected_sectors[0].amagate_data.get_sector_data().is_2d_sphere
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.is_2d_sphere != is_2d_sphere:
+                is_2d_sphere = "*"
+                break
+        if is_2d_sphere == True:
+            is_2d_sphere = pgettext("Yes", "Property")
+            color = ag_utils.DefColor.white
+        elif is_2d_sphere == False:
+            is_2d_sphere = pgettext("No", "Property")
+    texts.append((f"{pgettext('Is 2-Sphere')}: {is_2d_sphere}", color))
+
+    # 凸多面体
     is_convex = pgettext("None")
     color = ag_utils.DefColor.nofocus
     if selected_sectors:
@@ -795,7 +815,8 @@ def draw_callback_3d():
         elif is_convex == 0:
             is_convex = pgettext("No", "Property")
     texts.append((f"{pgettext('Convex Polyhedron')}: {is_convex}", color))
-    #
+
+    # 选中的扇区
     text = (
         f"{pgettext('Selected Sector')}: {sector_num} / {len(context.selected_objects)}"
     )
@@ -1708,6 +1729,8 @@ class SectorProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     has_sky: BoolProperty(default=False)  # type: ignore
     is_convex: BoolProperty(default=False)  # type: ignore
+    is_2d_sphere: BoolProperty(default=False)  # type: ignore
+
     # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
@@ -2078,6 +2101,8 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # 判断是否为凸物体
         self.is_convex = ag_utils.is_convex(obj)
+        # 判断是否为二维球面
+        self.is_2d_sphere = ag_utils.is_2d_sphere(obj)
 
         obj.amagate_data.is_sector = True
 
