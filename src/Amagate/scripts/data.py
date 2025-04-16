@@ -93,9 +93,16 @@ FACE_FLAG = {"Floor": -1, "Ceiling": -2, "Wall": -3}
 
 
 def region_redraw(target):
-    for region in bpy.context.area.regions:
-        if region.type == target:
-            region.tag_redraw()  # 刷新该区域
+    area = bpy.context.area
+    if not area:
+        area = next(
+            (area for area in bpy.context.screen.areas if area.type == "VIEW_3D"), None
+        )
+
+    if area:
+        for region in area.regions:
+            if region.type == target:
+                region.tag_redraw()  # 刷新该区域
 
 
 def area_redraw(target):
@@ -112,6 +119,24 @@ def active_panel_category(region, category):
             pass
 
     return warp
+
+
+def show_region_ui():
+    area = next(
+        (area for area in bpy.context.screen.areas if area.type == "VIEW_3D"), None
+    )
+
+    if area:
+        # 显示N面板
+        with bpy.context.temp_override(area=area):
+            bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
+
+        region = next(r for r in area.regions if r.type == "UI")
+        bpy.app.timers.register(
+            active_panel_category(region, "Amagate"), first_interval=0.05
+        )
+        # 更新UI
+        area_redraw("VIEW_3D")
 
 
 # XXX 弃用的
@@ -2057,6 +2082,15 @@ class SectorProperty(bpy.types.PropertyGroup):
         obj.amagate_data.is_sector = True
 
 
+# 进度条属性
+class ProgressBarProperty(bpy.types.PropertyGroup):
+    # py包安装进度条
+    pyp_install_progress: FloatProperty(name="Progress", default=0.0, min=0, max=1, precision=6, update=lambda self, context: self.pyp_install_progress_update(context))  # type: ignore
+
+    def pyp_install_progress_update(self, context):
+        region_redraw("UI")
+
+
 # 图像属性
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
@@ -2102,6 +2136,10 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 通用属性
     sector_public: PointerProperty(type=SectorProperty)  # type: ignore
+
+    # 进度条
+    progress_bar: PointerProperty(type=ProgressBarProperty)  # type: ignore
+
     ############################
 
     def get_active_texture(self):
@@ -2225,44 +2263,3 @@ def unregister():
     if draw_handler is not None:
         bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
         draw_handler = None
-
-
-def show_region_ui():
-    global PY_PACKAGES_INSTALLING
-    PY_PACKAGES_INSTALLING = True
-    area = next(
-        (area for area in bpy.context.screen.areas if area.type == "VIEW_3D"), None
-    )
-
-    if area:
-        # 显示N面板
-        with bpy.context.temp_override(area=area):
-            bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
-
-        region = next(r for r in area.regions if r.type == "UI")
-        bpy.app.timers.register(
-            active_panel_category(region, "Amagate"), first_interval=0.05
-        )
-        # 更新UI
-        area_redraw("VIEW_3D")
-
-
-def install_packages():
-    global PY_PACKAGES_INSTALLED, PY_PACKAGES_INSTALLING
-    packages = ["cvxpy", "ecos"]
-
-    # 安装包
-    ag_utils.install_package(packages)
-    PY_PACKAGES_INSTALLING = False
-
-    # 检查包是否安装成功
-    try:
-        import cvxpy
-        import ecos
-
-        PY_PACKAGES_INSTALLED = True
-    except ImportError:
-        pass
-
-    # 更新UI
-    area_redraw("VIEW_3D")

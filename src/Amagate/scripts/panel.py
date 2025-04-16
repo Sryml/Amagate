@@ -48,12 +48,17 @@ class AMAGATE_PT_PyPackages(N_Panel, bpy.types.Panel):
         return not data.PY_PACKAGES_INSTALLED
 
     def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
+
         layout = self.layout
         col = layout.column()
 
         if data.PY_PACKAGES_INSTALLING:
-            col.alert = True
+            # col.alert = True
             col.label(text="Installing Python packages...", icon="CONSOLE")
+            col.progress(
+                factor=scene_data.progress_bar.pyp_install_progress, type="BAR"
+            )
         else:
             col.alert = True
             col.label(text="Failed to install Python packages,", icon="ERROR")

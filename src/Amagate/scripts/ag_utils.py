@@ -71,20 +71,112 @@ else:
 ############################
 
 
+# pyp安装进度定时器
+def pyp_install_progress_timer(start_time, total_time=10.0, fps=24):
+    interval = 1.0 / fps
+    # 增量值
+    increment = 1.0 / (total_time * fps)
+    increment_fast = 1.0 / fps
+    glob = {
+        "increment": increment,
+        "increment_fast": increment_fast,
+        "installing": True,
+        "success": False,
+    }
+
+    ####
+    def warp():
+        current_time = time.time()
+        elapsed_time = current_time - start_time
+        # 如果正在安装包，读取日志文件判断是否安装完成
+        if elapsed_time > 3 and glob["installing"]:
+            log_path = os.path.join(data.ADDON_PATH, "_LOG", "install_py_package.log")
+            with open(log_path, "r") as f:
+                installing = f.read().strip()
+            # 如果安装完成，判断是否安装成功
+            if installing == "0":
+                glob["installing"] = False
+
+                try:
+                    import cvxpy
+                    import ecos
+
+                    glob["success"] = True
+                except ImportError:
+                    data.PY_PACKAGES_INSTALLING = False
+                    return None
+            # 超时情况
+            elif elapsed_time > 180:
+                data.PY_PACKAGES_INSTALLING = False
+                return None
+
+        scene_data = bpy.context.scene.amagate_data
+        pre_v = scene_data.progress_bar.pyp_install_progress
+
+        # 如果安装完成，加快进度条速度
+        if glob["success"]:
+            increment = glob["increment_fast"]
+        elif pre_v >= 0.95:
+            increment = 0.0
+        else:
+            increment = glob["increment"]
+
+        new_v = min(1.0, pre_v + increment)
+        scene_data.progress_bar.pyp_install_progress = new_v
+        if new_v == 1.0:
+            data.PY_PACKAGES_INSTALLING = False
+            data.PY_PACKAGES_INSTALLED = True
+            return None
+        else:
+            return interval
+
+    ####
+    return warp
+
+
 # 安装包
-def install_package(packages_name):
+def install_packages(packages_name):
+    # 设置安装状态
+    data.PY_PACKAGES_INSTALLING = True
+    log_path = os.path.join(data.ADDON_PATH, "_LOG", "install_py_package.log")
+    with open(log_path, "w") as f:
+        # 日志写入1表示正在安装中，0表示安装结束
+        f.write("1")
+
+    # 启动进度条
+    bpy.app.timers.register(
+        pyp_install_progress_timer(time.time()),  # type: ignore
+        first_interval=0.1,
+    )
+
+    # 开始安装
     # 检查是否设置了pip镜像源，根据设置，构建pip命令参数
     if pip_index_url:
         args = f" -i {pip_index_url}"
     else:
         args = ""
-    # 构建完整的命令行命令，包括安装pip，升级pip和安装指定的包
-    combined_cmd = f"{python_exe} -m ensurepip && {python_exe} -m pip install --upgrade pip && {python_exe} -m pip install {' '.join(packages_name)}{args}"
-    # 调用子进程执行命令行命令
-    subprocess.call(combined_cmd, shell=True)
-    # 安装完成后打印已安装的包名称
-    print(f">>> Installed packages: {' '.join(packages_name)}")
-    # python.exe -m pip uninstall ecos cvxpy -y
+    # 构建命令行命令
+    combined_cmd = f'"{python_exe}" -m pip install {" ".join(packages_name)}{args}'
+    # f"{python_exe} -m pip install --no-cache-dir {' '.join(packages_name)}{args}"
+    # 写入批处理文件
+    bat_path = os.path.join(data.ADDON_PATH, "_BAT", "install_py_package.bat")
+    with open(bat_path, "w") as f:
+        f.write(f"{combined_cmd}\n")
+        f.write("@timeout /t 2 /nobreak > nul\n")
+        f.write(f'@echo 0 > "{log_path}"\n')
+        f.write("@echo install_py_package.bat done.")
+
+    # 调用子进程执行批处理文件
+    subprocess.Popen(
+        ["cmd", "/c", bat_path],
+        shell=True,
+        # creationflags=subprocess.CREATE_NO_WINDOW,  # 彻底不显示窗口
+        # stdin=subprocess.PIPE,
+        # stdout=subprocess.PIPE,
+        # stderr=subprocess.PIPE,
+    )
+
+    # python.exe -m pip uninstall MarkupSafe joblib scs jinja2 ecos clarabel osqp cvxpy -y
 
 
 # 定义 Windows API 中的 keybd_event 函数

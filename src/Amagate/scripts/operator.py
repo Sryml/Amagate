@@ -13,6 +13,7 @@ import struct
 import contextlib
 import shutil
 import threading
+import time
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -76,9 +77,10 @@ class OT_InstallPyPackages(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context: Context):
-        data.install_packages()
-        if data.PY_PACKAGES_INSTALLED:
-            self.report({"INFO"}, "Successfully installed!")
+        # 初始化进度条
+        scene_data = bpy.context.scene.amagate_data
+        scene_data.progress_bar.pyp_install_progress = 0.0
+        ag_utils.install_packages(["cvxpy", "ecos"])
         return {"FINISHED"}
 
 

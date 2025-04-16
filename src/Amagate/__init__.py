@@ -1,7 +1,9 @@
 import importlib
-
+import time
 import os
+
 import bpy
+
 from .scripts import data, operator, operator_sector, panel, translations
 
 
@@ -46,16 +48,15 @@ def register():
 
         data.PY_PACKAGES_INSTALLED = True
     except ImportError:
-        # 如果未安装，显示N面板并延迟安装包
+        from .scripts import ag_utils
+
+        # 如果未安装，显示N面板展示安装进度
         bpy.app.timers.register(
-            lambda: data.show_region_ui() and None,  # type: ignore
+            data.show_region_ui,  # type: ignore
             first_interval=0.1,
         )
-        # 延迟安装包
-        bpy.app.timers.register(
-            lambda: data.install_packages() and None,  # type: ignore
-            first_interval=0.25,
-        )
+        # 安装包
+        ag_utils.install_packages(["cvxpy", "ecos"])
 
     loaded = True
     print("Amagate register")
