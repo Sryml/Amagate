@@ -12,15 +12,21 @@ import locale
 import ctypes
 import time
 import contextlib
-
 import math
+
 from typing import Any, TYPE_CHECKING
 from io import StringIO, BytesIO
 
+#
+import numpy as np
+import cvxpy as cp
+
+#
 import bpy
 import bmesh
 from mathutils import *  # type: ignore
 
+#
 from . import data
 
 if TYPE_CHECKING:
@@ -307,6 +313,11 @@ def is_2d_sphere(obj: Object):
 def is_convex(obj: Object):
     """判断物体是否为凸多面体"""
     sec_data = obj.amagate_data.get_sector_data()
+
+    # 如果不是二维球面，直接返回False
+    if not sec_data.is_2d_sphere:
+        return False
+
     sec_bm = bmesh.new()
     sec_bm.from_mesh(obj.data)  # type: ignore
     bm = sec_bm.copy()
@@ -378,12 +389,14 @@ def is_convex(obj: Object):
         ########
 
         # 获取准确的内部顶点，geom_interior并不准确
+        # 获取外部顶点索引
         verts_exterior = set(v for f in geom_holes for v in f.verts)
         verts_ext_idx = get_vert_index(verts_exterior)
         # 如果找不到对应顶点，也就是出错了，归为复杂凹多面体
         if not verts_ext_idx:
             concave_type = CONCAVE_T_COMPLEX
         else:
+            # 获取内部顶点索引
             geom_interior = [v for v in sec_bm.verts if v.index not in verts_ext_idx]
             verts_index = [v.index for v in geom_interior]
 
@@ -464,6 +477,68 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
     else:
         SectorManage["max_id"] -= 1
     SectorManage["sectors"].pop(id_key)
+
+
+#
+def determine_hemisphere(vectors, tolerance=1e-6):
+    """
+    判断所有单位向量是否位于同一半球内，如果是，返回最优方向向量。
+
+    参数:
+        vectors (list of array-like): 单位向量列表。
+        tolerance (float): 数值容忍度，用于处理浮点误差。
+
+    返回:
+        tuple: (是否存在半球, 最优方向向量或None)
+    """
+    if not vectors:
+        return (False, None)
+
+    # 转换为numpy数组
+    V = np.array(vectors)
+    m, n = V.shape
+
+    # 定义优化变量
+    d = cp.Variable(n)
+    t = cp.Variable()
+
+    # 约束条件：所有向量的点积至少为t，且d的范数不超过1
+    constraints = [V @ d >= t * np.ones(m), cp.norm(d) <= 1]
+
+    # 最大化t
+    problem = cp.Problem(cp.Maximize(t), constraints)
+
+    # 尝试求解问题
+    try:
+        problem.solve(solver=cp.ECOS, abstol=1e-8, reltol=1e-8, feastol=1e-8)
+    except Exception as e:
+        print(f"求解过程中出现错误: {e}")
+        return (False, None)
+
+    # 检查求解状态
+    if problem.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
+        return (False, None)
+
+    t_max = t.value
+    d_val = d.value
+
+    if d_val is None:
+        return (False, None)
+
+    # 计算d的范数
+    d_norm = np.linalg.norm(d_val)
+    if d_norm < tolerance:
+        return (False, None)
+
+    # 归一化方向向量
+    d_dir = d_val / d_norm
+
+    # 验证所有点积是否非负（考虑数值误差）
+    min_dot = min(np.dot(d_dir, v) for v in vectors)
+    if min_dot >= -tolerance:
+        return (True, d_dir)
+
+    return (False, None)
 
 
 ############################

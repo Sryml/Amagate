@@ -664,8 +664,9 @@ def geometry_modify_post(selected_sectors: list[Object] = []):
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
     for sec in selected_sectors:
-        sec.amagate_data.get_sector_data().is_convex = ag_utils.is_convex(sec)
-        sec.amagate_data.get_sector_data().is_2d_sphere = ag_utils.is_2d_sphere(sec)
+        sec_data = sec.amagate_data.get_sector_data()
+        sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
+        sec_data.is_convex = ag_utils.is_convex(sec)
 
     # 凸面检查
     bpy.ops.ed.undo_push(message="Convex Check")
@@ -781,7 +782,7 @@ def draw_callback_3d():
     sector_num = len(selected_sectors)
 
     # 二维球面
-    is_2d_sphere = pgettext("None")
+    is_2d_sphere_text = pgettext("None")
     color = ag_utils.DefColor.nofocus
     if selected_sectors:
         color = ag_utils.DefColor.red
@@ -789,32 +790,41 @@ def draw_callback_3d():
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.is_2d_sphere != is_2d_sphere:
-                is_2d_sphere = "*"
+                is_2d_sphere = -1
+                is_2d_sphere_text = "*"
                 break
         if is_2d_sphere == True:
-            is_2d_sphere = pgettext("Yes", "Property")
+            is_2d_sphere_text = pgettext("Yes", "Property")
             color = ag_utils.DefColor.white
         elif is_2d_sphere == False:
-            is_2d_sphere = pgettext("No", "Property")
-    texts.append((f"{pgettext('Is 2-Sphere')}: {is_2d_sphere}", color))
+            is_2d_sphere_text = pgettext("No", "Property")
+    _2d_sphere_label = (f"{pgettext('Is 2-Sphere')}: {is_2d_sphere_text}", color)
 
     # 凸多面体
-    is_convex = pgettext("None")
+    is_convex_text = pgettext("None")
     color = ag_utils.DefColor.nofocus
     if selected_sectors:
         color = ag_utils.DefColor.red
-        is_convex = selected_sectors[0].amagate_data.get_sector_data().is_convex
-        for sec in selected_sectors:
-            sec_data = sec.amagate_data.get_sector_data()
-            if sec_data.is_convex != is_convex:
-                is_convex = "*"
-                break
-        if is_convex == 1:
-            is_convex = pgettext("Yes", "Property")
-            color = ag_utils.DefColor.white
-        elif is_convex == 0:
-            is_convex = pgettext("No", "Property")
-    texts.append((f"{pgettext('Convex Polyhedron')}: {is_convex}", color))
+        # 如果选中的扇区不是二维球面，则显示为空
+        if is_2d_sphere == False:
+            is_convex_text = ""
+        # 如果选中的扇区是混合拓扑类型，则显示为`*`
+        elif is_2d_sphere == -1:
+            is_convex_text = "*"
+        else:
+            is_convex = selected_sectors[0].amagate_data.get_sector_data().is_convex
+            for sec in selected_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                if sec_data.is_convex != is_convex:
+                    is_convex = -1
+                    is_convex_text = "*"
+                    break
+            if is_convex == True:
+                is_convex_text = pgettext("Yes", "Property")
+                color = ag_utils.DefColor.white
+            elif is_convex == False:
+                is_convex_text = pgettext("No", "Property")
+    convex_label = (f"{pgettext('Convex Polyhedron')}: {is_convex_text}", color)
 
     # 选中的扇区
     text = (
@@ -824,7 +834,12 @@ def draw_callback_3d():
         color = ag_utils.DefColor.nofocus
     else:
         color = ag_utils.DefColor.white
-    texts.append((text, color))
+    selected_sector_label = (text, color)
+
+    # 从下往上绘制HUD信息
+    texts.append(convex_label)
+    texts.append(_2d_sphere_label)
+    texts.append(selected_sector_label)
     #
     font_id = 0  # 内置字体
     for i in range(len(texts)):
@@ -2099,10 +2114,10 @@ class SectorProperty(bpy.types.PropertyGroup):
             self.external_id = self.external_id
             self.ambient_color = self.ambient_color
 
-        # 判断是否为凸物体
-        self.is_convex = ag_utils.is_convex(obj)
         # 判断是否为二维球面
         self.is_2d_sphere = ag_utils.is_2d_sphere(obj)
+        # 判断是否为凸物体
+        self.is_convex = ag_utils.is_convex(obj)
 
         obj.amagate_data.is_sector = True
 

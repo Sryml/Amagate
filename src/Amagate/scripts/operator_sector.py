@@ -539,8 +539,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         """分割（简单）"""
         sec_data = sec.amagate_data.get_sector_data()
 
-    def pre_separate_normal(self, context: Context, sec: Object):
-        """预分割（普通）"""
+    def pre_separate(self, context: Context, sec: Object):
+        """预分割"""
         sec_data = sec.amagate_data.get_sector_data()
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
@@ -577,18 +577,18 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         context.view_layer.objects.active = sec  # 设置活动物体
         bpy.ops.object.mode_set(mode="EDIT")  # 进入编辑模式
         bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        bm_tmp = bmesh.from_edit_mesh(mesh)
-        bm_tmp.faces.ensure_lookup_table()
+        bm_edit = bmesh.from_edit_mesh(mesh)
+        bm_edit.faces.ensure_lookup_table()
         for i in faces_index:
-            bm_tmp.faces[i].select_set(True)  # 选择面
+            bm_edit.faces[i].select_set(True)  # 选择面
         bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-        face_num = len(bm_tmp.faces)
+        face_num = len(bm_edit.faces)
         bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
-        if len(bm_tmp.faces) != face_num:
-            faces_index = set(f.index for f in bm_tmp.faces if f.select)
+        if len(bm_edit.faces) != face_num:
+            faces_index = set(f.index for f in bm_edit.faces if f.select)
             # 更新sec_bm数据
             sec_bm.free()
-            sec_bm = bm_tmp.copy()
+            sec_bm = bm_edit.copy()
             sec_bm.verts.ensure_lookup_table()
             sec_bm.faces.ensure_lookup_table()
             # 内部顶点
@@ -740,13 +740,13 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         context.view_layer.objects.active = knife_obj  # 设置活动物体
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        bm_tmp = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
-        face_num = len(bm_tmp.faces)
+        bm_edit = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
+        face_num = len(bm_edit.faces)
         with contextlib.redirect_stdout(StringIO()):
             # 交集(切割)
             bpy.ops.mesh.intersect(mode="SELECT")
         # 如果存在交集
-        if len(bm_tmp.faces) != face_num:
+        if len(bm_edit.faces) != face_num:
             print(f"{knife_obj.name} has intersect")
             bpy.ops.object.mode_set(mode="OBJECT")
             bpy.data.meshes.remove(knife_mesh)
@@ -778,8 +778,10 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
     def execute(self, context: Context):
         global separate_data
         if self.is_button:
+            # 如果是从UI面板的按钮执行，使用缓存值
             selected_sectors = data.SELECTED_SECTORS
         else:
+            # 如果是从F3执行，获取当前选中的扇区
             selected_sectors = ag_utils.get_selected_sectors()[0]
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
@@ -787,7 +789,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             self.report({"WARNING"}, "Select at least one sector")
             return {"CANCELLED"}
 
-        #
+        # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
             data.geometry_modify_post(selected_sectors)
@@ -795,15 +797,21 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # knife_project = []
         separate_list = []
         complex_list = []
+        non_2d_sphere_list = []
         has_separate_simple = False
+
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             # 跳过凸多面体
             if sec_data.is_convex:
                 continue
+            # 跳过非二维球面
+            if not sec_data.is_2d_sphere:
+                non_2d_sphere_list.append(sec)
+                continue
 
             concave_type = sec_data["ConcaveData"]["concave_type"]
-            # # 跳过复杂凹多面体
+            # 跳过复杂凹多面体
             if concave_type == ag_utils.CONCAVE_T_COMPLEX:
                 complex_list.append(sec)
                 continue
@@ -812,9 +820,9 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             if concave_type == ag_utils.CONCAVE_T_SIMPLE:
                 self.separate_simple(context, sec)
                 has_separate_simple = True
-            # 其它情况
+            # 其它情况，预分割判断是复杂还是普通凹面
             else:
-                ret = self.pre_separate_normal(context, sec)
+                ret = self.pre_separate(context, sec)
                 if ret["is_complex"]:
                     complex_list.append(sec)
                 else:
