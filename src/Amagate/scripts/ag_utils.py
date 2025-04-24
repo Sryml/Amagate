@@ -19,7 +19,7 @@ from io import StringIO, BytesIO
 
 #
 import numpy as np
-import cvxpy as cp
+from scipy.optimize import minimize
 
 #
 import bpy
@@ -185,6 +185,11 @@ def install_packages(packages_name):
     # python.exe -m pip uninstall MarkupSafe joblib scs jinja2 ecos clarabel osqp cvxpy -y
 
 
+def debugprint(message: str):
+    if data.DEBUG:
+        print(f"[DEBUG] {message}")
+
+
 # 定义 Windows API 中的 keybd_event 函数
 def simulate_keypress(keycode: int):
     # 0x1B 是 Esc 键的虚拟键码
@@ -198,9 +203,45 @@ def simulate_keypress(keycode: int):
     ctypes.windll.user32.keybd_event(keycode, 0, 2, 0)
 
 
-# 获取同一直线的边
-def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None):  # type: ignore
-    """获取同一直线的边"""
+# 获取相同法线的相连面
+def get_faces_with_normal_conn(face, visited=None):  # type: ignore
+    # type: (bmesh.types.BMFace, set[int]) -> set[int]
+    """
+    获取与给定面具有相同法线的相连面的索引。
+    :param face: 起始的面。
+    :param visited: 已访问的面集合。
+    :return: 具有相同法线的相连面的索引列表。
+    """
+    if visited is None:
+        visited = set()  # 初始化已访问集合
+
+    # 添加到已访问集合
+    visited.add(face.index)
+    # 初始化结果列表
+    result = {face.index}
+    # 获取法线
+    normal = face.normal.copy()
+    # 遍历面的顶点
+    for v in face.verts:
+        # 遍历顶点的面
+        for f in v.link_faces:
+            if f.index not in visited:  # 避免重复访问
+                # 检查法线是否相同
+                if f.normal.dot(normal) > epsilon2:  # 使用阈值来判断法线是否相同
+                    result.update(get_faces_with_normal_conn(f, visited))
+    return result
+
+
+# 获取在同一直线的相连边
+def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None) -> List[int]:  # type: ignore
+    """
+    获取在同一直线上的相连边的索引。
+
+    :param edge: 起始的边。
+    :param limit_face: 限制在指定的面上寻找相连边，默认为None，表示不限制。
+    :param vert: 当前正在处理的顶点，用于递归调用，默认为None。
+    :return: 在同一直线上的相连边的索引列表。
+    """
     edges_index = []
     if not vert:
         edges_index.append(edge.index)
@@ -263,6 +304,138 @@ def get_selected_sectors() -> tuple[list[Object], Object]:
     return selected_sectors, active_sector  # type: ignore
 
 
+# 获取投影法线
+def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
+    # 转换为numpy数组
+    V_INT = np.array(internal_v)
+    V_EXT = np.array(external_v)
+
+    def objective(u):
+        return max(-np.dot(V_INT, u))  # 最大负点积
+
+    # 初始猜测（如平均向量归一化）
+    initial_guess = np.mean(V_INT, axis=0)
+    norm = np.linalg.norm(initial_guess)
+    if norm < 1e-6:
+        debugprint("norm is too small, use svd")
+        initial_guess = np.linalg.svd(V_INT)[2][0]
+    else:
+        initial_guess /= norm
+
+    # 最小化最大负点积
+    result = minimize(
+        objective,
+        initial_guess,
+        constraints={"type": "eq", "fun": lambda u: np.linalg.norm(u) - 1},
+        method="SLSQP",
+        # options={'ftol': 1e-8, 'eps': 1e-8}
+    )
+    if result.success:
+        u = result.x / np.linalg.norm(result.x)  # 确保严格单位长度
+        # 取反，得到投影法向
+        proj_normal_init = -u  # type: Any
+        # 验证内部向量所有点积是否<=0（考虑数值误差）
+        max_dot = max(np.dot(V_INT, proj_normal_init))
+        if max_dot > tolerance:
+            # 查找两个近似垂直的内部向量
+            v_int = []
+            for v in V_INT:
+                count = len(v_int)
+                if count == 2:
+                    break
+                if count == 1:
+                    # 如果与第一个向量平行，跳过
+                    if abs(np.dot(v_int[0], v)) > epsilon2:
+                        continue
+                if abs(np.dot(v, proj_normal_init)) < 1e-3:
+                    v_int.append(v)
+            if len(v_int) == 2:
+                v = np.cross(v_int[0], v_int[1])
+                v /= np.linalg.norm(v)
+                # 如果和初始法向方向相反，则取反
+                if np.dot(v, proj_normal_init) < 0:
+                    v = -v
+                proj_normal_init = v
+                # 验证内部向量所有点积是否<=0（考虑数值误差）
+                max_dot = max(np.dot(proj_normal_init, v) for v in V_INT)
+                if max_dot > tolerance:
+                    proj_normal_init = None
+            else:
+                proj_normal_init = None
+    else:
+        proj_normal_init = None
+        debugprint(f"投影法向优化失败: {result.message}")
+
+    # 尝试优化投影法向
+
+    # 通过权重筛选投影法向
+    def filter_proj_normal(proj_normal_lst, v_ext, v_int) -> Any:
+        for lst in proj_normal_lst:
+            v, w_ext, w_int = lst
+            if w_ext is not None:
+                continue
+            # 与外部平面垂直+1分
+            w_ext = sum(1 for v2 in v_ext if abs(np.dot(v, v2)) < tolerance)
+            lst[1] = w_ext
+        # 排序权重
+        proj_normal_lst.sort(key=lambda x: x[1], reverse=True)
+        # 查找与最大权重一致的其它项
+        weight_max = proj_normal_lst[0][1]
+        proj_normal_lst = [
+            [v, w_ext, _] for v, w_ext, _ in proj_normal_lst if w_ext == weight_max
+        ]
+
+        # 如果符合条件的仍然超过1个，计算内部面权重进一步筛选
+        if len(proj_normal_lst) > 1:
+            for lst in proj_normal_lst:
+                v, w_ext, w_int = lst
+                if w_int is not None:
+                    continue
+                # 与内部面垂直-1分
+                w_int = sum(1 for v2 in v_int if abs(np.dot(v, v2)) < tolerance)
+                lst[2] = w_int
+            # 排序权重
+            proj_normal_lst.sort(key=lambda x: x[2])
+            # 选择权重最小的项
+
+        return proj_normal_lst[0]
+
+    # 能作为投影法向的外部平面，需满足与所有内部面的点积<=0
+    proj_normal_ext_lst = []
+    for v in V_EXT:
+        max_dot = max(np.dot(v, v2) for v2 in V_INT)
+        if max_dot <= tolerance:
+            # 向量，外部平面权重，内部面权重
+            proj_normal_ext_lst.append([v, None, None])
+
+    # 如果符合条件的外部平面超过1个，调用过滤函数
+    if len(proj_normal_ext_lst) > 1:
+        proj_normal_ext = filter_proj_normal(proj_normal_ext_lst, V_EXT, V_INT)
+    elif len(proj_normal_ext_lst) == 1:
+        proj_normal_ext = proj_normal_ext_lst[0]
+    else:
+        proj_normal_ext = None  # type: Any
+
+    # 如果外部平面投影法向与初始投影法向都存在，进行过滤
+    if proj_normal_ext and (proj_normal_init is not None):
+        # 如果法向一致，选择外部平面法向
+        if np.dot(proj_normal_ext[0], proj_normal_init) > epsilon2:
+            proj_normal = proj_normal_ext[0]
+        else:
+            proj_normal = filter_proj_normal(
+                [proj_normal_ext, [proj_normal_init, None, None]], V_EXT, V_INT
+            )[0]
+    # 如果都不存在，则为None
+    elif not (proj_normal_ext or (proj_normal_init is not None)):
+        proj_normal = None  # type: Any
+    # 只有一方存在
+    else:
+        proj_normal = proj_normal_ext[0] if proj_normal_ext else proj_normal_init
+
+    debugprint(f"proj_normal: {proj_normal}")
+    return proj_normal
+
+
 # 射线法，判断点是否在多边形内
 def is_point_in_polygon(pt, poly):
     x, y = pt
@@ -320,35 +493,30 @@ def is_convex(obj: Object):
 
     sec_bm = bmesh.new()
     sec_bm.from_mesh(obj.data)  # type: ignore
-    bm = sec_bm.copy()
+    sec_bm.faces.ensure_lookup_table()
+    bm_convex = sec_bm.copy()
+    bm_convex.faces.ensure_lookup_table()
 
     # 顶点映射
-    vert_map = {v.co.to_tuple(4): i for i, v in enumerate(sec_bm.verts)}
+    # vert_map = {v.co.to_tuple(4): i for i, v in enumerate(sec_bm.verts)}
 
     # 融并内插面
     # bmesh.ops.dissolve_limit(bm, angle_limit=0.001, verts=bm.verts, edges=bm.edges)
-    BMFaces = []
-    for face1 in bm.faces:
-        if next((1 for lst in BMFaces if face1 in lst), 0):
+    # 待融并面列表
+    faces_idx = []
+    visited = set()
+    for f in bm_convex.faces:
+        if f.index in visited:
             continue
 
-        Faces = [face1]
-        normal = face1.normal
-        D = -normal.dot(face1.verts[0].co)
-        for face2 in bm.faces:
-            if next((1 for lst in BMFaces if face2 in lst), 0):
-                continue
+        # 获取相同法线的相连面
+        faces = get_faces_with_normal_conn(f, visited)
+        if len(faces) > 1:
+            faces_idx.append(faces)
 
-            # 判断法向是否在同一直线
-            if face1 != face2 and abs(face2.normal.dot(normal)) > epsilon2:
-                # 判断是否在同一平面
-                if abs(normal.dot(face2.verts[0].co) + D) < epsilon:
-                    Faces.append(face2)
-        if len(Faces) > 1:
-            BMFaces.append(Faces)
-    if BMFaces:
-        for Faces in BMFaces:
-            bmesh.ops.dissolve_faces(bm, faces=Faces, use_verts=True)
+    for item in faces_idx:
+        faces = [bm_convex.faces[i] for i in item]
+        bmesh.ops.dissolve_faces(bm_convex, faces=faces, use_verts=True)
 
     # 重置面法向
     # bmesh.ops.recalc_face_normals(bm, faces=bm.faces)  # type: ignore
@@ -357,83 +525,69 @@ def is_convex(obj: Object):
     # print(f"is_convex: {ret}")
 
     # 创建凸壳
-    convex_hull = bmesh.ops.convex_hull(bm, input=bm.verts, use_existing_faces=True)  # type: ignore
+    convex_hull = bmesh.ops.convex_hull(bm_convex, input=bm_convex.verts, use_existing_faces=True)  # type: ignore
     # verts_interior = [v.index for v in convex_hull["geom_interior"]]  # type: list[int]
+    # 未参与凸壳计算的顶点
     geom_interior = convex_hull["geom_interior"]  # type: list[bmesh.types.BMVert]
+    # 参与凸壳计算的面
     geom_holes = convex_hull["geom_holes"]  # type: list[bmesh.types.BMFace]
     # 如果没有未参与凸壳计算的顶点，则为凸多面体
     convex = geom_interior == []
-    # print(convex_hull['geom'])
+    # print("geom", [(type(i), i.index) for i in convex_hull['geom']])
     # print("geom_interior", [v.index for v in convex_hull["geom_interior"]])
     # print("geom_unused", [i.index for i in convex_hull["geom_unused"]])
     # print("geom_holes", [i.index for i in convex_hull["geom_holes"]])
 
-    def get_vert_index(verts) -> list[int]:
-        vert_index = []
-        # 遍历未参与凸壳计算的顶点
-        for v in verts:
-            idx = vert_map.get(v.co.to_tuple(4), None)
-            if idx is None:
-                print(f"error: {v.co.to_tuple(4)} not in vert_map")
-                vert_index = []
-                break
-            vert_index.append(idx)
-        return vert_index
+    # def get_vert_index(verts) -> list[int]:
+    #     vert_index = []
+    #     # 遍历未参与凸壳计算的顶点
+    #     for v in verts:
+    #         idx = vert_map.get(v.co.to_tuple(4), None)
+    #         if idx is None:
+    #             print(f"error: {v.co.to_tuple(4)} not in vert_map")
+    #             vert_index = []
+    #             break
+    #         vert_index.append(idx)
+    #     return vert_index
 
+    ########
+    flat_ext = []
+    faces_int_idx = []
+    concave_type = CONCAVE_T_NONE
+    ########
     # 如果不是凸多面体
     if not convex:
-        ########
-        verts_index = []
-        # proj_normal = None
-        concave_type = CONCAVE_T_NONE
-        ########
-
         # 获取准确的内部顶点，geom_interior并不准确
-        # 获取外部顶点索引
-        verts_exterior = set(v for f in geom_holes for v in f.verts)
-        verts_ext_idx = get_vert_index(verts_exterior)
-        # 如果找不到对应顶点，也就是出错了，归为复杂凹多面体
-        if not verts_ext_idx:
-            concave_type = CONCAVE_T_COMPLEX
-        else:
-            # 获取内部顶点索引
-            geom_interior = [v for v in sec_bm.verts if v.index not in verts_ext_idx]
-            verts_index = [v.index for v in geom_interior]
+        # 提取外部面平面信息
+        flat_ext = [
+            (f.normal, f.calc_center_median()) for f in geom_holes
+        ]  # type: list[tuple[Vector, Vector]]
 
-            # 判断内部顶点是否共面
-            is_interior_coplanar = True
-            if len(geom_interior) > 2:
-                pt = geom_interior[0].co
-                dir1 = geom_interior[1].co - pt
-                normal = None  # type: Vector # type: ignore
-                for v in geom_interior[2:]:
-                    dir2 = v.co - pt
-                    normal2 = dir1.cross(dir2).normalized()  # type: Vector
-                    # 长度为0，跳过共线顶点
-                    if normal2.length == 0:
-                        continue
-                    # 初次赋值
-                    if normal is None:
-                        normal = normal2
-                        continue
-                    # 如果法向不在同一直线
-                    if abs(normal.dot(normal2)) < epsilon2:
-                        is_interior_coplanar = False
+        # 获取实际的外部面
+        faces_ext_idx = set()
+        for i in flat_ext:
+            normal_ext = i[0]
+            for f in sec_bm.faces:
+                # 如果法线方向一致，则与外部面平行
+                if f.normal.dot(normal_ext) > epsilon2:
+                    # 如果是同一平面，则为外部面
+                    if abs((f.verts[0].co - i[1]).dot(normal_ext)) < epsilon:
+                        faces_ext_idx.update(get_faces_with_normal_conn(f))
                         break
+        # 外部顶点
+        # verts_ext_idx = set(v.index for i in faces_ext_idx for v in sec_bm.faces[i])
+        # 内部面索引
+        faces_int_idx = list(set(range(len(sec_bm.faces))) - faces_ext_idx)
 
-            # 内部顶点共面的情况
-            if is_interior_coplanar:
-                concave_type = CONCAVE_T_SIMPLE
-
-        sec_data["ConcaveData"] = {
-            "verts_index": verts_index,
-            # "proj_normal": proj_normal,
-            "concave_type": concave_type,
-        }
+    sec_data["ConcaveData"] = {
+        "flat_ext": [i[0] for i in flat_ext],
+        "faces_int_idx": faces_int_idx,
+        "concave_type": concave_type,
+    }
 
     # geom=[], geom_interior=[], geom_unused=[], geom_holes=[]
     sec_bm.free()
-    bm.free()
+    bm_convex.free()
     return convex
 
 
@@ -480,65 +634,6 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
 
 
 #
-def determine_hemisphere(vectors, tolerance=1e-6):
-    """
-    判断所有单位向量是否位于同一半球内，如果是，返回最优方向向量。
-
-    参数:
-        vectors (list of array-like): 单位向量列表。
-        tolerance (float): 数值容忍度，用于处理浮点误差。
-
-    返回:
-        tuple: (是否存在半球, 最优方向向量或None)
-    """
-    if not vectors:
-        return (False, None)
-
-    # 转换为numpy数组
-    V = np.array(vectors)
-    m, n = V.shape
-
-    # 定义优化变量
-    d = cp.Variable(n)
-    t = cp.Variable()
-
-    # 约束条件：所有向量的点积至少为t，且d的范数不超过1
-    constraints = [V @ d >= t * np.ones(m), cp.norm(d) <= 1]
-
-    # 最大化t
-    problem = cp.Problem(cp.Maximize(t), constraints)
-
-    # 尝试求解问题
-    try:
-        problem.solve(solver=cp.ECOS, abstol=1e-8, reltol=1e-8, feastol=1e-8)
-    except Exception as e:
-        print(f"求解过程中出现错误: {e}")
-        return (False, None)
-
-    # 检查求解状态
-    if problem.status not in [cp.OPTIMAL, cp.OPTIMAL_INACCURATE]:
-        return (False, None)
-
-    t_max = t.value
-    d_val = d.value
-
-    if d_val is None:
-        return (False, None)
-
-    # 计算d的范数
-    d_norm = np.linalg.norm(d_val)
-    if d_norm < tolerance:
-        return (False, None)
-
-    # 归一化方向向量
-    d_dir = d_val / d_norm
-
-    # 验证所有点积是否非负（考虑数值误差）
-    min_dot = min(np.dot(d_dir, v) for v in vectors)
-    if min_dot >= -tolerance:
-        return (True, d_dir)
-
-    return (False, None)
 
 
 ############################

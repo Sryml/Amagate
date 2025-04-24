@@ -2006,7 +2006,8 @@ class SectorProperty(bpy.types.PropertyGroup):
     ############################
     def reset_concave_data(self):
         self["ConcaveData"] = {
-            "verts_index": [],
+            "flat_ext": [],
+            "faces_int_idx": [],
             "concave_type": ag_utils.CONCAVE_T_NONE,
         }
 
