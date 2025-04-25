@@ -43,8 +43,8 @@ def register():
 
     # 检查包是否已安装
     try:
-        import cvxpy
-        import ecos
+        for m in data.PY_PACKAGES_REQUIRED:
+            importlib.import_module(m)
 
         data.PY_PACKAGES_INSTALLED = True
     except ImportError:
@@ -56,7 +56,7 @@ def register():
             first_interval=0.1,
         )
         # 安装包
-        ag_utils.install_packages(["cvxpy", "ecos"])
+        ag_utils.install_packages()
 
     loaded = True
     print("Amagate register")

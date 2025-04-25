@@ -80,7 +80,7 @@ class OT_InstallPyPackages(bpy.types.Operator):
         # 初始化进度条
         scene_data = bpy.context.scene.amagate_data
         scene_data.progress_bar.pyp_install_progress = 0.0
-        ag_utils.install_packages(["cvxpy", "ecos"])
+        ag_utils.install_packages()
         return {"FINISHED"}
 
 

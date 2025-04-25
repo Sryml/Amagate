@@ -11,6 +11,7 @@ import sys
 import locale
 import ctypes
 import time
+import importlib
 import contextlib
 import math
 
@@ -19,7 +20,6 @@ from io import StringIO, BytesIO
 
 #
 import numpy as np
-from scipy.optimize import minimize
 
 #
 import bpy
@@ -78,7 +78,7 @@ else:
 
 
 # pyp安装进度定时器
-def pyp_install_progress_timer(start_time, total_time=10.0, fps=24):
+def pyp_install_progress_timer(start_time, total_time=10.0, fps=24, timeout=180):
     interval = 1.0 / fps
     # 增量值
     increment = 1.0 / (total_time * fps)
@@ -92,6 +92,7 @@ def pyp_install_progress_timer(start_time, total_time=10.0, fps=24):
 
     ####
     def warp():
+        scene_data = bpy.context.scene.amagate_data
         current_time = time.time()
         elapsed_time = current_time - start_time
         # 如果正在安装包，读取日志文件判断是否安装完成
@@ -104,19 +105,19 @@ def pyp_install_progress_timer(start_time, total_time=10.0, fps=24):
                 glob["installing"] = False
 
                 try:
-                    import cvxpy
-                    import ecos
+                    for m in data.PY_PACKAGES_REQUIRED:
+                        importlib.import_module(m)
 
                     glob["success"] = True
                 except ImportError:
                     data.PY_PACKAGES_INSTALLING = False
                     return None
             # 超时情况
-            elif elapsed_time > 180:
+            elif elapsed_time > timeout:
+                scene_data.progress_bar.pyp_install_progress = 0
                 data.PY_PACKAGES_INSTALLING = False
                 return None
 
-        scene_data = bpy.context.scene.amagate_data
         pre_v = scene_data.progress_bar.pyp_install_progress
 
         # 如果安装完成，加快进度条速度
@@ -141,7 +142,7 @@ def pyp_install_progress_timer(start_time, total_time=10.0, fps=24):
 
 
 # 安装包
-def install_packages(packages_name):
+def install_packages():
     # 设置安装状态
     data.PY_PACKAGES_INSTALLING = True
     log_path = os.path.join(data.ADDON_PATH, "_LOG", "install_py_package.log")
@@ -161,9 +162,10 @@ def install_packages(packages_name):
         args = f" -i {pip_index_url}"
     else:
         args = ""
-    # 构建命令行命令
-    combined_cmd = f'"{python_exe}" -m pip install {" ".join(packages_name)}{args}'
-    # f"{python_exe} -m pip install --no-cache-dir {' '.join(packages_name)}{args}"
+    # 构建命令
+    requirements = os.path.join(data.ADDON_PATH, "_BAT", "requirements.txt")
+    combined_cmd = f'"{python_exe}" -m pip install -r "{requirements}"{args}'
+    # --no-cache-dir
     # 写入批处理文件
     bat_path = os.path.join(data.ADDON_PATH, "_BAT", "install_py_package.bat")
     with open(bat_path, "w") as f:
@@ -174,7 +176,7 @@ def install_packages(packages_name):
 
     # 调用子进程执行批处理文件
     subprocess.Popen(
-        ["cmd", "/c", bat_path],
+        bat_path,
         shell=True,
         # creationflags=subprocess.CREATE_NO_WINDOW,  # 彻底不显示窗口
         # stdin=subprocess.PIPE,
@@ -183,6 +185,7 @@ def install_packages(packages_name):
     )
 
     # python.exe -m pip uninstall MarkupSafe joblib scs jinja2 ecos clarabel osqp cvxpy -y
+    # python.exe -m pip uninstall scipy -y
 
 
 def debugprint(message: str):
@@ -306,6 +309,9 @@ def get_selected_sectors() -> tuple[list[Object], Object]:
 
 # 获取投影法线
 def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
+    # 延迟导入
+    from scipy.optimize import minimize
+
     # 转换为numpy数组
     V_INT = np.array(internal_v)
     V_EXT = np.array(external_v)

@@ -59,6 +59,22 @@ Copyright = "(C) 2024-2025 Sryml"
 PACKAGE = ".".join(__package__.split(".")[:-1])
 # 获取插件根目录路径
 ADDON_PATH = os.path.abspath(f"{os.path.dirname(__file__)}/..")
+
+# 创建目录
+os.makedirs(os.path.join(ADDON_PATH, "_LOG"), exist_ok=True)
+
+# 需要的python包
+PY_PACKAGES_REQUIRED = []
+
+pattern = r"^([a-zA-Z0-9_-]+)"  # 匹配行首的字母、数字、下划线或连字符
+with open(os.path.join(ADDON_PATH, "_BAT", "requirements.txt"), "r") as f:
+    for line in f:
+        line = line.strip()  # 去除首尾空白
+        if line and not line.startswith("#"):  # 跳过空行和注释
+            match = re.match(pattern, line)
+            if match:
+                PY_PACKAGES_REQUIRED.append(match.group(1))
+
 # python包是否安装
 PY_PACKAGES_INSTALLED = False
 # python包正在安装
