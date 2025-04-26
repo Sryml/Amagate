@@ -1752,6 +1752,8 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
 class OperatorProperty(bpy.types.PropertyGroup):
     # OT_Sector_Connect
     sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
+    # OT_Sector_SeparateConvex
+    sec_separate_connect: BoolProperty(name="Auto Connect", default=False)  # type: ignore
 
 
 # 扇区属性
@@ -2280,8 +2282,8 @@ def register():
 
     ICONS = bpy.utils.previews.new()
     icons_dir = os.path.join(ADDON_PATH, "icons")
-    ICONS.load("star", os.path.join(icons_dir, "star.png"), "IMAGE")
-    ICONS.load("blade", os.path.join(icons_dir, "blade.png"), "IMAGE")
+    for name in ("star", "blade", "knife"):
+        ICONS.load(name, os.path.join(icons_dir, f"{name}.png"), "IMAGE")
 
     bpy.utils.register_class(AmagatePreferences)
 
