@@ -414,6 +414,10 @@ class OT_Sector_Convert(bpy.types.Operator):
             self.report({"INFO"}, "No mesh objects selected")
             return {"CANCELLED"}
 
+        # 如果缺少活跃对象，则指定选中列表的第一个为活跃对象
+        if not context.active_object:
+            context.view_layer.objects.active = mesh_objects[0]
+
         # 选择所有 MESH 对象
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.select_all(action="DESELECT")
@@ -428,9 +432,9 @@ class OT_Sector_Convert(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="OBJECT")
 
         # 恢复选择
-        bpy.ops.object.select_all(action="DESELECT")
-        for obj in original_selection:
-            obj.select_set(True)
+        # bpy.ops.object.select_all(action="DESELECT")
+        # for obj in original_selection:
+        #     obj.select_set(True)
 
         for obj in mesh_objects:
             if not obj.amagate_data.get_sector_data():
@@ -479,6 +483,10 @@ class OT_Sector_Connect(bpy.types.Operator):
             )  # BOOLEAN
 
         # TODO: 自动分离 scene_data.operator_props.sec_connect_sep_convex
+
+        # 如果缺少活跃对象，则指定选中列表的第一个为活跃对象
+        if not context.active_object:
+            context.view_layer.objects.active = selected_sectors[0]
 
         bpy.ops.object.mode_set(mode="OBJECT")
         for i, sec1 in enumerate(selected_sectors):
