@@ -65,13 +65,14 @@ def pre_knife_project():
     context = bpy.context
     separate = separate_data["separate_list"][
         separate_data["index"]
-    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], Vector]
+    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]
     (
         sec,
         faces_int_idx,  # 内部面
         faces_int_idx_prime,  # 内部面 (排除垂直面)
         faces_exterior_idx,  # 与内部面共边的外部面
         knife_project,  # 投影切割刀具
+        knife_bm,  # 投影切割刀具BMesh
         proj_normal_prime,  # 投影法向
     ) = separate
     region = separate_data["region"]  # type: bpy.types.Region
@@ -83,7 +84,8 @@ def pre_knife_project():
 
     bpy.ops.object.select_all(action="DESELECT")  # 取消选择
     context.view_layer.objects.active = sec  # 设置活动物体
-    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+    bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
     for knife in knife_project:
         knife.select_set(True)
     ag_utils.set_view_rotation(region, proj_normal_prime)
@@ -97,35 +99,82 @@ def knife_project_timer():
     context = bpy.context
     separate = separate_data["separate_list"][
         separate_data["index"]
-    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], Vector]
+    ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]
     (
         sec,
         faces_int_idx,  # 内部面
         faces_int_idx_prime,  # 内部面 (排除垂直面)
         faces_exterior_idx,  # 与内部面共边的外部面
         knife_project,  # 投影切割刀具
+        knife_bm,  # 投影切割刀具BMesh
         proj_normal_prime,  # 投影法向
     ) = separate
     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-    # 隐藏内部面
     bm = bmesh.from_edit_mesh(mesh)
     bm.faces.ensure_lookup_table()
+    # 隐藏内部面
     for i in faces_int_idx:
         bm.faces[i].hide = True
     bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-    # 投影切割
+
+    # 保存面
+    faces_int = [bm.faces[i] for i in faces_int_idx]
+    faces_int_prime = [bm.faces[i] for i in faces_int_idx_prime]
+
+    # 覆盖上下文
     with context.temp_override(
         area=separate_data["area"],
         region=separate_data["region"],
     ):
-        bpy.ops.mesh.knife_project()
-        # 删除刀具
-        for obj in knife_project:
-            bpy.data.meshes.remove(obj.data)  # type: ignore
+        bpy.ops.mesh.knife_project(cut_through=False)  # 投影切割
+
+        matrix_world = sec.matrix_world
+        # 检查切割出来的面是否与刀具面一一对应
+        # 从bmesh构建BVHTree
+        # verts = [v.co for v in knife_bm.verts]
+        # faces = [[v.index for v in f.verts] for f in knife_bm.faces]
+        # bvh = bvhtree.BVHTree.FromPolygons(verts, faces)
+        bvh = bvhtree.BVHTree.FromBMesh(knife_bm)
+        face_lst = {
+            i: [] for i in range(len(knife_bm.faces))
+        }  # type: dict[int, list[bmesh.types.BMFace]]
+        for f in bm.faces:
+            # 访问选中的面
+            if f.select:
+                # 定义射线起点、方向和距离
+                ray_origin = matrix_world @ f.calc_center_bounds()  # 位于面内部的中心点
+                ray_direction = proj_normal_prime
+                # 执行射线检测
+                hit_loc, hit_normal, hit_index, hit_dist = bvhtree.BVHTree.ray_cast(
+                    bvh, ray_origin, ray_direction
+                )
+                if hit_index is not None:
+                    face_lst[hit_index].append(f)
+        #
+        for faces in face_lst.values():
+            if len(faces) > 1:
+                bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+                for f in faces:
+                    f.select_set(True)
+                    bmesh.update_edit_mesh(
+                        mesh, loop_triangles=False, destructive=False
+                    )
+                # 尝试融并面
+                bpy.ops.mesh.dissolve_faces()
+
+    # 恢复面索引
+    separate[1] = {f.index for f in faces_int}  # type: ignore
+    separate[2] = {f.index for f in faces_int_prime}  # type: ignore
+
+    # 删除刀具BMesh
+    knife_bm.free()
+    # 删除刀具
+    for obj in knife_project:
+        bpy.data.meshes.remove(obj.data)  # type: ignore
     # 显示内部面
     bm.faces.ensure_lookup_table()
-    for i in faces_int_idx:
-        bm.faces[i].hide = False
+    for f in faces_int:
+        f.hide = False
     bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
     bpy.ops.object.mode_set(mode="OBJECT")
 
@@ -143,13 +192,14 @@ def knife_project_done():
     #
     separate_list = separate_data[
         "separate_list"
-    ]  # type: list[tuple[Object, set[int], set[int], list[int], list[Object], Vector]]
+    ]  # type: list[tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]]
     for (
         sec,
         faces_int_idx,  # 内部面
         faces_int_idx_prime,  # 内部面 (排除垂直面)
         faces_exterior_idx,  # 与内部面共边的外部面
         knife_project,  # 投影切割刀具
+        knife_bm,  # 投影切割刀具BMesh
         proj_normal_prime,  # 投影法向
     ) in separate_list:
         main_sec = sec
@@ -168,9 +218,9 @@ def knife_project_done():
         sec_bm.faces.ensure_lookup_table()
         faces = [sec_bm.faces[i] for i in faces_int_idx_prime]
         # 与内部面共边的外部面顶点
-        verts_exterior = set(
-            v for i in faces_exterior_idx for v in sec_bm.faces[i].verts
-        )
+        # verts_exterior = set(
+        #     v for i in faces_exterior_idx for v in sec_bm.faces[i].verts
+        # )
 
         # 遍历内部面 (排除垂直面)，也称为刀具面
         for face in faces:
@@ -193,7 +243,10 @@ def knife_project_done():
             v = normal.cross(u).normalized()  # type: Vector
             polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in face.verts]
             # 刀具面顶点字典
-            verts_dict = {v.index: [] for v in face.verts}
+            verts_dict = {
+                v.index: {"f_idx": {f.index for f in v.link_faces}, "verts_idx": []}
+                for v in face.verts
+            }
             # print(f"polygon: {polygon}")
             # 获取投影在刀具面中的所有顶点
             for v2 in sec_bm.verts:
@@ -209,16 +262,18 @@ def knife_project_done():
                 # key = proj_point.to_tuple(4)
                 # if key in coords_set:
                 #     verts_index.add(v2.index)
-                for v3 in face.verts:
+                for f_vert in face.verts:
                     # 投影到顶点的情况
-                    if (proj_point - v3.co).length < 1e-4:
+                    if (proj_point - f_vert.co).length < 1e-3:
                         verts_index.add(v2.index)
                         # 只有连接到相同的面才添加
-                        intersect = {f.index for f in v2.link_faces}.intersection(
-                            {f.index for f in v3.link_faces}
+                        f_idx2 = set(f.index for f in v2.link_faces)
+                        intersect = verts_dict[f_vert.index]["f_idx"].intersection(
+                            f_idx2
                         )
                         if len(intersect) > 0:
-                            verts_dict[v3.index].append(v2.index)
+                            verts_dict[f_vert.index]["f_idx"].update(f_idx2)
+                            verts_dict[f_vert.index]["verts_idx"].append(v2.index)
                         break
                 # 没有投影到顶点，也许在边上或者在面的内部
                 else:
@@ -227,13 +282,14 @@ def knife_project_done():
                         verts_index.add(v2.index)
 
             # 新增边
-            for v_idx, verts_idx in verts_dict.items():
+            for f_vert_idx, value in verts_dict.items():
+                verts_idx = value["verts_idx"]  # type: list[int]
                 if verts_idx == []:
                     continue
-                co = sec_bm.verts[v_idx].co
+                co = sec_bm.verts[f_vert_idx].co
                 # 按距离排序v
                 verts_idx.sort(key=lambda x: (sec_bm.verts[x].co - co).length)
-                verts_idx.insert(0, v_idx)
+                verts_idx.insert(0, f_vert_idx)
                 for i in range(len(verts_idx) - 1):
                     v1 = sec_bm.verts[verts_idx[i]]
                     v2 = sec_bm.verts[verts_idx[i + 1]]
@@ -300,10 +356,10 @@ def knife_project_done():
                     break
                 # 法向平行，判断是否在同一平面
                 is_solid = False  # 是否为立体的
-                for v_idx in f.vertices:
-                    if v_idx not in visited_verts:
-                        visited_verts.append(v_idx)
-                        vector2 = mesh.vertices[v_idx].co - base_point
+                for f_vert_idx in f.vertices:
+                    if f_vert_idx not in visited_verts:
+                        visited_verts.append(f_vert_idx)
+                        vector2 = mesh.vertices[f_vert_idx].co - base_point
                         # 点不在同一平面，跳过
                         if abs(vector1.dot(vector2)) > epsilon:
                             is_solid = True
@@ -600,7 +656,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         """
 
         # 外部面索引
-        faces_ext_idx = set(range(len(sec_bm.faces))) - faces_int_idx
+        # faces_ext_idx = set(range(len(sec_bm.faces))) - faces_int_idx
 
         # 获取内部面法向
         internal_v = [sec_bm.faces[i].normal for i in faces_int_idx]
@@ -620,8 +676,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         proj_normal = Vector(proj_normal)
         # 投影法线应用物体变换
         proj_normal_prime = (matrix_world.to_quaternion() @ proj_normal).normalized()
-        proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
-        # print(f"proj_normal: {proj_normal}")
+        # proj_normal_prime = Vector(proj_normal_prime.to_tuple(4))
+        # ag_utils.debugprint(f"proj_normal_prime: {proj_normal_prime}")
 
         # 与内部面共边的外部面
         faces_exterior_idx = []  # type: list[int]
@@ -638,6 +694,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # 创建刀具BMesh
         knife_bm = bmesh.new()
         exist_verts = {}
+        distance = 0
         for face_idx in faces_int_idx:
             f = sec_bm.faces[face_idx]  # type: bmesh.types.BMFace
             # 跳过垂直面
@@ -648,9 +705,13 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             # 重复顶点
             is_dup_vert = False
             for i in f.verts:
-                co = Vector((matrix_world @ i.co).to_tuple(4))
-                dist = (-co).dot(proj_normal_prime)
-                co = proj_normal_prime * dist + co
+                # co = Vector((matrix_world @ i.co).to_tuple(4))
+                co = matrix_world @ i.co
+                dist = (co).dot(proj_normal_prime)
+                # 往投影方向延伸10米
+                if distance == 0:
+                    distance = dist + 10
+                co += proj_normal_prime * (distance - dist)
                 # print(f"co: {co}")
                 key = co.to_tuple(4)
                 v = exist_verts.get(key)
@@ -666,6 +727,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 faces_int_idx_prime.remove(face_idx)
                 continue
             knife_bm.faces.new(verts)
+
         # 刀具BMesh转Mesh
         knife_mesh = bpy.data.meshes.new(f"AG.{sec.name}_knife")
         knife_bm.to_mesh(knife_mesh)
@@ -675,6 +737,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         context.view_layer.objects.active = knife_obj  # 设置活动物体
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        # 弃用 #交集判断
+        """
         bm_edit = bmesh.from_edit_mesh(knife_obj.data)  # type: ignore
         face_num = len(bm_edit.faces)
         with contextlib.redirect_stdout(StringIO()):
@@ -687,26 +751,26 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             bpy.data.meshes.remove(knife_mesh)
             is_complex = True
         # 不存在交集
-        else:
-            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-            bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
-            bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
-            bpy.ops.object.mode_set(mode="OBJECT")
-            context.active_object.select_set(True)  # 刀具本体也需选择
+        """
+        # bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        bpy.ops.mesh.edge_split(type="EDGE")  # 按边拆分
+        bpy.ops.mesh.separate(type="LOOSE")  # 分离松散块
+        bpy.ops.object.mode_set(mode="OBJECT")
+        context.active_object.select_set(True)  # 刀具本体也需选择
 
-            # 添加到投影切割列表
-            knife_project = context.selected_objects
-            separate = (
-                sec,
-                faces_int_idx,  # 内部面
-                faces_int_idx_prime,  # 内部面 (排除垂直面)
-                faces_exterior_idx,  # 与内部面共边的外部面
-                knife_project,  # 投影切割刀具
-                proj_normal_prime,  # 投影法向
-            )
+        # 添加到投影切割列表
+        knife_project = context.selected_objects
+        separate = [
+            sec,
+            faces_int_idx,  # 内部面
+            faces_int_idx_prime,  # 内部面 (排除垂直面)
+            faces_exterior_idx,  # 与内部面共边的外部面
+            knife_project,  # 投影切割刀具
+            knife_bm,  # 投影切割刀具BMesh
+            proj_normal_prime,  # 投影法向
+        ]
 
         sec_bm.free()
-        knife_bm.free()
 
         return {"is_complex": is_complex, "separate": separate}
 

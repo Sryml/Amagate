@@ -188,9 +188,9 @@ def install_packages():
     # python.exe -m pip uninstall scipy -y
 
 
-def debugprint(message: str):
+def debugprint(*args, **kwargs):
     if data.DEBUG:
-        print(f"[DEBUG] {message}")
+        print("[DEBUG]", *args, **kwargs)
 
 
 # 定义 Windows API 中的 keybd_event 函数
@@ -314,17 +314,27 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
 
     # 转换为numpy数组
     V_INT = np.array(internal_v)
+    V_INT_UNIQUE = []
+    for v1 in internal_v:
+        for v2 in V_INT_UNIQUE:
+            # 去重
+            if v1.dot(v2) > epsilon2:
+                break
+        else:
+            V_INT_UNIQUE.append(v1)
+    V_INT_UNIQUE = np.array(V_INT_UNIQUE)
+
     V_EXT = np.array(external_v)
 
     def objective(u):
-        return max(-np.dot(V_INT, u))  # 最大负点积
+        return max(-np.dot(V_INT_UNIQUE, u))  # 最大负点积
 
     # 初始猜测（如平均向量归一化）
-    initial_guess = np.mean(V_INT, axis=0)
+    initial_guess = np.mean(V_INT_UNIQUE, axis=0)
     norm = np.linalg.norm(initial_guess)
     if norm < 1e-6:
-        debugprint("norm is too small, use svd")
-        initial_guess = np.linalg.svd(V_INT)[2][0]
+        # debugprint("norm is too small, use svd")
+        initial_guess = np.linalg.svd(V_INT_UNIQUE)[2][0]
     else:
         initial_guess /= norm
 
@@ -340,12 +350,12 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
         u = result.x / np.linalg.norm(result.x)  # 确保严格单位长度
         # 取反，得到投影法向
         proj_normal_init = -u  # type: Any
-        # 验证内部向量所有点积是否<=0（考虑数值误差）
-        max_dot = max(np.dot(V_INT, proj_normal_init))
+        max_dot = max(np.dot(V_INT_UNIQUE, proj_normal_init))
+        # 无效法向，与内部向量的点积存在大于0的情况
         if max_dot > tolerance:
             # 查找两个近似垂直的内部向量
             v_int = []
-            for v in V_INT:
+            for v in V_INT_UNIQUE:
                 count = len(v_int)
                 if count == 2:
                     break
@@ -363,14 +373,14 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
                     v = -v
                 proj_normal_init = v
                 # 验证内部向量所有点积是否<=0（考虑数值误差）
-                max_dot = max(np.dot(proj_normal_init, v) for v in V_INT)
+                max_dot = max(np.dot(proj_normal_init, v) for v in V_INT_UNIQUE)
                 if max_dot > tolerance:
                     proj_normal_init = None
             else:
                 proj_normal_init = None
     else:
         proj_normal_init = None
-        debugprint(f"投影法向优化失败: {result.message}")
+        # debugprint(f"初始投影法向无效: {result.message}")
 
     # 尝试优化投影法向
 
@@ -409,7 +419,7 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
     # 能作为投影法向的外部平面，需满足与所有内部面的点积<=0
     proj_normal_ext_lst = []
     for v in V_EXT:
-        max_dot = max(np.dot(v, v2) for v2 in V_INT)
+        max_dot = max(np.dot(v, v2) for v2 in V_INT_UNIQUE)
         if max_dot <= tolerance:
             # 向量，外部平面权重，内部面权重
             proj_normal_ext_lst.append([v, None, None])
@@ -440,6 +450,33 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
 
     debugprint(f"proj_normal: {proj_normal}")
     return proj_normal
+
+
+# 获取顶点组中的顶点索引
+def get_vertex_in_group(obj: Object, vg_name):
+    """返回指定顶点组中的所有顶点索引集合。
+
+    Args:
+        obj (bpy.types.Object): 目标物体（必须为网格）。
+        vg_name (str): 顶点组名称。
+
+    Returns:
+        set[int]: 顶点索引集合，若顶点组不存在则返回空集合。
+    """
+    if not obj or obj.type != "MESH" or vg_name not in obj.vertex_groups:
+        return set()
+
+    mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+    vg = obj.vertex_groups[vg_name]
+    group_idx = vg.index
+    vertex_indices = set()
+
+    for v in mesh.vertices:
+        for g in v.groups:
+            if g.group == group_idx:
+                vertex_indices.add(v.index)
+                break
+    return vertex_indices
 
 
 # 射线法，判断点是否在多边形内
@@ -509,19 +546,18 @@ def is_convex(obj: Object):
     # 融并内插面
     # bmesh.ops.dissolve_limit(bm, angle_limit=0.001, verts=bm.verts, edges=bm.edges)
     # 待融并面列表
-    faces_idx = []
+    faces_lst = []
     visited = set()
     for f in bm_convex.faces:
         if f.index in visited:
             continue
 
         # 获取相同法线的相连面
-        faces = get_faces_with_normal_conn(f, visited)
-        if len(faces) > 1:
-            faces_idx.append(faces)
+        faces_idx = get_faces_with_normal_conn(f, visited)
+        if len(faces_idx) > 1:
+            faces_lst.append([bm_convex.faces[i] for i in faces_idx])
 
-    for item in faces_idx:
-        faces = [bm_convex.faces[i] for i in item]
+    for faces in faces_lst:
         bmesh.ops.dissolve_faces(bm_convex, faces=faces, use_verts=True)
 
     # 重置面法向
