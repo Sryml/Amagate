@@ -38,8 +38,8 @@ if TYPE_CHECKING:
     Scene = bpy.__Scene
 
 ############################
-epsilon = 1e-5
-epsilon2 = 1 - epsilon
+epsilon: float = 1e-5
+epsilon2: float = 1 - epsilon
 
 
 # 预设颜色
@@ -448,7 +448,7 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
     else:
         proj_normal = proj_normal_ext[0] if proj_normal_ext else proj_normal_init
 
-    debugprint(f"proj_normal: {proj_normal}")
+    # debugprint(f"proj_normal: {proj_normal}")
     return proj_normal
 
 

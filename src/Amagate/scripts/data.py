@@ -679,13 +679,14 @@ def delete_post_func():
 def geometry_modify_post(selected_sectors: list[Object] = []):
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
-    for sec in selected_sectors:
-        sec_data = sec.amagate_data.get_sector_data()
-        sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
-        sec_data.is_convex = ag_utils.is_convex(sec)
+    if selected_sectors:
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
+            sec_data.is_convex = ag_utils.is_convex(sec)
 
-    # 凸面检查
-    bpy.ops.ed.undo_push(message="Convex Check")
+            # 凸面检查
+            bpy.ops.ed.undo_push(message="Convex Check")
 
 
 # def delete_post_func_release():
@@ -794,6 +795,7 @@ def draw_callback_3d():
     height = region.height
 
     texts = []
+    # 由于该回调在N面板之后，所以不能在这里缓存选中扇区数据
     selected_sectors = ag_utils.get_selected_sectors()[0]
     sector_num = len(selected_sectors)
 
@@ -1227,7 +1229,7 @@ class Texture_Select(bpy.types.PropertyGroup):
     def get_index(self):
         return self.get("_index", 0)
 
-    def set_index(self, value):
+    def set_index(self, value: int):
         if self["_index"] == value:
             return
 

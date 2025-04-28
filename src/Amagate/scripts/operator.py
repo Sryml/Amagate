@@ -1207,11 +1207,11 @@ class OT_ExportMap(bpy.types.Operator):
                     )
                     ## 面类型
                     if mesh.attributes["amagate_tex_id"].data[face_index].value == -1:  # type: ignore
-                        face_type = 7005
+                        face_type = 7005  # 天空面
                     elif connected_sid is not None:  # type: ignore
-                        face_type = 7002
+                        face_type = 7002  # 连接面
                     else:
-                        face_type = 7001
+                        face_type = 7001  # 普通面
                     f.write(struct.pack("<I", face_type))
                     ## 法向
                     normal = matrix_world.to_quaternion() @ face.normal

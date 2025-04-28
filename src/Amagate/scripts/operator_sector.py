@@ -49,22 +49,24 @@ if TYPE_CHECKING:
 
 
 ############################
-epsilon = ag_utils.epsilon
-epsilon2 = ag_utils.epsilon2
+epsilon: float = ag_utils.epsilon
+epsilon2: float = ag_utils.epsilon2
 
+REGION_DATA = {}
 
 ############################
 ############################ For Separate Convex
 ############################
-
-separate_data = {}  # type: Any
+# 分离后的所有扇区
+SECTORS_LIST = []  # type: list[list[Object]]
+SEPARATE_DATA = {}  # type: Any
 
 
 def pre_knife_project():
     """投影切割预处理"""
     context = bpy.context
-    separate = separate_data["separate_list"][
-        separate_data["index"]
+    separate = SEPARATE_DATA["separate_list"][
+        SEPARATE_DATA["index"]
     ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]
     (
         sec,
@@ -75,7 +77,7 @@ def pre_knife_project():
         knife_bm,  # 投影切割刀具BMesh
         proj_normal_prime,  # 投影法向
     ) = separate
-    region = separate_data["region"]  # type: bpy.types.Region
+    region = REGION_DATA["region"]  # type: bpy.types.Region
     # sec, faces_index, knifes, proj_normal_prime = knife_project.pop()
 
     # 确保网格数据为单用户的
@@ -97,8 +99,8 @@ def pre_knife_project():
 def knife_project_timer():
     """投影切割定时器"""
     context = bpy.context
-    separate = separate_data["separate_list"][
-        separate_data["index"]
+    separate = SEPARATE_DATA["separate_list"][
+        SEPARATE_DATA["index"]
     ]  # type: tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]
     (
         sec,
@@ -123,8 +125,8 @@ def knife_project_timer():
 
     # 覆盖上下文
     with context.temp_override(
-        area=separate_data["area"],
-        region=separate_data["region"],
+        area=REGION_DATA["area"],
+        region=REGION_DATA["region"],
     ):
         bpy.ops.mesh.knife_project(cut_through=False)  # 投影切割
 
@@ -178,8 +180,8 @@ def knife_project_timer():
     bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
     bpy.ops.object.mode_set(mode="OBJECT")
 
-    separate_data["index"] += 1
-    if separate_data["index"] < len(separate_data["separate_list"]):
+    SEPARATE_DATA["index"] += 1
+    if SEPARATE_DATA["index"] < len(SEPARATE_DATA["separate_list"]):
         pre_knife_project()
     else:
         knife_project_done()
@@ -187,10 +189,11 @@ def knife_project_timer():
 
 def knife_project_done():
     """投影切割完成，开始分离"""
-    context = bpy.context
+    global SECTORS_LIST
 
-    #
-    separate_list = separate_data[
+    SECTORS_LIST = []  # 初始化
+    context = bpy.context
+    separate_list = SEPARATE_DATA[
         "separate_list"
     ]  # type: list[tuple[Object, set[int], set[int], list[int], list[Object], bmesh.types.BMesh, Vector]]
     for (
@@ -202,8 +205,6 @@ def knife_project_done():
         knife_bm,  # 投影切割刀具BMesh
         proj_normal_prime,  # 投影法向
     ) in separate_list:
-        main_sec = sec
-        sec_data = sec.amagate_data.get_sector_data()
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         matrix_world = sec.matrix_world
         proj_normal_prime = matrix_world.to_quaternion().inverted() @ proj_normal_prime
@@ -216,173 +217,200 @@ def knife_project_done():
         bpy.ops.mesh.select_mode(type="FACE")  # 选择面模式
         sec_bm = bmesh.from_edit_mesh(mesh)  # type: ignore
         sec_bm.faces.ensure_lookup_table()
-        faces = [sec_bm.faces[i] for i in faces_int_idx_prime]
-        # 与内部面共边的外部面顶点
-        # verts_exterior = set(
-        #     v for i in faces_exterior_idx for v in sec_bm.faces[i].verts
-        # )
 
-        # 遍历内部面 (排除垂直面)，也称为刀具面
-        for face in faces:
-            sec_bm.verts.ensure_lookup_table()
-            v1 = face.verts[0]
-            # coords_set = set(v.co.to_tuple(4) for v in face.verts)
-            verts_index = set()
-            normal = face.normal
-            dot = proj_normal_prime.dot(normal)
-            if dot < 0:
-                normal = -normal
-                dot = -dot
-            if dot > epsilon2:
-                dot = 1
-            # 转为2D多边形
-            u = normal.cross(Vector((1, 0, 0)))  # type: Vector
-            if u.length < epsilon:  # 防止法向量平行于 x 轴
-                u = normal.cross(Vector((0, 1, 0)))
-            u.normalize()
-            v = normal.cross(u).normalized()  # type: Vector
-            polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in face.verts]
-            # 刀具面顶点字典
-            verts_dict = {
-                v.index: {"f_idx": {f.index for f in v.link_faces}, "verts_idx": []}
-                for v in face.verts
-            }
-            # print(f"polygon: {polygon}")
-            # 获取投影在刀具面中的所有顶点
-            for v2 in sec_bm.verts:
-                if v2 in face.verts:
-                    continue
-                t = (v1.co - v2.co).dot(normal) / dot
-                # 点在刀具面外部，跳过
-                if t < 0:
-                    continue
+        # 投影切割后的分离操作
+        knife_project_separate(mesh, sec_bm, faces_int_idx_prime, proj_normal_prime)
 
-                proj_point = v2.co + proj_normal_prime * t
-
-                # key = proj_point.to_tuple(4)
-                # if key in coords_set:
-                #     verts_index.add(v2.index)
-                for f_vert in face.verts:
-                    # 投影到顶点的情况
-                    if (proj_point - f_vert.co).length < 1e-3:
-                        verts_index.add(v2.index)
-                        # 只有连接到相同的面才添加
-                        f_idx2 = set(f.index for f in v2.link_faces)
-                        intersect = verts_dict[f_vert.index]["f_idx"].intersection(
-                            f_idx2
-                        )
-                        if len(intersect) > 0:
-                            verts_dict[f_vert.index]["f_idx"].update(f_idx2)
-                            verts_dict[f_vert.index]["verts_idx"].append(v2.index)
-                        break
-                # 没有投影到顶点，也许在边上或者在面的内部
-                else:
-                    proj_point_2d = u.dot(proj_point), v.dot(proj_point)
-                    if ag_utils.is_point_in_polygon(proj_point_2d, polygon):
-                        verts_index.add(v2.index)
-
-            # 新增边
-            for f_vert_idx, value in verts_dict.items():
-                verts_idx = value["verts_idx"]  # type: list[int]
-                if verts_idx == []:
-                    continue
-                co = sec_bm.verts[f_vert_idx].co
-                # 按距离排序v
-                verts_idx.sort(key=lambda x: (sec_bm.verts[x].co - co).length)
-                verts_idx.insert(0, f_vert_idx)
-                for i in range(len(verts_idx) - 1):
-                    v1 = sec_bm.verts[verts_idx[i]]
-                    v2 = sec_bm.verts[verts_idx[i + 1]]
-                    for e in v1.link_edges:
-                        if e.other_vert(v1) == v2:
-                            break
-                    # v1与v2不存在边，添加边
-                    else:
-                        # ag_utils.debugprint(f"add edge: {v1.index} {v2.index}")
-                        bmesh.ops.connect_vert_pair(sec_bm, verts=[v1, v2])
-                        bmesh.update_edit_mesh(mesh)
-
-            # 按照顶点选中面并分离
-            bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-            verts_index.update(v.index for v in face.verts)
-            for f in sec_bm.faces:
-                v_index = set(v.index for v in f.verts)
-                if v_index.issubset(verts_index):
-                    f.select_set(True)
-            bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-            #### test
-            # print(f"vert: {[i.index for i in sec_bm.verts]}")
-            # print(f"verts_index: {verts_index}")
-            # bpy.ops.mesh.select_mode(type="VERT")
-            # sec_bm.verts.ensure_lookup_table()
-            # for i in verts_index:
-            #     sec_bm.verts[i].select_set(True)
-            # if faces.index(f) == 1:
-            #     break
-            #### test
-            bpy.ops.mesh.separate(type="SELECTED")  # 按选中项分离
-
-        # 分离完成后，进一步处理
         bpy.ops.object.mode_set(mode="OBJECT")
-        selected_objects = (
-            context.selected_objects.copy()
-        )  # type: list[Object] # type: ignore
-        selected_objects.remove(main_sec)
-        # 删除空网格
-        if len(main_sec.data.vertices) == 0:  # type: ignore
-            ag_utils.delete_sector(main_sec)
-        else:
-            sec_data.is_convex = ag_utils.is_convex(main_sec)
-        # 对分离出的新对象执行复制后初始化
-        for sec in selected_objects.copy():
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            # 按距离合并顶点
-            bpy.ops.object.select_all(action="DESELECT")  # 取消选择
-            context.view_layer.objects.active = sec  # 设置活动物体
-            bpy.ops.object.mode_set(mode="EDIT")
-            bpy.ops.mesh.select_mode(type="VERT")  # 选择顶点模式
-            bpy.ops.mesh.select_all(action="SELECT")  # 全选
-            with contextlib.redirect_stdout(StringIO()):
-                bpy.ops.mesh.remove_doubles(threshold=0.0001)  # 合并顶点
-            bpy.ops.object.mode_set(mode="OBJECT")
-            # 删除平面物体
-            visited_verts = list(mesh.polygons[0].vertices)
-            base_point = mesh.vertices[visited_verts[0]].co
-            normal = mesh.polygons[0].normal
-            vector1 = base_point + normal
-            for f in mesh.polygons[1:]:
-                # 存在法向不平行的面，跳过
-                if abs(f.normal.dot(normal)) < epsilon2:
-                    break
-                # 法向平行，判断是否在同一平面
-                is_solid = False  # 是否为立体的
-                for f_vert_idx in f.vertices:
-                    if f_vert_idx not in visited_verts:
-                        visited_verts.append(f_vert_idx)
-                        vector2 = mesh.vertices[f_vert_idx].co - base_point
-                        # 点不在同一平面，跳过
-                        if abs(vector1.dot(vector2)) > epsilon:
-                            is_solid = True
-                            break
-                # 点不在同一平面，跳过
-                if is_solid:
-                    break
-            else:
-                selected_objects.remove(sec)
-                bpy.data.meshes.remove(mesh)
-                continue
-            #
-            sec_data = sec.amagate_data.get_sector_data()
-            sec_data.init(post_copy=True)
 
-    area = separate_data["area"]  # type: bpy.types.Area
-    region = separate_data["region"]  # type: bpy.types.Region
-    region.data.view_rotation = separate_data["view_rotation"]
-    region.data.view_perspective = separate_data["view_perspective"]
-    area.spaces[0].shading.type = separate_data["shading_type"]  # type: ignore
+        # 分离后的处理
+        selected_objects = knife_project_separate_post(sec)
+        SECTORS_LIST.append(selected_objects)
 
-    if separate_data["undo"]:
+    scene_data = context.scene.amagate_data
+    auto_connect = SEPARATE_DATA["auto_connect"]
+    # 如果是来自连接扇区的调用
+    if auto_connect != -1:
+        return
+    else:
+        auto_connect = scene_data.operator_props.sec_separate_connect
+
+    area = REGION_DATA["area"]  # type: bpy.types.Area
+    region = REGION_DATA["region"]  # type: bpy.types.Region
+    region.data.view_rotation = REGION_DATA["view_rotation"]
+    region.data.view_perspective = REGION_DATA["view_perspective"]
+    area.spaces[0].shading.type = REGION_DATA["shading_type"]  # type: ignore
+
+    if SEPARATE_DATA["undo"]:
         bpy.ops.ed.undo_push(message="Separate Convex")
+
+
+# 投影切割后的分离操作
+def knife_project_separate(mesh, sec_bm, faces_int_idx_prime, proj_normal_prime):
+    # type: (bpy.types.Mesh,bmesh.types.BMesh, set[int], Vector) -> Any
+    """投影切割后的分离操作"""
+    faces_int_prime = [sec_bm.faces[i] for i in faces_int_idx_prime]
+    for face in faces_int_prime:
+        sec_bm.verts.ensure_lookup_table()
+        v1 = face.verts[0]
+        # coords_set = set(v.co.to_tuple(4) for v in face.verts)
+        verts_index = set()
+        normal = face.normal
+        dot = proj_normal_prime.dot(normal)
+        if dot < 0:
+            normal = -normal
+            dot = -dot
+        if dot > epsilon2:
+            dot = 1
+        # 转为2D多边形
+        u = normal.cross(Vector((1, 0, 0)))  # type: Vector
+        if u.length < epsilon:  # 防止法向量平行于 x 轴
+            u = normal.cross(Vector((0, 1, 0)))
+        u.normalize()
+        v = normal.cross(u).normalized()  # type: Vector
+        polygon = [(u.dot(vert.co), v.dot(vert.co)) for vert in face.verts]
+        # 刀具面顶点字典
+        verts_dict = {v.index: [] for v in face.verts}  # type: dict[int, list[int]]
+        # print(f"polygon: {polygon}")
+        # 获取投影在刀具面中的所有顶点
+        for v2 in sec_bm.verts:
+            if v2 in face.verts:
+                continue
+            t = (v1.co - v2.co).dot(normal) / dot
+            # 点在刀具面外部，跳过
+            if t < 0:
+                continue
+
+            proj_point = v2.co + proj_normal_prime * t
+
+            # key = proj_point.to_tuple(4)
+            # if key in coords_set:
+            #     verts_index.add(v2.index)
+            for f_vert in face.verts:
+                # 投影到顶点的情况
+                if (proj_point - f_vert.co).length < 1e-3:
+                    verts_index.add(v2.index)
+                    verts_dict[f_vert.index].append(v2.index)
+                    break
+            # 没有投影到顶点，也许在边上或者在面的内部
+            else:
+                proj_point_2d = u.dot(proj_point), v.dot(proj_point)
+                if ag_utils.is_point_in_polygon(proj_point_2d, polygon):
+                    verts_index.add(v2.index)
+
+        # 新增边
+        for f_vert_idx, verts_idx in verts_dict.items():
+            if verts_idx == []:
+                continue
+            co = sec_bm.verts[f_vert_idx].co
+            # 按距离排序v
+            verts_idx.sort(key=lambda x: (sec_bm.verts[x].co - co).length)
+            verts_idx.insert(0, f_vert_idx)
+            # 头部顶点的相连面集合
+            head_faces = {f.index for f in sec_bm.verts[verts_idx[0]].link_faces}
+            for i in range(len(verts_idx) - 1):
+                v1 = sec_bm.verts[verts_idx[i]]
+                v2 = sec_bm.verts[verts_idx[i + 1]]
+                tail_faces = {f.index for f in v2.link_faces}
+                # 如果与头部顶点没有共同面，跳过
+                if not head_faces.intersection(tail_faces):
+                    break
+
+                head_faces = tail_faces
+
+                for e in v1.link_edges:
+                    # 找到v1与v2的边，跳过
+                    if e.other_vert(v1) == v2:
+                        break
+                # v1与v2不存在边，添加边
+                else:
+                    # ag_utils.debugprint(f"add edge: {v1.index} {v2.index}")
+                    bmesh.ops.connect_vert_pair(sec_bm, verts=[v1, v2])
+                    bmesh.update_edit_mesh(mesh)
+
+        # 按照顶点选中面并分离
+        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+        verts_index.update(v.index for v in face.verts)
+        for f in sec_bm.faces:
+            v_index = set(v.index for v in f.verts)
+            if v_index.issubset(verts_index):
+                f.select_set(True)
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        #### test
+        # print(f"vert: {[i.index for i in sec_bm.verts]}")
+        # print(f"verts_index: {verts_index}")
+        # bpy.ops.mesh.select_mode(type="VERT")
+        # sec_bm.verts.ensure_lookup_table()
+        # for i in verts_index:
+        #     sec_bm.verts[i].select_set(True)
+        # if faces.index(f) == 1:
+        #     break
+        #### test
+        bpy.ops.mesh.separate(type="SELECTED")  # 按选中项分离
+
+
+# 投影切割分离后的处理
+def knife_project_separate_post(main_sec):
+    # type: (Object) -> list[Object]
+    """投影切割分离后的处理"""
+    sec_data = main_sec.amagate_data.get_sector_data()
+    context = bpy.context
+    selected_objects = (
+        context.selected_objects.copy()
+    )  # type: list[Object] # type: ignore
+    selected_objects.remove(main_sec)
+    # 删除空网格
+    if len(main_sec.data.vertices) == 0:  # type: ignore
+        ag_utils.delete_sector(main_sec)
+        main_sec = None  # type: ignore
+    else:
+        sec_data.is_convex = ag_utils.is_convex(main_sec)
+
+    # 对分离出的新对象执行复制后初始化
+    for sec in selected_objects.copy():
+        mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        # 按距离合并顶点
+        bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+        context.view_layer.objects.active = sec  # 设置活动物体
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_mode(type="VERT")  # 选择顶点模式
+        bpy.ops.mesh.select_all(action="SELECT")  # 全选
+        with contextlib.redirect_stdout(StringIO()):
+            bpy.ops.mesh.remove_doubles(threshold=0.0001)  # 合并顶点
+        bpy.ops.object.mode_set(mode="OBJECT")
+        # 删除平面物体
+        visited_verts = list(mesh.polygons[0].vertices)
+        base_point = mesh.vertices[visited_verts[0]].co
+        normal = mesh.polygons[0].normal
+        vector1 = base_point + normal
+        for f in mesh.polygons[1:]:
+            # 存在法向不平行的面，跳过
+            if abs(f.normal.dot(normal)) < epsilon2:
+                break
+            # 法向平行，判断是否在同一平面
+            is_solid = False  # 是否为立体的
+            for f_vert_idx in f.vertices:
+                if f_vert_idx not in visited_verts:
+                    visited_verts.append(f_vert_idx)
+                    vector2 = mesh.vertices[f_vert_idx].co - base_point
+                    # 点不在同一平面，跳过
+                    if abs(vector1.dot(vector2)) > epsilon:
+                        is_solid = True
+                        break
+            # 点不在同一平面，跳过
+            if is_solid:
+                break
+        else:
+            selected_objects.remove(sec)
+            bpy.data.meshes.remove(mesh)
+            continue
+        #
+        sec_data = sec.amagate_data.get_sector_data()
+        sec_data.init(post_copy=True)
+
+    if main_sec:
+        selected_objects.append(main_sec)
+    return selected_objects
 
 
 ############################
@@ -399,16 +427,20 @@ class OT_Sector_Convert(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        return context.scene.amagate_data.is_blade
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
-        original_selection = context.selected_objects
+        original_selection = (
+            context.selected_objects
+        )  # type: list[Object] # type: ignore
         if not original_selection:
             self.report({"INFO"}, "No objects selected")
             return {"CANCELLED"}
 
         mesh_objects = [
-            obj for obj in original_selection if obj.type == "MESH"
+            obj
+            for obj in original_selection
+            if obj.type == "MESH" and (not obj.amagate_data.is_sector)
         ]  # type: list[Object] # type: ignore
         if not mesh_objects:
             self.report({"INFO"}, "No mesh objects selected")
@@ -450,22 +482,24 @@ class OT_Sector_Connect(bpy.types.Operator):
     bl_idname = "amagate.sector_connect"
     bl_label = "Connect Sectors"
     bl_description = "Connect selected sectors"
-    bl_options = {"UNDO"}
+    # bl_options = {"UNDO"}
 
+    undo: BoolProperty(default=True)  # type: ignore
     is_button: BoolProperty(default=False)  # type: ignore
-    # 自动分离
+    # 自动分离，仅用于内部传参，如果为-1，则使用UI开关值
+    auto_separate: IntProperty(default=-1)  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
-        return context.scene.amagate_data.is_blade
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
-        if self.is_button:
-            selected_sectors = data.SELECTED_SECTORS
-        else:
-            selected_sectors = ag_utils.get_selected_sectors()[0]
+        # 如果是从F3执行，获取当前选中的扇区
+        if not self.is_button:
+            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
+        selected_sectors = data.SELECTED_SECTORS
         if len(selected_sectors) < 2:
             self.report({"WARNING"}, "Select at least two sectors")
             return {"CANCELLED"}
@@ -482,11 +516,16 @@ class OT_Sector_Connect(bpy.types.Operator):
                 name="amagate_connected", type="INT", domain="FACE"
             )  # BOOLEAN
 
-        # TODO: 自动分离 scene_data.operator_props.sec_connect_sep_convex
+        scene_data = context.scene.amagate_data
 
         # 如果缺少活跃对象，则指定选中列表的第一个为活跃对象
         if not context.active_object:
             context.view_layer.objects.active = selected_sectors[0]
+
+        # 如果启用了自动分离
+        if scene_data.operator_props.sec_connect_sep_convex:
+            bpy.ops.amagate.sector_separate_convex(undo=False, is_button=True, auto_connect=0)  # type: ignore
+            selected_sectors = SECTORS_LIST
 
         bpy.ops.object.mode_set(mode="OBJECT")
         for i, sec1 in enumerate(selected_sectors):
@@ -609,17 +648,18 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
     bl_description = "Separate selected sectors into convex parts"
     # bl_options = {"UNDO"}
 
-    is_button: BoolProperty(default=False)  # type: ignore
-    from_connect: BoolProperty(default=False)  # type: ignore
     undo: BoolProperty(default=True)  # type: ignore
+    is_button: BoolProperty(default=False)  # type: ignore
+    # 自动连接，仅用于内部传参，如果为-1，则使用UI开关值
+    auto_connect: IntProperty(default=-1)  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
-        return context.scene.amagate_data.is_blade
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
-    def separate_simple(self, context: Context, sec: Object):
-        """分割（简单）"""
-        sec_data = sec.amagate_data.get_sector_data()
+    # def separate_simple(self, context: Context, sec: Object):
+    #     """分割（简单）"""
+    #     sec_data = sec.amagate_data.get_sector_data()
 
     def pre_separate(self, context: Context, sec: Object):
         """预分割"""
@@ -673,7 +713,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # 获取投影法线
         proj_normal = ag_utils.get_project_normal(internal_v, external_v)
 
-        # 如果不在同一个半球内，说明是复杂凹面
+        # 如果不存在有效的投影法线，则为复杂凹面
         if proj_normal is None:
             ag_utils.debugprint("not in same hemisphere")
             sec_bm.free()
@@ -783,15 +823,13 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         return {"is_complex": is_complex, "separate": separate}
 
     def execute(self, context: Context):
-        global separate_data
-        if self.is_button:
-            # 如果是从UI面板的按钮执行，使用缓存值
-            selected_sectors = data.SELECTED_SECTORS
-        else:
-            # 如果是从F3执行，获取当前选中的扇区
-            selected_sectors = ag_utils.get_selected_sectors()[0]
+        global SEPARATE_DATA, REGION_DATA
+        # 如果是从F3执行，获取当前选中的扇区
+        if not self.is_button:
+            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
+        selected_sectors = data.SELECTED_SECTORS
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
             return {"CANCELLED"}
@@ -805,7 +843,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         separate_list = []
         complex_list = []
         non_2d_sphere_list = []
-        has_separate_simple = False
+        # has_separate_simple = False
 
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
@@ -824,20 +862,17 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 continue
 
             # 简单凹面的情况
-            if concave_type == ag_utils.CONCAVE_T_SIMPLE:
-                self.separate_simple(context, sec)
-                has_separate_simple = True
-            # 其它情况，预分割判断是复杂还是普通凹面
-            else:
-                ret = self.pre_separate(context, sec)
-                if ret["is_complex"]:
-                    complex_list.append(sec)
-                else:
-                    separate_list.append(ret["separate"])
+            # if concave_type == ag_utils.CONCAVE_T_SIMPLE:
+            #     self.separate_simple(context, sec)
+            #     has_separate_simple = True
+            # else:
 
-                # knife_project.extend(ret["knife_project"])
-                # separate_list.extend(ret["separate_list"])
-                # complex_list.extend(ret["complex_list"])
+            # 预分割判断是复杂还是普通凹面
+            ret = self.pre_separate(context, sec)
+            if ret["is_complex"]:
+                complex_list.append(sec)
+            else:
+                separate_list.append(ret["separate"])
         #
         if complex_list:
             self.report(
@@ -848,15 +883,18 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         region = next(r for r in area.regions if r.type == "WINDOW")
         # 如果切割列表不为空
         if separate_list:
-            separate_data = {
+            SEPARATE_DATA = {
                 "index": 0,
                 "separate_list": separate_list,
+                "undo": self.undo,
+                "auto_connect": self.auto_connect,
+            }
+            REGION_DATA = {
                 "area": area,
                 "region": region,
                 "view_rotation": region.data.view_rotation.copy(),
                 "view_perspective": region.data.view_perspective,
                 "shading_type": area.spaces[0].shading.type,  # type: ignore
-                "undo": self.undo,
             }
             area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
             pre_knife_project()
@@ -864,11 +902,9 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
 
         #
         ret = {"FINISHED"}
-        if not has_separate_simple:
-            ret = {"CANCELLED"}
-            # 没有切割简单/普通凹面，且不存在复杂凹面
-            if not complex_list:
-                self.report({"INFO"}, "No need to separate")
+        # 没有切割凹面，且不存在复杂凹面
+        # if not complex_list:
+        #     self.report({"INFO"}, "No need to separate")
         if self.undo:
             bpy.ops.ed.undo_push(message="Separate Convex")
         return ret

@@ -478,10 +478,14 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
     #     data.ensure_null_texture()
 
     def draw(self, context: Context):
+        # 作为顶层的扇区面板，可以在这里缓存选中扇区数据，子面板可直接引用
+        selected_sectors, active_sector = ag_utils.get_selected_sectors()
+        data.SELECTED_SECTORS, data.ACTIVE_SECTOR = selected_sectors, active_sector
+        #
         layout = self.layout
         scene_data = context.scene.amagate_data
 
-        selected_sectors = data.SELECTED_SECTORS
+        # selected_sectors = data.SELECTED_SECTORS
 
         col = layout.column()
         # 扇区数量
@@ -491,18 +495,36 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
 
         # TODO 创建路径，创建并设置样条类型为多线段
 
+        # 转换为扇区
         col.operator(OP_SECTOR.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+
         row = col.row()
         # split = row.split(factor=0.5)
+        # 连接扇区
         row_1 = row.row(align=True)
         op = row_1.operator(OP_SECTOR.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
         op.is_button = True  # type: ignore
         row_1.prop(
-            scene_data.operator_props, "sec_connect_sep_convex", text="", toggle=True
+            scene_data.operator_props,
+            "sec_connect_sep_convex",
+            icon="ADD",
+            icon_only=True,
+            toggle=True,
         )
-
-        op = row.operator(OP_SECTOR.OT_Sector_SeparateConvex.bl_idname, icon="NONE")
+        # 分离为凸部分
+        row_2 = row.row(align=True)
+        op = row_2.operator(
+            OP_SECTOR.OT_Sector_SeparateConvex.bl_idname,
+            icon_value=data.ICONS["knife"].icon_id,
+        )
         op.is_button = True  # type: ignore
+        row_2.prop(
+            scene_data.operator_props,
+            "sec_separate_connect",
+            icon="ADD",
+            icon_only=True,
+            toggle=True,
+        )
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
@@ -515,18 +537,12 @@ class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
         for obj in context.selected_objects:
             if obj.amagate_data.is_sector:  # type: ignore
                 return True
-        data.SELECTED_SECTORS = []
-        data.ACTIVE_SECTOR = None
         return False
 
     def draw(self, context: Context):
+        selected_sectors = data.SELECTED_SECTORS
+        active_sector = data.ACTIVE_SECTOR
         #
-        selected_sectors, active_sector = ag_utils.get_selected_sectors()
-
-        data.SELECTED_SECTORS = selected_sectors
-        data.ACTIVE_SECTOR = active_sector
-        #
-
         layout = self.layout
         scene_data = context.scene.amagate_data
         active_sec_data = active_sector.amagate_data.get_sector_data()
