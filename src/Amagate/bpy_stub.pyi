@@ -1,6 +1,10 @@
+from typing import Any, overload, TypeVar, Union
+
 from .scripts import data as ag_data
 
 import bpy
+from bpy import typing as bpy_typing
+import collections.abc
 from bpy import *  # type: ignore
 
 class __Image(bpy.types.Image):
@@ -18,12 +22,24 @@ class __Context(bpy.types.Context):
     active_object: __Object
 
 class __BlendDataImages(bpy.types.BlendDataImages):
+    @overload
+    def __getitem__(self, key: str | int) -> __Image: ...
+    @overload
+    def __getitem__(self, key: slice) -> list[__Image]: ...
     def __getitem__(self, key: str | int | slice) -> __Image | list[__Image]: ...
 
 class __BlendDataObjects(bpy.types.BlendDataObjects):
+    @overload
+    def __getitem__(self, key: str | int) -> __Object: ...
+    @overload
+    def __getitem__(self, key: slice) -> list[__Object]: ...
     def __getitem__(self, key: str | int | slice) -> __Object | list[__Object]: ...
 
 class __BlendDataScenes(bpy.types.BlendDataScenes):
+    @overload
+    def __getitem__(self, key: str | int) -> __Scene: ...
+    @overload
+    def __getitem__(self, key: slice) -> list[__Scene]: ...
     def __getitem__(self, key: str | int | slice) -> __Scene | list[__Scene]: ...
 
 class __BlendData(bpy.types.BlendData):
