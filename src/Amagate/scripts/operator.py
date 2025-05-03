@@ -899,11 +899,11 @@ class OT_InitMap(bpy.types.Operator):
         # 初始化场景数据
         scene_data.id = 1
         ## 创建集合
-        data.ensure_collection(data.AG_COLL, hide_select=True)
-        data.ensure_collection(data.S_COLL)
-        data.ensure_collection(data.GS_COLL)
-        data.ensure_collection(data.E_COLL)
         data.ensure_collection(data.C_COLL)
+        data.ensure_collection(data.GS_COLL)
+        data.ensure_collection(data.S_COLL)
+        data.ensure_collection(data.E_COLL)
+        data.ensure_collection(data.AG_COLL, hide_select=True)
         ## 创建默认对象
         data.ensure_null_texture()
         data.ensure_null_object()
@@ -973,6 +973,7 @@ def split_editor(context: Context):
     with context.temp_override(area=area):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性
+        area.spaces[0].overlay.normals_length = 0.5  # 法线长度 # type: ignore
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
         area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
         # area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore

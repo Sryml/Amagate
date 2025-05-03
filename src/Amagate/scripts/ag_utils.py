@@ -675,7 +675,12 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
     SectorManage["sectors"].pop(id_key)
 
 
-#
+# 单选并设为活动对象
+def select_active(context: Context, obj: Object):
+    """单选并设为活动对象"""
+    bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+    obj.select_set(True)  # 选择
+    context.view_layer.objects.active = obj  # 设置活动物体
 
 
 ############################
