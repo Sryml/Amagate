@@ -602,7 +602,7 @@ def is_convex(obj: Object):
         # 获取准确的内部顶点，geom_interior并不准确
         # 提取外部面平面信息
         flat_ext = [
-            (f.normal, f.calc_center_median()) for f in geom_holes
+            (f.normal.copy(), f.calc_center_median()) for f in geom_holes
         ]  # type: list[tuple[Vector, Vector]]
 
         # 获取实际的外部面
@@ -678,9 +678,10 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
 # 单选并设为活动对象
 def select_active(context: Context, obj: Object):
     """单选并设为活动对象"""
+    context.view_layer.objects.active = obj  # 设置活动物体
+    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
     bpy.ops.object.select_all(action="DESELECT")  # 取消选择
     obj.select_set(True)  # 选择
-    context.view_layer.objects.active = obj  # 设置活动物体
 
 
 ############################

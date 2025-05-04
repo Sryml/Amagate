@@ -1113,8 +1113,8 @@ class OT_ExportMap(bpy.types.Operator):
                 mesh = sec.data  # type: bpy.types.Mesh # type: ignore
                 matrix_world = sec.matrix_world
                 for v in mesh.vertices:
-                    # 变换顶点坐标并转换为毫米单位，保留一位小数
-                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+                    # 变换顶点坐标并转换为毫米单位
+                    v_key = (matrix_world @ v.co).to_tuple(3)
                     if v_key not in global_vertex_map:
                         global_vertex_map[v_key] = global_vertex_count
                         global_vertex_count += 1
@@ -1302,7 +1302,7 @@ class OT_ExportMap(bpy.types.Operator):
         # 创建脚本
         map_dir = os.path.dirname(bpy.data.filepath)
         sec = sectors_dict[str(sector_ids[0])]["obj"]  # type: Object
-        player_pos = (sec.location * 1000).to_tuple(1)
+        player_pos = sec.location.to_tuple(3)
         player_pos = player_pos[0], -player_pos[2], player_pos[1]
         mapcfg = {
             "bw_file": os.path.basename(bw_file),
