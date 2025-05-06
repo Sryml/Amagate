@@ -191,7 +191,7 @@ def knife_project_timer():
 
 def knife_project_done():
     """投影切割完成，开始分离"""
-    global SECTORS_LIST
+    global SECTORS_LIST, REGION_DATA
 
     SECTORS_LIST = []  # 初始化
     context = bpy.context
@@ -229,19 +229,29 @@ def knife_project_done():
         selected_objects = knife_project_separate_post(sec)
         SECTORS_LIST.append(selected_objects)
 
+    bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+    for lst in SECTORS_LIST:
+        for sec in lst:
+            sec.select_set(True)
+    if context.selected_objects:
+        context.view_layer.objects.active = context.selected_objects[0]
+
     scene_data = context.scene.amagate_data
-    auto_connect = SEPARATE_DATA["auto_connect"]
-    # 如果是来自连接扇区的调用
-    if auto_connect != -1:
-        return
-    else:
-        auto_connect = scene_data.operator_props.sec_separate_connect
+    auto_connect = scene_data.operator_props.sec_separate_connect
+    if auto_connect:
+        with context.temp_override(
+            area=REGION_DATA["area"],
+            region=REGION_DATA["region"],
+        ):
+            bpy.ops.amagate.sector_connect(undo=False, from_separate=True)  # type: ignore
 
     area = REGION_DATA["area"]  # type: bpy.types.Area
     region = REGION_DATA["region"]  # type: bpy.types.Region
     region.data.view_rotation = REGION_DATA["view_rotation"]
     region.data.view_perspective = REGION_DATA["view_perspective"]
     area.spaces[0].shading.type = REGION_DATA["shading_type"]  # type: ignore
+
+    REGION_DATA = {}  # 清空区域数据
 
     if SEPARATE_DATA["undo"]:
         bpy.ops.ed.undo_push(message="Separate Convex")
@@ -497,6 +507,13 @@ class OT_Sector_Connect(bpy.types.Operator):
         return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
+        global SECTORS_LIST
+
+        if self.from_separate:
+            for sectors in SECTORS_LIST:
+                self.connect2(context, sectors)
+            return {"FINISHED"}
+
         # 如果是从F3执行，获取当前选中的扇区
         if not self.is_button:
             data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
@@ -522,69 +539,63 @@ class OT_Sector_Connect(bpy.types.Operator):
             self.report({"WARNING"}, "Select at least two sectors")
             return {"CANCELLED"}
 
+        # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
+        if context.mode == "EDIT_MESH":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            data.geometry_modify_post(selected_sectors)
+
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            # 如果选中扇区存在非凸，直接返回
+            if not sec_data.is_convex:
+                self.report(
+                    {"WARNING"}, "The selected sector contains concave polyhedra"
+                )
+                return {"CANCELLED"}
+
         sectors = selected_sectors.copy()
         sectors.remove(active_sector)
 
         # 重置连接管理器
-        for sec in selected_sectors:
-            sec_data = sec.amagate_data.get_sector_data()
-            sec_data["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            attributes = mesh.attributes.get("amagate_connected")
-            if attributes:
-                mesh.attributes.remove(attributes)
-            mesh.attributes.new(
-                name="amagate_connected", type="INT", domain="FACE"
-            )  # BOOLEAN
+        # for sec in selected_sectors:
+        #     sec_data = sec.amagate_data.get_sector_data()
+        #     sec_data["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
+        #     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        #     attributes = mesh.attributes.get("amagate_connected")
+        #     if attributes:
+        #         mesh.attributes.remove(attributes)
+        #     mesh.attributes.new(
+        #         name="amagate_connected", type="INT", domain="FACE"
+        #     )  # BOOLEAN
 
-        scene_data = context.scene.amagate_data
+        # scene_data = context.scene.amagate_data
 
-        # 如果启用了自动分离
-        # if scene_data.operator_props.sec_connect_sep_convex:
-        #     bpy.ops.amagate.sector_separate_convex(undo=False, is_button=True, auto_connect=0)  # type: ignore
-        # selected_sectors = SECTORS_LIST
+        self.failed_lst = []  # type: list[Object] # 失败列表
 
-        connect_list = self.get_connect_list(context, sectors, active_sector)
-        self.gen_knife(context, sectors, active_sector, connect_list)
+        connect_list = self.get_connect_list(
+            context, sectors, active_sector
+        )  # 最后是编辑模式
+        if not connect_list:
+            bpy.ops.object.mode_set(mode="OBJECT")
+        else:
+            self.gen_knife(
+                context, sectors, active_sector, connect_list
+            )  # 最后是物体模式
         connect_list = list(connect_list.values())
 
         if connect_list != []:
-            self.intersect(context, connect_list, active_sector)
-            self.connect(context, connect_list, active_sector)
-        else:
-            self.report({"WARNING"}, "Unconnectable sectors")
+            self.intersect(context, connect_list, active_sector)  # 最后是编辑模式
+            self.connect(context, connect_list, active_sector)  # 最后是物体模式
 
-        # for sec in selected_sectors:
-        #     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-        #     sec_data = sec.amagate_data.get_sector_data()
-        #     for i, sid in sec_data["ConnectManager"]["faces"].items():
-        #         mesh.attributes["amagate_connected"].data[int(i)].value = sid  # type: ignore
+        # 如果有连接失败的扇区，提示
+        if self.failed_lst:
+            self.report({"WARNING"}, f"Unconnectable sectors: {self.failed_lst}")
+        else:
+            self.report({"INFO"}, "Sectors connected successfully")
 
         if self.undo:
             bpy.ops.ed.undo_push(message="Connect Sectors")
         return {"FINISHED"}
-
-        bpy.ops.object.mode_set(mode="OBJECT")
-        for i, sec1 in enumerate(selected_sectors):
-            for j, sec2 in enumerate(selected_sectors):
-                if j > i:
-                    self.connect(sec1, sec2)
-
-        success = False
-        for sec in selected_sectors:
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            sec_data = sec.amagate_data.get_sector_data()
-            if sec_data["ConnectManager"]["sec_ids"] and not success:
-                success = True
-            for i, sid in sec_data["ConnectManager"]["faces"].items():
-                mesh.attributes["amagate_connected"].data[int(i)].value = sid  # type: ignore
-
-        if success:
-            self.report({"INFO"}, "Sectors connected successfully")
-            return {"FINISHED"}
-        else:
-            self.report({"INFO"}, "No sectors to connect")
-            return {"CANCELLED"}
 
     # 获取连接列表
     def get_connect_list(
@@ -597,7 +608,6 @@ class OT_Sector_Connect(bpy.types.Operator):
         active_bm_edit = bmesh.from_edit_mesh(active_sector.data)  # type: ignore
         active_bm_edit.faces.ensure_lookup_table()
         active_sec_data = active_sector.amagate_data.get_sector_data()
-        active_sec_ids = active_sec_data["ConnectManager"]["sec_ids"].to_list()
 
         # 连接列表
         connect_list = {}
@@ -674,7 +684,6 @@ class OT_Sector_Connect(bpy.types.Operator):
                     # 一个扇区只有一个平面相连
                     break
 
-        active_sec_data["ConnectManager"]["sec_ids"] = active_sec_ids
         return connect_list
 
     # 生成刀具
@@ -722,9 +731,11 @@ class OT_Sector_Connect(bpy.types.Operator):
         active_sector.select_set(False)
         for sec in sectors:
             sec.select_set(False)
+        context.view_layer.objects.active = context.selected_objects[0]
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
+        # bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
+        bpy.ops.mesh.dissolve_limited(angle_limit=0.001)  # 有限融并 0.05度
 
         # 布尔交集处理
 
@@ -739,6 +750,10 @@ class OT_Sector_Connect(bpy.types.Operator):
             )  # type: bpy.types.Mesh # type: ignore
 
             if len(group_sep_obj_mesh.polygons) != 1:
+                # 清理
+                connect_list[key] = None
+                bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+                bpy.data.meshes.remove(group_sep_obj_mesh)  # 删除网格
                 ag_utils.debugprint(f"group_sep_obj_mesh: polygon not 1")
                 continue
 
@@ -747,7 +762,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 co = active_matrix @ v.co
                 group_verts_dict[co.to_tuple(3)] = co
 
-            disable_cut = 0
+            # disable_cut = 0
             # 倒序处理，避免删除元素导致索引变化
             for index in range(connect_num - 1, -1, -1):
                 # for index, connect_info in enumerate(group_info["connect_info"]):
@@ -760,6 +775,11 @@ class OT_Sector_Connect(bpy.types.Operator):
                 sep_obj_mesh = sep_obj.data  # type: bpy.types.Mesh # type: ignore
 
                 if len(sep_obj_mesh.polygons) != 1:
+                    # 删除元素
+                    del group_info["connect_info"][index]
+                    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+                    bpy.data.meshes.remove(sep_obj_mesh)  # 删除网格
+                    self.failed_lst.append(sec)
                     ag_utils.debugprint(f"sep_obj_mesh: polygon not 1")
                     continue
 
@@ -841,6 +861,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                     # ag_utils.debugprint(f"No intersect")
                     bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
                     bpy.data.meshes.remove(group_sep_obj_mesh)  # 删除网格
+                    self.failed_lst.append(sec)
                     continue
 
                 bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -877,28 +898,16 @@ class OT_Sector_Connect(bpy.types.Operator):
                 # 合并顶点（按距离）
                 # bpy.ops.mesh.remove_doubles(threshold=0.0005)  # 0.5毫米
 
-                # 纠正刀具顶点
-                # for v in bm_edit.verts:
-                #     key = (knife_matrix @ v.co).to_tuple(3)
-                #     co = group_verts_dict.get(key)
-                #     if co is None:
-                #         co = verts_dict.get(key)
-                #     if co is not None:
-                #         v.co = knife_matrix.inverted() @ co
-                # bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
-
                 knife_verts_dict = {
                     (knife_matrix @ v.co).to_tuple(3) for v in bm_edit.verts
                 }
-                # print(knife_verts_dict)
-                # print(verts_dict.keys())
                 # 如果组面等于刀具，则无需切割
                 if knife_verts_dict == set(group_verts_dict.keys()):
                     group_info["enable_cut"] = False
                 # 如果连接扇区的面等于刀具，则无需切割
                 if knife_verts_dict == set(verts_dict.keys()):
                     connect_info["enable_cut"] = False
-                    disable_cut += 1
+                    # disable_cut += 1
                     # if disable_cut == connect_num:
                     #     group_info["enable_cut"] = False
                     #     ag_utils.debugprint(f"Disable cut")
@@ -928,6 +937,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             if connect_list[k] is None:
                 del connect_list[k]
 
+        # 恢复选择
         ag_utils.select_active(context, active_sector)  # 单选并设为活动
         for sec in sectors:
             sec.select_set(True)
@@ -1111,6 +1121,10 @@ class OT_Sector_Connect(bpy.types.Operator):
             # 简并融并，两次
             bpy.ops.mesh.dissolve_degenerate()
             bpy.ops.mesh.dissolve_degenerate()
+        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+        bpy.ops.mesh.select_mode(type="EDGE")  # 边模式
+        bpy.ops.mesh.select_non_manifold()  # 选择非流形
+        bpy.ops.mesh.delete(type="EDGE")  # 删除边
         #     # 合并顶点（按距离）
         #     bpy.ops.mesh.remove_doubles(threshold=0.0003)  # 0.3毫米
         # 重新计算法向（内侧）
@@ -1119,13 +1133,12 @@ class OT_Sector_Connect(bpy.types.Operator):
     def connect(self, context: Context, connect_list: list, active_sector: Object):
         active_matrix = active_sector.matrix_world
         active_sec_data = active_sector.amagate_data.get_sector_data()
-        # active_sec_ids = active_sec_data["ConnectManager"]["sec_ids"].to_list()
         active_mesh = active_sector.data  # type: bpy.types.Mesh # type: ignore
         active_bm_edit = bmesh.from_edit_mesh(active_mesh)
         active_bm_edit.verts.ensure_lookup_table()
 
-        active_sec_faces = []
-        sec_faces = []
+        # active_sec_faces = []
+        # sec_faces = []
         mesh_lst = []
 
         for group_info in connect_list:
@@ -1153,6 +1166,12 @@ class OT_Sector_Connect(bpy.types.Operator):
                     break
 
             if not group_faces:
+                self.failed_lst.extend(
+                    [
+                        connect_info["sector"]
+                        for connect_info in group_info["connect_info"]
+                    ]
+                )
                 ag_utils.debugprint(f"No group faces")
                 continue
 
@@ -1187,6 +1206,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                         break
 
                 if not connect_faces:
+                    self.failed_lst.append(sec)
                     ag_utils.debugprint(f"No connect faces")
                     continue
 
@@ -1255,42 +1275,98 @@ class OT_Sector_Connect(bpy.types.Operator):
                 knife_bm.free()
 
                 if not active_face or not connect_face:
+                    self.failed_lst.append(sec)
                     continue
 
                 # 保留小数为毫米单位
                 verts1 = {(active_matrix @ v.co).to_tuple(3) for v in active_face.verts}
                 verts2 = {(sec_matrix @ v.co).to_tuple(3) for v in connect_face.verts}
                 if verts1.issubset(verts2) or verts2.issubset(verts1):
-                    # sec_ids = sec_data["ConnectManager"]["sec_ids"].to_list()
-                    # if sec_data.id not in active_sec_ids:
-                    #     active_sec_ids.append(sec_data.id)
-                    # if active_sec_data.id not in sec_ids:
-                    #     sec_ids.append(active_sec_data.id)
-                    # active_sec_data["ConnectManager"]["faces"][
-                    #     str(active_face.index)
-                    # ] = sec_data.id
-                    # sec_data["ConnectManager"]["faces"][
-                    #     str(connect_face.index)
-                    # ] = active_sec_data.id
-                    # sec_data["ConnectManager"]["sec_ids"] = sec_ids
                     layer = active_bm_edit.faces.layers.int.get("amagate_connected")
                     active_face[layer] = sec_data.id  # type: ignore
                     layer = bm_edit.faces.layers.int.get("amagate_connected")
                     connect_face[layer] = active_sec_data.id  # type: ignore
-                    # active_mesh.attributes["amagate_connected"].data[active_face.index].value = sec_data.id  # type: ignore
-                    # mesh.attributes["amagate_connected"].data[connect_face.index].value = active_sec_data.id  # type: ignore
-                    active_sec_faces.append(active_face)
-                    sec_faces.append(connect_face)
+
                     ag_utils.debugprint(
                         f"connect: {active_sector.name} {active_face.index}  <-> {sec.name} {connect_face.index}"
                     )
-
-        faces = active_sec_faces + sec_faces
-        if not faces:
-            ag_utils.debugprint(f"No faces to connect")
+                else:
+                    self.failed_lst.append(sec)
 
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-        self.report({"INFO"}, "Sectors connected successfully")
+
+    def connect2(self, context: Context, sectors: list[Object]):
+        """顶点匹配连接"""
+        bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+        bpy.ops.mesh.select_mode(type="EDGE")  # 边模式
+        verts_map = {}
+        for i, sec_1 in enumerate(sectors):
+            sec_data_1 = sec_1.amagate_data.get_sector_data()
+            matrix_1 = sec_1.matrix_world
+            mesh_1 = sec_1.data  # type: bpy.types.Mesh # type: ignore
+            bm_edit_1 = bmesh.from_edit_mesh(mesh_1)
+            bm_edit_1.verts.ensure_lookup_table()
+
+            for j, sec_2 in enumerate(sectors):
+                if j > i:
+                    sec_data_2 = sec_2.amagate_data.get_sector_data()
+                    matrix_2 = sec_2.matrix_world
+                    mesh_2 = sec_2.data  # type: bpy.types.Mesh # type: ignore
+                    bm_edit_2 = bmesh.from_edit_mesh(mesh_2)
+                    bm_edit_2.verts.ensure_lookup_table()
+
+                    verts_dict_1 = verts_map.setdefault(
+                        i,
+                        {
+                            (matrix_1 @ v.co).to_tuple(3): v.index
+                            for v in bm_edit_1.verts
+                        },
+                    )
+                    verts_dict_2 = verts_map.setdefault(
+                        j,
+                        {
+                            (matrix_2 @ v.co).to_tuple(3): v.index
+                            for v in bm_edit_2.verts
+                        },
+                    )
+                    intersection = set(verts_dict_1.keys()).intersection(
+                        set(verts_dict_2.keys())
+                    )
+
+                    # 如果有对应顶点
+                    if intersection:
+                        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+                        verts_idx_1 = set(verts_dict_1[k] for k in intersection)
+                        verts_idx_2 = set(verts_dict_2[k] for k in intersection)
+                        for e in bm_edit_1.edges:
+                            if {v.index for v in e.verts}.issubset(verts_idx_1):
+                                e.select_set(True)
+                        for e in bm_edit_2.edges:
+                            if {v.index for v in e.verts}.issubset(verts_idx_2):
+                                e.select_set(True)
+                        bmesh.update_edit_mesh(
+                            mesh_1, loop_triangles=False, destructive=False
+                        )  # 更新网格
+                        bmesh.update_edit_mesh(
+                            mesh_2, loop_triangles=False, destructive=False
+                        )  # 更新网格
+                        bpy.ops.mesh.edge_face_add()  # 从顶点创建边/面
+
+                        # 设置属性
+                        face = next((f for f in bm_edit_1.faces if f.select), None)
+                        if face is not None:
+                            layer = bm_edit_1.faces.layers.int.get("amagate_connected")
+                            face[layer] = sec_2.amagate_data.get_sector_data().id  # type: ignore
+
+                        face = next((f for f in bm_edit_2.faces if f.select), None)
+                        if face is not None:
+                            layer = bm_edit_2.faces.layers.int.get("amagate_connected")
+                            face[layer] = sec_1.amagate_data.get_sector_data().id  # type: ignore
+
+        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        # 重新计算法向（内侧）
+        bpy.ops.mesh.normals_make_consistent(inside=True)
+        bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
 
 # 分离凸多面体
@@ -1303,7 +1379,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
     undo: BoolProperty(default=True)  # type: ignore
     is_button: BoolProperty(default=False)  # type: ignore
     # 自动连接，仅用于内部传参，如果为-1，则使用UI开关值
-    auto_connect: IntProperty(default=-1)  # type: ignore
+    # auto_connect: IntProperty(default=-1)  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
@@ -1539,7 +1615,6 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 "index": 0,
                 "separate_list": separate_list,
                 "undo": self.undo,
-                "auto_connect": self.auto_connect,
             }
             REGION_DATA = {
                 "area": area,
