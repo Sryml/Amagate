@@ -213,14 +213,14 @@ def get_faces_with_normal_conn(face, visited=None):  # type: ignore
     获取与给定面具有相同法线的相连面的索引。
     :param face: 起始的面。
     :param visited: 已访问的面集合。
-    :return: 具有相同法线的相连面的索引列表。
+    :return: 具有相同法线的相连面的索引集合。
     """
     if visited is None:
         visited = set()  # 初始化已访问集合
 
     # 添加到已访问集合
     visited.add(face.index)
-    # 初始化结果列表
+    # 初始化结果集
     result = {face.index}
     # 获取法线
     normal = face.normal.copy()
@@ -561,32 +561,7 @@ def is_convex(obj: Object):
         bmesh.ops.dissolve_faces(bm_convex, faces=faces, use_verts=True)
 
     # 合并顶点
-    # 需要合并的边
-    edges_lst = []  # type: list[list[bmesh.types.BMEdge]]
-    visited = set()
-    for e in bm_convex.edges:
-        if e in visited:
-            continue
-
-        bm_convex.edges.ensure_lookup_table()
-        edges_index = get_edges_along_line(e)
-        if len(edges_index) > 1:
-            edges = [bm_convex.edges[i] for i in edges_index]
-            edges_lst.append(edges)
-            visited.update(edges)
-    for edges in edges_lst:
-        endpoint = []
-        verts = []
-        for e in edges:
-            for v in e.verts:
-                if v not in endpoint:
-                    endpoint.append(v)
-                else:
-                    endpoint.remove(v)
-                    verts.append(v)
-        bmesh.ops.pointmerge(
-            bm_convex, verts=verts + endpoint[:1], merge_co=endpoint[0].co
-        )
+    pointmerge(bm_convex)
     # 创建物体
     # convex_mesh = bpy.data.meshes.new("AG.convex_obj")
     # bm_convex.to_mesh(convex_mesh)  # type: ignore
@@ -715,6 +690,33 @@ def select_active(context: Context, obj: Object):
     bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
     bpy.ops.object.select_all(action="DESELECT")  # 取消选择
     obj.select_set(True)  # 选择
+
+
+# 合并多余顶点
+def pointmerge(bm: bmesh.types.BMesh):
+    edges_lst = []  # type: list[list[bmesh.types.BMEdge]]
+    visited = set()
+    for e in bm.edges:
+        if e in visited:
+            continue
+
+        bm.edges.ensure_lookup_table()
+        edges_index = get_edges_along_line(e)
+        if len(edges_index) > 1:
+            edges = [bm.edges[i] for i in edges_index]
+            edges_lst.append(edges)
+            visited.update(edges)
+    for edges in edges_lst:
+        endpoint = []
+        verts = []
+        for e in edges:
+            for v in e.verts:
+                if v not in endpoint:
+                    endpoint.append(v)
+                else:
+                    endpoint.remove(v)
+                    verts.append(v)
+        bmesh.ops.pointmerge(bm, verts=verts + endpoint[:1], merge_co=endpoint[0].co)
 
 
 ############################
