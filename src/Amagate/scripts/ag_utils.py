@@ -236,7 +236,7 @@ def get_faces_with_normal_conn(face, visited=None):  # type: ignore
 
 
 # 获取在同一直线的相连边
-def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None) -> List[int]:  # type: ignore
+def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None) -> list[int]:  # type: ignore
     """
     获取在同一直线上的相连边的索引。
 
@@ -267,6 +267,43 @@ def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFac
                 edges_index.extend(ret)
 
     return edges_index
+
+
+# 获取共线的子顶点
+def get_sub_verts_along_line(vert: bmesh.types.BMVert, edge: bmesh.types.BMEdge = None) -> tuple[list[int], bmesh.types.BMVert]:  # type: ignore
+    verts_index = []
+    endpoint = None  # type: bmesh.types.BMVert # type: ignore
+
+    if not edge:
+        verts_index.append(vert.index)
+        for e in vert.link_edges:
+            ret = get_sub_verts_along_line(vert, e)
+            verts_index.extend(ret[0])
+            endpoint = ret[1]
+    else:
+        vert2 = edge.other_vert(vert)  # type: bmesh.types.BMVert
+        dir2 = (vert.co - vert2.co).normalized()
+        link_num = len(vert2.link_edges)
+        # 如果连接边大于3，说明是端点
+        if link_num > 2:
+            endpoint = vert
+        elif link_num == 2:
+            edge2 = vert2.link_edges[0]
+            if edge2 == edge:
+                edge2 = vert2.link_edges[1]
+
+            vert3 = edge2.other_vert(vert2)  # type: bmesh.types.BMVert
+            dir3 = (vert2.co - vert3.co).normalized()
+            # 如果连接边等于2且另一条边不共线，说明是端点
+            if abs(dir2.dot(dir3)) < epsilon2:
+                endpoint = vert
+            else:
+                verts_index.append(vert2.index)
+                ret = get_sub_verts_along_line(vert2, edge2)
+                verts_index.extend(ret[0])
+                endpoint = ret[1]
+
+    return verts_index, endpoint
 
 
 # 设置视图旋转
@@ -694,29 +731,27 @@ def select_active(context: Context, obj: Object):
 
 # 合并多余顶点
 def pointmerge(bm: bmesh.types.BMesh):
-    edges_lst = []  # type: list[list[bmesh.types.BMEdge]]
+    verts_lst = []  # type: list[tuple[list[bmesh.types.BMVert], bmesh.types.BMVert]]
     visited = set()
-    for e in bm.edges:
-        if e in visited:
+    bm.verts.ensure_lookup_table()
+    for v in bm.verts:
+        if v in visited:
             continue
 
-        bm.edges.ensure_lookup_table()
-        edges_index = get_edges_along_line(e)
-        if len(edges_index) > 1:
-            edges = [bm.edges[i] for i in edges_index]
-            edges_lst.append(edges)
-            visited.update(edges)
-    for edges in edges_lst:
-        endpoint = []
-        verts = []
-        for e in edges:
-            for v in e.verts:
-                if v not in endpoint:
-                    endpoint.append(v)
-                else:
-                    endpoint.remove(v)
-                    verts.append(v)
-        bmesh.ops.pointmerge(bm, verts=verts + endpoint[:1], merge_co=endpoint[0].co)
+        if len(v.link_edges) == 2:
+            dir1 = (v.link_edges[0].other_vert(v).co - v.co).normalized()
+            dir2 = (v.link_edges[1].other_vert(v).co - v.co).normalized()
+            # 如果该顶点只连接两条边且共线，则为子顶点
+            if dir1.dot(dir2) < -epsilon2:
+                verts_index, endpoint = get_sub_verts_along_line(v)
+                verts = [bm.verts[i] for i in verts_index]
+                verts_lst.append((verts, endpoint))
+                visited.update(verts)
+    for verts, endpoint in verts_lst:
+        endpoint2 = endpoint.link_edges[0].other_vert(endpoint)
+        if endpoint2 in verts:
+            endpoint2 = endpoint.link_edges[1].other_vert(endpoint)
+        bmesh.ops.pointmerge(bm, verts=verts + [endpoint2], merge_co=endpoint2.co)
 
 
 ############################
