@@ -572,8 +572,12 @@ def is_convex(obj: Object):
         return False
 
     sec_bm = bmesh.new()
-    sec_bm.from_mesh(obj.data)  # type: ignore
+    mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+    sec_bm.from_mesh(mesh)
+    bmesh.ops.remove_doubles(sec_bm, verts=sec_bm.verts, dist=0.0001)  # type: ignore # 按距离合并顶点
+    sec_bm.to_mesh(mesh)
     sec_bm.faces.ensure_lookup_table()
+
     bm_convex = sec_bm.copy()
     bm_convex.faces.ensure_lookup_table()
 
@@ -582,23 +586,8 @@ def is_convex(obj: Object):
 
     # 融并内插面
     # bmesh.ops.dissolve_limit(bm, angle_limit=0.001, verts=bm.verts, edges=bm.edges)
-    # 待融并面列表
-    faces_lst = []
-    visited = set()
-    for f in bm_convex.faces:
-        if f.index in visited:
-            continue
-
-        # 获取相同法线的相连面
-        faces_idx = get_faces_with_normal_conn(f, visited)
-        if len(faces_idx) > 1:
-            faces_lst.append([bm_convex.faces[i] for i in faces_idx])
-
-    for faces in faces_lst:
-        bmesh.ops.dissolve_faces(bm_convex, faces=faces, use_verts=True)
-
-    # 合并顶点
-    pointmerge(bm_convex)
+    # 融并面及反细分边
+    dissolve_unsubdivide(bm_convex)
     # 创建物体
     # convex_mesh = bpy.data.meshes.new("AG.convex_obj")
     # bm_convex.to_mesh(convex_mesh)  # type: ignore
@@ -729,8 +718,8 @@ def select_active(context: Context, obj: Object):
     obj.select_set(True)  # 选择
 
 
-# 合并多余顶点
-def pointmerge(bm: bmesh.types.BMesh):
+# 反细分边
+def unsubdivide(bm: bmesh.types.BMesh):
     verts_lst = []  # type: list[tuple[list[bmesh.types.BMVert], bmesh.types.BMVert]]
     visited = set()
     bm.verts.ensure_lookup_table()
@@ -752,6 +741,36 @@ def pointmerge(bm: bmesh.types.BMesh):
         if endpoint2 in verts:
             endpoint2 = endpoint.link_edges[1].other_vert(endpoint)
         bmesh.ops.pointmerge(bm, verts=verts + [endpoint2], merge_co=endpoint2.co)
+
+
+def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
+    """融并面及反细分边"""
+    # 待融并面列表
+    faces_lst = []
+    visited = set()
+    for f in bm.faces:
+        if f.index in visited:
+            continue
+
+        # 获取相同法线的相连面
+        faces_idx = get_faces_with_normal_conn(f, visited)
+        if len(faces_idx) > 1:
+            faces_lst.append([bm.faces[i] for i in faces_idx])
+
+    for faces in faces_lst:
+        if del_connected:
+            layer = bm.faces.layers.int.get("amagate_connected")
+            for f in faces:
+                if f[layer] != 0:
+                    bmesh.ops.delete(bm, geom=faces, context="FACES")
+                    faces = []
+                    break
+
+        if faces != []:
+            bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
+
+    # 反细分
+    unsubdivide(bm)
 
 
 ############################
