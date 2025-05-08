@@ -252,7 +252,7 @@ def knife_project_done():
             area=REGION_DATA["area"],
             region=REGION_DATA["region"],
         ):
-            bpy.ops.amagate.sector_connect(undo=False, from_separate=True)  # type: ignore
+            bpy.ops.amagate.sector_connect_vm(undo=True, from_separate=True)  # type: ignore
 
     REGION_DATA = {}  # 清空区域数据
 
@@ -449,6 +449,7 @@ class OT_Sector_Convert(bpy.types.Operator):
             self.report({"INFO"}, "No objects selected")
             return {"CANCELLED"}
 
+        # 非扇区的网格对象
         mesh_objects = [
             obj
             for obj in original_selection
@@ -500,20 +501,12 @@ class OT_Sector_Connect(bpy.types.Operator):
     is_button: BoolProperty(default=False)  # type: ignore
     # 自动分离，仅用于内部传参，如果为-1，则使用UI开关值
     # auto_separate: IntProperty(default=-1)  # type: ignore
-    from_separate: BoolProperty(default=False)  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
         return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
-        global SECTORS_LIST
-
-        if self.from_separate:
-            for sectors in SECTORS_LIST:
-                self.connect2(context, sectors)
-            return {"FINISHED"}
-
         # 如果是从F3执行，获取当前选中的扇区
         if not self.is_button:
             data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
@@ -1304,7 +1297,76 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
-    def connect2(self, context: Context, sectors: list[Object]):
+
+class OT_Sector_Connect_More(bpy.types.Operator):
+    bl_idname = "amagate.sector_connect_more"
+    bl_label = "More Connect"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+
+        op = col.operator(OT_Sector_Connect_VM.bl_idname)
+        op.is_button = True  # type: ignore
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        return context.window_manager.invoke_popup(self, width=130)  # type: ignore
+
+
+# 连接扇区 (顶点匹配)
+class OT_Sector_Connect_VM(bpy.types.Operator):
+    bl_idname = "amagate.sector_connect_vm"
+    bl_label = "Vertex Matching"
+    bl_description = "Connect selected sectors using vertex matching"
+    # bl_options = {"UNDO"}
+
+    undo: BoolProperty(default=True)  # type: ignore
+    is_button: BoolProperty(default=False)  # type: ignore
+    from_separate: BoolProperty(default=False)  # type: ignore
+
+    def execute(self, context: Context):
+        global SECTORS_LIST
+
+        if self.from_separate:
+            for sectors in SECTORS_LIST:
+                self.connect(context, sectors)
+            SECTORS_LIST = []  # 清空
+        else:
+            # 如果是从F3执行，获取当前选中的扇区
+            if not self.is_button:
+                data.SELECTED_SECTORS, data.ACTIVE_SECTOR = (
+                    ag_utils.get_selected_sectors()
+                )
+            self.is_button = False  # 重置，因为从F3执行时会使用缓存值
+
+            selected_sectors = data.SELECTED_SECTORS
+
+            if len(selected_sectors) < 2:
+                self.report({"WARNING"}, "Select at least two sectors")
+                return {"CANCELLED"}
+
+            # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
+            if context.mode == "EDIT_MESH":
+                bpy.ops.object.mode_set(mode="OBJECT")
+                # data.geometry_modify_post(selected_sectors)
+
+            # 如果没有活跃对象或者活跃对象未选中
+            if context.active_object not in selected_sectors:
+                context.view_layer.objects.active = selected_sectors[0]
+
+            self.connect(context, selected_sectors)
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Connect Sectors (Vertex Matching)")
+
+        return {"FINISHED"}
+
+    def connect(self, context: Context, sectors: list[Object]):
         """顶点匹配连接"""
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
         bpy.ops.mesh.select_mode(type="EDGE")  # 边模式
@@ -1377,8 +1439,6 @@ class OT_Sector_Connect(bpy.types.Operator):
         bpy.ops.mesh.normals_make_consistent(inside=True)
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
         data.geometry_modify_post(sectors, undo=False)
-
-        bpy.ops.ed.undo_push(message="Connect Sectors (Vertex Matching)")
 
 
 # 分离凸多面体

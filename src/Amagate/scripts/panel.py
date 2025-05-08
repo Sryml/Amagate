@@ -498,33 +498,37 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         # 转换为扇区
         col.operator(OP_SECTOR.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
 
-        row = col.row()
-        # split = row.split(factor=0.5)
-        # 连接扇区
-        row_1 = row.row(align=True)
-        op = row_1.operator(OP_SECTOR.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
-        op.is_button = True  # type: ignore
-        row_1.prop(
-            scene_data.operator_props,
-            "sec_connect_sep_convex",
-            icon="ADD",
-            icon_only=True,
-            toggle=True,
-        )
         # 分离为凸部分
-        row_2 = row.row(align=True)
-        op = row_2.operator(
+        row = col.row(align=True)
+        op = row.operator(
             OP_SECTOR.OT_Sector_SeparateConvex.bl_idname,
             icon_value=data.ICONS["knife"].icon_id,
         )
         op.is_button = True  # type: ignore
-        row_2.prop(
+        row.prop(
             scene_data.operator_props,
             "sec_separate_connect",
             icon="ADD",
             icon_only=True,
             toggle=True,
         )
+
+        row = col.row()
+        # split = row.split(factor=0.5)
+        # 连接扇区
+        row_1 = row.row(align=True)
+        op = row_1.operator(OP_SECTOR.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
+        op.is_button = True  # type: ignore
+        row_1.operator(
+            OP_SECTOR.OT_Sector_Connect_More.bl_idname, text="", icon="DOWNARROW_HLT"
+        )
+        # row_1.prop(
+        #     scene_data.operator_props,
+        #     "sec_connect_sep_convex",
+        #     icon="ADD",
+        #     icon_only=True,
+        #     toggle=True,
+        # )
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
