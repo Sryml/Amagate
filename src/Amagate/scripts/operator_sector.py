@@ -236,6 +236,15 @@ def knife_project_done():
     if context.selected_objects:
         context.view_layer.objects.active = context.selected_objects[0]
 
+    area = REGION_DATA["area"]  # type: bpy.types.Area
+    region = REGION_DATA["region"]  # type: bpy.types.Region
+    region.data.view_rotation = REGION_DATA["view_rotation"]
+    region.data.view_perspective = REGION_DATA["view_perspective"]
+    area.spaces[0].shading.type = REGION_DATA["shading_type"]  # type: ignore
+
+    if SEPARATE_DATA["undo"]:
+        bpy.ops.ed.undo_push(message="Separate Convex")
+
     scene_data = context.scene.amagate_data
     auto_connect = scene_data.operator_props.sec_separate_connect
     if auto_connect:
@@ -245,16 +254,7 @@ def knife_project_done():
         ):
             bpy.ops.amagate.sector_connect(undo=False, from_separate=True)  # type: ignore
 
-    area = REGION_DATA["area"]  # type: bpy.types.Area
-    region = REGION_DATA["region"]  # type: bpy.types.Region
-    region.data.view_rotation = REGION_DATA["view_rotation"]
-    region.data.view_perspective = REGION_DATA["view_perspective"]
-    area.spaces[0].shading.type = REGION_DATA["shading_type"]  # type: ignore
-
     REGION_DATA = {}  # 清空区域数据
-
-    if SEPARATE_DATA["undo"]:
-        bpy.ops.ed.undo_push(message="Separate Convex")
 
 
 # 投影切割后的分离操作
@@ -570,7 +570,7 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         # scene_data = context.scene.amagate_data
 
-        self.failed_lst = []  # type: list[Object] # 失败列表
+        self.failed_lst = []  # type: list[str] # 失败列表
 
         connect_list = self.get_connect_list(
             context, sectors, active_sector
@@ -589,7 +589,9 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         # 如果有连接失败的扇区，提示
         if self.failed_lst:
-            self.report({"WARNING"}, f"Unconnectable sectors: {self.failed_lst}")
+            self.report(
+                {"WARNING"}, f"{pgettext('Unconnectable sectors')}: {self.failed_lst}"
+            )
         else:
             self.report({"INFO"}, "Sectors connected successfully")
 
@@ -779,7 +781,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                     del group_info["connect_info"][index]
                     bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
                     bpy.data.meshes.remove(sep_obj_mesh)  # 删除网格
-                    self.failed_lst.append(sec)
+                    self.failed_lst.append(sec.name)
                     ag_utils.debugprint(f"sep_obj_mesh: polygon not 1")
                     continue
 
@@ -861,7 +863,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                     # ag_utils.debugprint(f"No intersect")
                     bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
                     bpy.data.meshes.remove(group_sep_obj_mesh)  # 删除网格
-                    self.failed_lst.append(sec)
+                    self.failed_lst.append(sec.name)
                     continue
 
                 bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -893,8 +895,13 @@ class OT_Sector_Connect(bpy.types.Operator):
                     bpy.ops.mesh.dissolve_degenerate()
                     bpy.ops.mesh.dissolve_degenerate()
                 # 融并面
-                bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-                bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
+                # bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+                bmesh.ops.dissolve_faces(
+                    bm_edit, faces=list(bm_edit.faces), use_verts=False
+                )  # 融并面
+                ag_utils.pointmerge(bm_edit)  # 合并多余顶点
+                bmesh.update_edit_mesh(group_sep_obj_mesh)
+                # bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
                 # 合并顶点（按距离）
                 # bpy.ops.mesh.remove_doubles(threshold=0.0005)  # 0.5毫米
 
@@ -922,10 +929,11 @@ class OT_Sector_Connect(bpy.types.Operator):
                 knife_bm = bmesh.new()
                 knife_bm.from_mesh(group_sep_obj_mesh)  # type: ignore
                 # 放大，再往投影法向移动1米
-                # matrix = Matrix.Scale(1.001, 4)
+                matrix = Matrix.Translation(proj_normal)
+                # matrix = Matrix.Scale(1.0001, 4)
                 # matrix.translation = proj_normal
                 bmesh.ops.transform(
-                    knife_bm, matrix=Matrix.Translation(proj_normal), verts=knife_bm.verts  # type: ignore
+                    knife_bm, matrix=matrix, verts=knife_bm.verts  # type: ignore
                 )  #
                 connect_info["knife_bm"] = knife_bm
 
@@ -1168,7 +1176,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             if not group_faces:
                 self.failed_lst.extend(
                     [
-                        connect_info["sector"]
+                        connect_info["sector"].name
                         for connect_info in group_info["connect_info"]
                     ]
                 )
@@ -1206,7 +1214,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                         break
 
                 if not connect_faces:
-                    self.failed_lst.append(sec)
+                    self.failed_lst.append(sec.name)
                     ag_utils.debugprint(f"No connect faces")
                     continue
 
@@ -1275,7 +1283,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 knife_bm.free()
 
                 if not active_face or not connect_face:
-                    self.failed_lst.append(sec)
+                    self.failed_lst.append(sec.name)
                     continue
 
                 # 保留小数为毫米单位
@@ -1291,7 +1299,8 @@ class OT_Sector_Connect(bpy.types.Operator):
                         f"connect: {active_sector.name} {active_face.index}  <-> {sec.name} {connect_face.index}"
                     )
                 else:
-                    self.failed_lst.append(sec)
+                    self.failed_lst.append(sec.name)
+                    ag_utils.debugprint(f"No verts match")
 
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
@@ -1367,6 +1376,9 @@ class OT_Sector_Connect(bpy.types.Operator):
         # 重新计算法向（内侧）
         bpy.ops.mesh.normals_make_consistent(inside=True)
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+        data.geometry_modify_post(sectors, undo=False)
+
+        bpy.ops.ed.undo_push(message="Connect Sectors (Vertex Matching)")
 
 
 # 分离凸多面体
