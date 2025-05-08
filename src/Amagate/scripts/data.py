@@ -227,7 +227,15 @@ def ensure_null_object() -> Object:
     if not null_obj:
         # obj_data = bpy.data.meshes.new("NULL")
         null_obj = bpy.data.objects.new("NULL", None)  # type: ignore
+        # bpy.ops.mesh.primitive_cube_add()
+        # null_obj = bpy.context.active_object
+
         null_obj.use_fake_user = True
+
+        # 可见性
+        null_obj.hide_viewport = True
+        null_obj.visible_shadow = False
+
         scene_data.ensure_null_obj = null_obj
     return null_obj
 
@@ -240,7 +248,7 @@ def ensure_render_camera() -> Object:
         cam_data = bpy.data.cameras.new("AG.RenderCamera")
         render_cam = bpy.data.objects.new("AG.RenderCamera", cam_data)  # type: ignore
         cam_data.sensor_width = 100
-        cam_data.passepartout_alpha = 0.9
+        cam_data.passepartout_alpha = 0.98
         # cam_data.show_limits = True
         render_cam.rotation_euler = (math.pi / 2, 0, 0)
         # 正交摄像机
@@ -676,16 +684,19 @@ def delete_post_func():
             bpy.ops.ed.undo_push(message="Delete Sector")
 
 
-def geometry_modify_post(selected_sectors: list[Object] = []):
+def geometry_modify_post(selected_sectors: list[Object] = [], undo=True):
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
     if selected_sectors:
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
+            if sec_data is None:
+                continue
             sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
             sec_data.is_convex = ag_utils.is_convex(sec)
 
-            # 凸面检查
+        # 凸面检查
+        if undo:
             bpy.ops.ed.undo_push(message="Convex Check")
 
 
@@ -1755,7 +1766,7 @@ class OperatorProperty(bpy.types.PropertyGroup):
     # OT_Sector_Connect
     sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
     # OT_Sector_SeparateConvex
-    sec_separate_connect: BoolProperty(name="Auto Connect", default=False)  # type: ignore
+    sec_separate_connect: BoolProperty(name="Auto Connect", default=True)  # type: ignore
 
 
 # 扇区属性
@@ -1882,7 +1893,8 @@ class SectorProperty(bpy.types.PropertyGroup):
                 light.data = light_data
             self.external_obj = light
 
-            light.hide_select = True
+            light.hide_select = True  # 不可选
+            light.hide_viewport = True  # 不可见
             # self.id_data.users_collection[0].objects.link(light)
             # light.parent = self.id_data
             link2coll(light, ensure_collection(AG_COLL, hide_select=True))
@@ -1893,9 +1905,9 @@ class SectorProperty(bpy.types.PropertyGroup):
             if lightlink_coll:
                 collections.remove(lightlink_coll)
             lightlink_coll = collections.new(name)
-            light.light_linking.receiver_collection = lightlink_coll
-            light.light_linking.blocker_collection = lightlink_coll
-            link2coll(ensure_null_object(), lightlink_coll)
+            # light.light_linking.receiver_collection = lightlink_coll
+            # light.light_linking.blocker_collection = lightlink_coll
+            # link2coll(ensure_null_object(), lightlink_coll)
 
             # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
         elif light.data != light_data:
@@ -1946,7 +1958,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         lightlink_coll = collections.get(name)
         if not lightlink_coll:
             lightlink_coll = collections.new(name)
-            link2coll(ensure_null_object(), lightlink_coll)
+            # link2coll(ensure_null_object(), lightlink_coll)
         link2coll(self.id_data, lightlink_coll)
 
         for i in range(1, 3):  # 1 2
@@ -1986,13 +1998,13 @@ class SectorProperty(bpy.types.PropertyGroup):
             # 选择空槽位，如果没有的话则新建
             if slots:
                 slot = obj.material_slots[slots.pop()]
+                slot.material = mat  # 更改现有材质
             else:
-                mesh.materials.append(None)
+                mesh.materials.append(mat)
                 slot = obj.material_slots[-1]
-            slot.material = mat
 
-        if slot.link != "OBJECT":
-            slot.link = "OBJECT"
+        if slot.link != "DATA":
+            slot.link = "DATA"
         if not slot.material:
             slot.material = mat
         slot_index = slot.slot_index
@@ -2039,6 +2051,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         self.id = id_
 
         obj = self.id_data  # type: Object
+        matrix_world = obj.matrix_world.copy()
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
         # 添加到扇区管理字典
         scene_data["SectorManage"]["sectors"][str(id_)] = {
@@ -2048,7 +2061,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             "external_id": 0,
         }
         # 初始化连接管理器
-        self["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
+        # self["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
 
         # 在属性面板显示ID
         obj[f"AG.Sector ID"] = id_
@@ -2099,7 +2112,9 @@ class SectorProperty(bpy.types.PropertyGroup):
 
             for face in mesh.polygons:  # polygons 代表面
                 face_index = face.index  # 面的索引
-                face_normal = face.normal  # 面的法线方向（Vector）
+                face_normal = (
+                    matrix_world.to_quaternion() @ face.normal
+                )  # 面的法线方向（Vector）
 
                 # 设置纹理
                 dp = face_normal.dot(Vector((0, 0, 1)))
