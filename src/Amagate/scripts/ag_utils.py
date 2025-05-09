@@ -777,6 +777,8 @@ def unsubdivide(bm: bmesh.types.BMesh):
                 verts = [bm.verts[i] for i in verts_index]
                 verts_lst.append((verts, endpoint))
                 visited.update(verts)
+
+    # debugprint(f"verts_lst: {verts_lst}")
     for verts, endpoint in verts_lst:
         endpoint2 = endpoint.link_edges[0].other_vert(endpoint)
         if endpoint2 in verts:
@@ -812,6 +814,17 @@ def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
 
     # 反细分
     unsubdivide(bm)
+
+
+def ensure_lookup_table(bm: bmesh.types.BMesh):
+    """确保索引映射表，使其不再是-1"""
+    mesh = bpy.data.meshes.new("AG.ensure_lookup_table")
+    bm.to_mesh(mesh)
+    bm.free()
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+    bpy.data.meshes.remove(mesh)  # 删除网格
+    return bm
 
 
 ############################

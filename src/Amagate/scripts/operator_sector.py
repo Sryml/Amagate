@@ -601,6 +601,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                     ag_utils.dissolve_unsubdivide(bm, del_connected=True)
                     sec_bm_2 = bm_simplify.setdefault(sec_idx_2, bm)
                 #
+                has_connect = False  # 是否有连接
                 for face_1 in sec_bm_1.faces:
                     normal_1 = matrix_1.to_quaternion() @ face_1.normal
                     for face_2 in sec_bm_2.faces:
@@ -637,12 +638,12 @@ class OT_Sector_Connect(bpy.types.Operator):
                             context, sec_info_1, sec_info_2, knife, flat_info
                         )
                         # 比较连接面
-                        eq, faces_area = self.compare_face(
+                        has_connect, connect_face_idx = self.compare_face(
                             context, sec_info_1, sec_info_2, knife_bm, flat_info
                         )
-                        if eq:
-                            mesh_1.attributes["amagate_connected"].data[faces_area[0][0]].value = sec_data_2.id  # type: ignore
-                            mesh_2.attributes["amagate_connected"].data[faces_area[1][0]].value = sec_data_1.id  # type: ignore
+                        if has_connect:
+                            mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
+                            mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
                             success.update({sec_1, sec_2})
 
                         #
@@ -650,6 +651,11 @@ class OT_Sector_Connect(bpy.types.Operator):
 
                         bmesh.ops.delete(sec_bm_1, geom=[face_1], context="FACES")
                         bmesh.ops.delete(sec_bm_2, geom=[face_2], context="FACES")
+
+                        break
+
+                    if has_connect:
+                        break
 
         # 清理
         for bm in bm_simplify.values():
@@ -820,12 +826,13 @@ class OT_Sector_Connect(bpy.types.Operator):
         def join_knife(knife_obj, sec, flat_info):
             # type: (Object, Object, tuple[float, Vector]) -> bmesh.types.BMesh
             """合并刀具"""
+            matrix = sec.matrix_world
             align_dist, align_normal = flat_info
             # 确保刀具法线是相反的
             # fmt: off
             normal2 = knife_obj.data.polygons[0].normal  # type: Vector # type: ignore
             # fmt: on
-            if normal2.dot(align_normal) > 0:
+            if normal2.dot(matrix.to_quaternion() @ align_normal) > 0:
                 ag_utils.select_active(context, knife_obj)  # 单选并设为活动
                 bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
                 bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -901,6 +908,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             bpy.ops.mesh.select_non_manifold()  # 选择非流形
             bpy.ops.mesh.delete(type="EDGE")  # 删除边
 
+            bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
             # 重新计算法向（内侧）
             bpy.ops.mesh.normals_make_consistent(inside=True)
             ag_utils.unsubdivide(bm_edit)  # 反细分边
@@ -922,7 +930,8 @@ class OT_Sector_Connect(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
         sec_lst = (sec_1, sec_2)
 
-        faces_area = []
+        connect_face_idx = []
+        bm_cmp = bmesh.new()
 
         bvh = bvhtree.BVHTree.FromBMesh(knife_bm)
         for i in range(2):
@@ -973,26 +982,34 @@ class OT_Sector_Connect(bpy.types.Operator):
                     selected_faces = [f for f in bm_edit.faces if f.select]
                     connect_face = selected_faces[0]
                     # 计算面积
-                    bm = bmesh.new()
+
                     for v in connect_face.verts:
-                        bm.verts.new(sec_matrix @ v.co)
-                    bm.faces.new(bm.verts)
-                    bm.faces.ensure_lookup_table()
-                    faces_area.append((connect_face.index, bm.faces[0].calc_area()))
-                    bm.free()
+                        bm_cmp.verts.new(sec_matrix @ v.co)
+                    bm_cmp.faces.new(bm_cmp.verts[-len(connect_face.verts) :])
+                    connect_face_idx.append(connect_face.index)
                 else:
                     ag_utils.debugprint(f"No hit for {sec.name}")
                 break
 
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
-        if len(faces_area) == 2:
-            diff = abs(faces_area[0][1] - faces_area[1][1])
-            if diff < 0.001:
-                return True, faces_area
+        if len(connect_face_idx) == 2:
+            bm_cmp = ag_utils.ensure_lookup_table(bm_cmp)
+            ag_utils.unsubdivide(bm_cmp)  # 反细分边
+            # bm_cmp_obj = bpy.data.objects.new("AG.Compare", bm_cmp_mesh)
+            # data.link2coll(bm_cmp_obj, context.scene.collection)
+
+            bm_cmp.faces.ensure_lookup_table()
+            verts_set_1 = {v.co.to_tuple(3) for v in bm_cmp.faces[0].verts}
+            verts_set_2 = {v.co.to_tuple(3) for v in bm_cmp.faces[1].verts}
+            if verts_set_1.issubset(verts_set_2) or verts_set_2.issubset(verts_set_1):
+                bm_cmp.free()
+                return True, connect_face_idx
             else:
-                ag_utils.debugprint(f"area diff: {diff}")
-        return False, faces_area
+                ag_utils.debugprint(f"No match for {sec_1.name} and {sec_2.name}")
+
+        bm_cmp.free()
+        return False, connect_face_idx
 
 
 class OT_Sector_Connect_More(bpy.types.Operator):
