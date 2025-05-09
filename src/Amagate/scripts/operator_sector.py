@@ -618,33 +618,50 @@ class OT_Sector_Connect(bpy.types.Operator):
                         if abs((co2 - co1).dot(normal_1)) > epsilon:
                             continue
 
-                        sec_info_1 = (sec_1, face_1)
-                        sec_info_2 = (sec_2, face_2)
+                        sec_info = [
+                            {
+                                "sec": sec_1,
+                                "bm_face": face_1,
+                                "flat_info": (),
+                                "is_sky": False,
+                            },
+                            {
+                                "sec": sec_2,
+                                "bm_face": face_2,
+                                "flat_info": (),
+                                "is_sky": False,
+                            },
+                        ]
 
                         # 获取刀具
-                        knife, knife_bm = self.get_knife(
-                            context, sec_info_1, sec_info_2
-                        )
+                        knife, knife_bm = self.get_knife(context, sec_info)
                         if knife is None:
                             continue
 
                         # 交集(切割)
-                        flat_info = []  # 平面信息
-                        for face in (face_1, face_2):
+                        for i, face in enumerate((face_1, face_2)):
                             normal = face.normal.copy()
                             dist = face.verts[0].co.dot(normal)
-                            flat_info.append((dist, normal))
-                        self.intersect(
-                            context, sec_info_1, sec_info_2, knife, flat_info
-                        )
+                            sec_info[i]["flat_info"] = (dist, normal)
+                        self.intersect(context, sec_info, knife)
                         # 比较连接面
                         has_connect, connect_face_idx = self.compare_face(
-                            context, sec_info_1, sec_info_2, knife_bm, flat_info
+                            context, sec_info, knife_bm
                         )
-                        if has_connect:
+
+                        if sec_info[0]["is_sky"] or sec_info[1]["is_sky"]:
+                            has_connect = True  # 只是为了跳出循环
+
+                        if connect_face_idx[0] != -1:
                             mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
+                            success.add(sec_1)
+                        if connect_face_idx[1] != -1:
                             mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
-                            success.update({sec_1, sec_2})
+                            success.add(sec_2)
+                        # if has_connect:
+                        #     mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
+                        #     mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
+                        #     success.update({sec_1, sec_2})
 
                         #
                         knife_bm.free()
@@ -664,15 +681,13 @@ class OT_Sector_Connect(bpy.types.Operator):
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
     # 获取刀具
-    def get_knife(
-        self,
-        context: Context,
-        sec_info_1: tuple[Object, bmesh.types.BMFace],
-        sec_info_2: tuple[Object, bmesh.types.BMFace],
-    ) -> tuple[Object, bmesh.types.BMesh]:
+    def get_knife(self, context: Context, sec_info) -> tuple[Object, bmesh.types.BMesh]:
         """获取刀具"""
-        sec_1, face_1 = sec_info_1
-        sec_2, face_2 = sec_info_2
+        sec_1 = sec_info[0]["sec"]  # type: Object
+        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        sec_2 = sec_info[1]["sec"]  # type: Object
+        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
 
@@ -788,13 +803,14 @@ class OT_Sector_Connect(bpy.types.Operator):
     def intersect(
         self,
         context: Context,
-        sec_info_1: tuple[Object, bmesh.types.BMFace],
-        sec_info_2: tuple[Object, bmesh.types.BMFace],
+        sec_info,
         knife: Object,
-        flat_info: list[tuple[float, Vector]],
     ):
-        sec_1, face_1 = sec_info_1
-        sec_2, face_2 = sec_info_2
+        sec_1 = sec_info[0]["sec"]  # type: Object
+        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        sec_2 = sec_info[1]["sec"]  # type: Object
+        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
         mesh_1 = sec_1.data  # type: bpy.types.Mesh # type: ignore
@@ -866,16 +882,15 @@ class OT_Sector_Connect(bpy.types.Operator):
             return bm_edit
 
         # 切割
-        cut_info = [
-            (sec_1, flat_info[0], cut_1),
-            (sec_2, flat_info[1], cut_2),
-        ]
-        for sec, flat_info_, cut in cut_info:
+        for i, cut in enumerate((cut_1, cut_2)):
             if not cut:
                 continue
 
+            sec = sec_info[i]["sec"]  # type: Object
+            flat_info = sec_info[i]["flat_info"]  # type: tuple[float, Vector]
+
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            bm_edit = join_knife(knife_pool.pop(), sec, flat_info_)
+            bm_edit = join_knife(knife_pool.pop(), sec, flat_info)
 
             bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
             bm_edit.faces.ensure_lookup_table()
@@ -884,6 +899,20 @@ class OT_Sector_Connect(bpy.types.Operator):
                 mesh, loop_triangles=False, destructive=False
             )  # 更新网格
             bpy.ops.mesh.select_linked()  # 选择关联项
+
+            # 如果存在天空纹理，跳过
+            layer = bm_edit.faces.layers.int.get("amagate_tex_id")
+            for f in bm_edit.faces:
+                if not f.select:
+                    continue
+                if f[layer] == -1:  # type: ignore
+                    sec_info[i]["is_sky"] = True
+                    bmesh.ops.delete(bm_edit, geom=[bm_edit.faces[-1]], context="FACES")
+                    bmesh.update_edit_mesh(mesh)  # 更新网格
+                    break
+            if sec_info[i]["is_sky"]:
+                continue
+
             # 交集(切割)，剪切模式
             bpy.ops.mesh.intersect(mode="SELECT_UNSELECT", separate_mode="CUT")
 
@@ -915,11 +944,14 @@ class OT_Sector_Connect(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
     # 比较连接面
-    def compare_face(self, context, sec_info_1, sec_info_2, knife_bm, flat_info):
-        # type: (Context, tuple[Object, bmesh.types.BMFace], tuple[Object, bmesh.types.BMFace], bmesh.types.BMesh, list[tuple[float, Vector]]) -> tuple[bool, list[tuple[int, float]]]
+    def compare_face(self, context, sec_info, knife_bm):
+        # type: (Context, list , bmesh.types.BMesh) -> tuple[bool, list[int]]
         """比较连接面"""
-        sec_1, face_1 = sec_info_1
-        sec_2, face_2 = sec_info_2
+        sec_1 = sec_info[0]["sec"]  # type: Object
+        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        sec_2 = sec_info[1]["sec"]  # type: Object
+        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
 
@@ -930,17 +962,20 @@ class OT_Sector_Connect(bpy.types.Operator):
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
         sec_lst = (sec_1, sec_2)
 
-        connect_face_idx = []
+        connect_face_idx = [-1, -1]
         bm_cmp = bmesh.new()
 
         bvh = bvhtree.BVHTree.FromBMesh(knife_bm)
-        for i in range(2):
-            sec = sec_lst[i]
+        for index in range(2):
+            if sec_info[index]["is_sky"]:
+                continue
+
+            sec = sec_lst[index]
             sec_matrix = sec.matrix_world
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             bm_edit = bmesh.from_edit_mesh(mesh)
-            dist = flat_info[i][0]  # type: float
-            normal = flat_info[i][1]  # type:  Vector
+            dist = sec_info[index]["flat_info"][0]  # type: float
+            normal = sec_info[index]["flat_info"][1]  # type:  Vector
             for f in bm_edit.faces:
                 # 如果法线不一致，跳过
                 if f.normal.dot(normal) < epsilon2:
@@ -957,7 +992,13 @@ class OT_Sector_Connect(bpy.types.Operator):
                 bpy.ops.mesh.faces_select_linked_flat(
                     sharpness=0.005
                 )  # 选中相连的平展面
-                bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
+                select_num = 0
+                for f in bm_edit.faces:
+                    if f.select:
+                        select_num += 1
+                    if select_num > 1:
+                        bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
+                        break
                 connect_faces = [f for f in bm_edit.faces if f.select]
 
                 bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
@@ -981,19 +1022,18 @@ class OT_Sector_Connect(bpy.types.Operator):
                     bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
                     selected_faces = [f for f in bm_edit.faces if f.select]
                     connect_face = selected_faces[0]
-                    # 计算面积
 
                     for v in connect_face.verts:
                         bm_cmp.verts.new(sec_matrix @ v.co)
                     bm_cmp.faces.new(bm_cmp.verts[-len(connect_face.verts) :])
-                    connect_face_idx.append(connect_face.index)
+                    connect_face_idx[index] = connect_face.index
                 else:
                     ag_utils.debugprint(f"No hit for {sec.name}")
                 break
 
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
-        if len(connect_face_idx) == 2:
+        if -1 not in connect_face_idx:
             bm_cmp = ag_utils.ensure_lookup_table(bm_cmp)
             ag_utils.unsubdivide(bm_cmp)  # 反细分边
             # bm_cmp_obj = bpy.data.objects.new("AG.Compare", bm_cmp_mesh)
