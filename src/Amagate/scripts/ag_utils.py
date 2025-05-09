@@ -555,11 +555,53 @@ def is_2d_sphere(obj: Object):
     """判断物体拓扑类型是否为二维球面"""
     sec_data = obj.amagate_data.get_sector_data()
     mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+    bm = bmesh.new()
+    bm.from_mesh(mesh)
+
+    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0001)  # type: ignore # 按距离合并顶点
+    bm.to_mesh(mesh)
+
+    def check():
+        # 检查流形性
+        non_manifold_edges = next((1 for e in bm.edges if not e.is_manifold), 0)
+        non_manifold_verts = next((1 for v in bm.verts if not v.is_manifold), 0)
+        if non_manifold_edges or non_manifold_verts:
+            return False
+
+        # 检查连通性
+        if not bm.verts:
+            return False
+        bm.verts.ensure_lookup_table()
+        visited = set()
+        stack = [bm.verts[0]]
+        while stack:
+            v = stack.pop()
+            if v not in visited:
+                visited.add(v)
+                for e in v.link_edges:
+                    stack.append(e.other_vert(v))
+        if len(visited) != len(bm.verts):
+            return False
+
+        # 检查封闭性（无边界）
+        boundary_edges = next((1 for e in bm.edges if e.is_boundary), 0)
+        if boundary_edges:
+            return False
+
+        return True
+
     # 检查欧拉特征
-    euler_characteristic = len(mesh.vertices) - len(mesh.edges) + len(mesh.polygons)
+    V = len(bm.verts)
+    E = len(bm.edges)
+    F = len(bm.faces)
+    euler_characteristic = V - E + F
     if euler_characteristic != 2:
-        return False
-    return True
+        ret = False
+    else:
+        ret = check()
+
+    bm.free()
+    return ret
 
 
 # 判断物体是否为凸多面体
@@ -574,8 +616,6 @@ def is_convex(obj: Object):
     sec_bm = bmesh.new()
     mesh = obj.data  # type: bpy.types.Mesh # type: ignore
     sec_bm.from_mesh(mesh)
-    bmesh.ops.remove_doubles(sec_bm, verts=sec_bm.verts, dist=0.0001)  # type: ignore # 按距离合并顶点
-    sec_bm.to_mesh(mesh)
     sec_bm.faces.ensure_lookup_table()
 
     bm_convex = sec_bm.copy()
@@ -712,9 +752,10 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
 # 单选并设为活动对象
 def select_active(context: Context, obj: Object):
     """单选并设为活动对象"""
-    context.view_layer.objects.active = obj  # 设置活动物体
-    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+    if context.mode != "OBJECT":
+        bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
     bpy.ops.object.select_all(action="DESELECT")  # 取消选择
+    context.view_layer.objects.active = obj  # 设置活动物体
     obj.select_set(True)  # 选择
 
 
@@ -748,25 +789,25 @@ def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
     # 待融并面列表
     faces_lst = []
     visited = set()
+    bm.faces.ensure_lookup_table()
     for f in bm.faces:
         if f.index in visited:
             continue
 
         # 获取相同法线的相连面
         faces_idx = get_faces_with_normal_conn(f, visited)
-        if len(faces_idx) > 1:
-            faces_lst.append([bm.faces[i] for i in faces_idx])
+        faces_lst.append([bm.faces[i] for i in faces_idx])
 
+    layer = bm.faces.layers.int.get("amagate_connected")
     for faces in faces_lst:
         if del_connected:
-            layer = bm.faces.layers.int.get("amagate_connected")
             for f in faces:
                 if f[layer] != 0:
                     bmesh.ops.delete(bm, geom=faces, context="FACES")
                     faces = []
                     break
 
-        if faces != []:
+        if len(faces) > 1:
             bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
 
     # 反细分
