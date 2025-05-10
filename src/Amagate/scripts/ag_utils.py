@@ -207,103 +207,88 @@ def simulate_keypress(keycode: int):
 
 
 # 获取相同法线的相连面
-def get_faces_with_normal_conn(face, visited=None):  # type: ignore
-    # type: (bmesh.types.BMFace, set[int]) -> set[int]
-    """
-    获取与给定面具有相同法线的相连面的索引。
-    :param face: 起始的面。
-    :param visited: 已访问的面集合。
-    :return: 具有相同法线的相连面的索引集合。
-    """
-    if visited is None:
-        visited = set()  # 初始化已访问集合
-
-    # 添加到已访问集合
-    visited.add(face.index)
-    # 初始化结果集
-    result = {face.index}
-    # 获取法线
+def get_faces_with_normal_conn(face):  # type: ignore
+    # type: (bmesh.types.BMFace) -> set[int]
+    visited = set()  # 初始化已访问集合
+    stack = [face]  # type: list[bmesh.types.BMFace]
     normal = face.normal.copy()
-    # 遍历面的顶点
-    for v in face.verts:
-        # 遍历顶点的面
-        for f in v.link_faces:
-            if f.index not in visited:  # 避免重复访问
-                # 检查法线是否相同
-                if f.normal.dot(normal) > epsilon2:  # 使用阈值来判断法线是否相同
-                    result.update(get_faces_with_normal_conn(f, visited))
-    return result
+
+    while stack:
+        f = stack.pop()
+        if f.index not in visited:
+            visited.add(f.index)
+
+            for e in f.edges:
+                for f2 in e.link_faces:
+                    if f2.index not in visited:  # 避免重复访问
+                        if (
+                            f2.normal.dot(normal) > epsilon2
+                        ):  # 使用阈值来判断法线是否相同
+                            stack.append(f2)
+    return visited
 
 
 # 获取在同一直线的相连边
-def get_edges_along_line(edge: bmesh.types.BMEdge, limit_face: bmesh.types.BMFace = None, vert: bmesh.types.BMVert = None) -> list[int]:  # type: ignore
-    """
-    获取在同一直线上的相连边的索引。
+def get_edges_along_line(edge, limit_face=None):  # type: ignore
+    # type: (bmesh.types.BMEdge, bmesh.types.BMFace) -> list[int]
+    co = (edge.verts[0].co + edge.verts[1].co) / 2.0
+    dir = (edge.verts[1].co - co).normalized()
+    visited = []  # type: list[int]
+    stack = [edge]  # type: list[bmesh.types.BMEdge]
 
-    :param edge: 起始的边。
-    :param limit_face: 限制在指定的面上寻找相连边，默认为None，表示不限制。
-    :param vert: 当前正在处理的顶点，用于递归调用，默认为None。
-    :return: 在同一直线上的相连边的索引列表。
-    """
-    edges_index = []
-    if not vert:
-        edges_index.append(edge.index)
-        for v in edge.verts:
-            ret = get_edges_along_line(edge, limit_face, v)
-            edges_index.extend(ret)
-    else:
-        dir1 = (edge.other_vert(vert).co - vert.co).normalized()  # type: Vector
-        for e in vert.link_edges:
-            if e == edge:
-                continue
-            if limit_face and limit_face not in e.link_faces:
-                continue
-            vert2 = e.other_vert(vert)
-            dir2 = (vert.co - vert2.co).normalized()  # type: Vector
-            # 判断是否在同一直线
-            if dir1.dot(dir2) > epsilon2:
-                edges_index.append(e.index)
-                ret = get_edges_along_line(e, limit_face, vert2)
-                edges_index.extend(ret)
+    while stack:
+        e = stack.pop()
+        if e.index not in visited:
+            visited.append(e.index)
 
-    return edges_index
+            for v in e.verts:
+                for e2 in v.link_edges:
+                    if e2.index in visited:  # 避免重复访问
+                        continue
+                    if limit_face and limit_face not in e2.link_faces:
+                        continue
+                    dir2 = (v.co - e2.other_vert(v).co).normalized()  # type: Vector
+                    if abs(dir.dot(dir2)) > epsilon2:
+                        stack.append(e2)
+    return visited
 
 
 # 获取共线的子顶点
-def get_sub_verts_along_line(vert: bmesh.types.BMVert, edge: bmesh.types.BMEdge = None) -> tuple[list[int], bmesh.types.BMVert]:  # type: ignore
-    verts_index = []
+def get_sub_verts_along_line(vert, dir):
+    # type: (bmesh.types.BMVert, Vector) -> tuple[list[int], bmesh.types.BMVert]
+    visited = []
     endpoint = None  # type: bmesh.types.BMVert # type: ignore
+    stack = [vert]  # type: list[bmesh.types.BMVert]
 
-    if not edge:
-        verts_index.append(vert.index)
-        for e in vert.link_edges:
-            ret = get_sub_verts_along_line(vert, e)
-            verts_index.extend(ret[0])
-            endpoint = ret[1]
-    else:
-        vert2 = edge.other_vert(vert)  # type: bmesh.types.BMVert
-        dir2 = (vert.co - vert2.co).normalized()
-        link_num = len(vert2.link_edges)
-        # 如果连接边大于3，说明是端点
-        if link_num > 2:
-            endpoint = vert
-        elif link_num == 2:
-            edge2 = vert2.link_edges[0]
-            if edge2 == edge:
-                edge2 = vert2.link_edges[1]
+    while stack:
+        v = stack.pop()
+        if v.index not in visited:
+            visited.append(v.index)
 
-            vert3 = edge2.other_vert(vert2)  # type: bmesh.types.BMVert
-            dir3 = (vert2.co - vert3.co).normalized()
-            # 如果连接边等于2且另一条边不共线，说明是端点
-            if abs(dir2.dot(dir3)) < epsilon2:
-                endpoint = vert
-            else:
-                verts_index.append(vert2.index)
-                ret = get_sub_verts_along_line(vert2, edge2)
-                verts_index.extend(ret[0])
-                endpoint = ret[1]
+            for e in v.link_edges:
+                v2 = e.other_vert(v)  # type: bmesh.types.BMVert
+                if v2.index in visited:  # 避免重复访问
+                    continue
 
-    return verts_index, endpoint
+                link_num = len(v2.link_edges)
+                if link_num > 2:
+                    endpoint = v
+                    continue
+                elif link_num == 2:
+                    edge2 = v2.link_edges[0]
+                    if edge2 == e:
+                        edge2 = v2.link_edges[1]
+
+                    v3 = edge2.other_vert(v2)  # type: bmesh.types.BMVert
+                    dir2 = (v2.co - v3.co).normalized()
+                    # 如果连接边等于2且另一条边不共线，说明是端点
+                    if abs(dir2.dot(dir)) < epsilon2:
+                        endpoint = v
+                        continue
+
+                stack.append(v2)
+
+    return visited, endpoint
 
 
 # 设置视图旋转
@@ -578,8 +563,11 @@ def is_2d_sphere(obj: Object):
             v = stack.pop()
             if v not in visited:
                 visited.add(v)
+
                 for e in v.link_edges:
-                    stack.append(e.other_vert(v))
+                    v2 = e.other_vert(v)
+                    if v2 not in visited:
+                        stack.append(v2)
         if len(visited) != len(bm.verts):
             return False
 
@@ -773,7 +761,7 @@ def unsubdivide(bm: bmesh.types.BMesh):
             dir2 = (v.link_edges[1].other_vert(v).co - v.co).normalized()
             # 如果该顶点只连接两条边且共线，则为子顶点
             if dir1.dot(dir2) < -epsilon2:
-                verts_index, endpoint = get_sub_verts_along_line(v)
+                verts_index, endpoint = get_sub_verts_along_line(v, dir1)
                 verts = [bm.verts[i] for i in verts_index]
                 verts_lst.append((verts, endpoint))
                 visited.update(verts)
@@ -797,7 +785,8 @@ def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
             continue
 
         # 获取相同法线的相连面
-        faces_idx = get_faces_with_normal_conn(f, visited)
+        faces_idx = get_faces_with_normal_conn(f)
+        visited.update(faces_idx)
         faces_lst.append([bm.faces[i] for i in faces_idx])
 
     layer = bm.faces.layers.int.get("amagate_connected")
