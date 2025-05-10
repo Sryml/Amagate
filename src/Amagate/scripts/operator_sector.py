@@ -648,16 +648,13 @@ class OT_Sector_Connect(bpy.types.Operator):
                         has_connect, connect_face_idx = self.compare_face(
                             context, sec_info, knife_bm
                         )
-
-                        if sec_info[0]["is_sky"] or sec_info[1]["is_sky"]:
-                            has_connect = True  # 只是为了跳出循环
-
-                        if connect_face_idx[0] != -1:
-                            mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
-                            success.add(sec_1)
-                        if connect_face_idx[1] != -1:
-                            mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
-                            success.add(sec_2)
+                        if has_connect:
+                            if connect_face_idx[0] != -1:
+                                mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
+                                success.add(sec_1)
+                            if connect_face_idx[1] != -1:
+                                mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
+                                success.add(sec_2)
                         # if has_connect:
                         #     mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
                         #     mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
@@ -882,49 +879,69 @@ class OT_Sector_Connect(bpy.types.Operator):
             return bm_edit
 
         # 切割
-        for i, cut in enumerate((cut_1, cut_2)):
+        for index, cut in enumerate((cut_1, cut_2)):
             if not cut:
                 continue
 
-            sec = sec_info[i]["sec"]  # type: Object
-            flat_info = sec_info[i]["flat_info"]  # type: tuple[float, Vector]
-
+            sec = sec_info[index]["sec"]  # type: Object
+            matrix = sec.matrix_world
+            quat = matrix.to_quaternion()
+            flat_info = sec_info[index]["flat_info"]  # type: tuple[float, Vector]
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             bm_edit = join_knife(knife_pool.pop(), sec, flat_info)
-
-            bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-            bm_edit.faces.ensure_lookup_table()
-            bm_edit.faces[0].select_set(True)  # 选择连接扇区面
-            bmesh.update_edit_mesh(
-                mesh, loop_triangles=False, destructive=False
-            )  # 更新网格
-            bpy.ops.mesh.select_linked()  # 选择关联项
 
             # 如果存在天空纹理，跳过
             layer = bm_edit.faces.layers.int.get("amagate_tex_id")
             for f in bm_edit.faces:
-                if not f.select:
-                    continue
                 if f[layer] == -1:  # type: ignore
-                    sec_info[i]["is_sky"] = True
+                    sec_info[index]["is_sky"] = True
                     bmesh.ops.delete(bm_edit, geom=[bm_edit.faces[-1]], context="FACES")
                     bmesh.update_edit_mesh(mesh)  # 更新网格
                     break
-            if sec_info[i]["is_sky"]:
+            if sec_info[index]["is_sky"]:
+                # ag_utils.debugprint(f"sec {sec.name} is sky")
                 continue
 
+            # 挤出刀具
+            direction = quat @ flat_info[1]
+            knife_start_idx = len(bm_edit.faces) - 1
+            bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+            bm_edit.faces[-1].select_set(True)  # 选择刀具面
+            bmesh.update_edit_mesh(
+                mesh, loop_triangles=False, destructive=False
+            )  # 更新网格
+            bpy.ops.mesh.extrude_region_move(
+                TRANSFORM_OT_translate={"value": -direction * 0.1}
+            )  # 往反方向挤出并移动10厘米
+            bpy.ops.mesh.select_linked()  # 选择关联项
+            bpy.ops.mesh.normals_make_consistent(inside=True)  # 重新计算法向（内侧）
+            bm_edit.faces.ensure_lookup_table()
+            knife_face = next(
+                (
+                    bm_edit.faces[i]
+                    for i in range(knife_start_idx, len(bm_edit.faces))
+                    if (quat @ bm_edit.faces[i].normal).dot(direction) > epsilon2
+                ),
+                None,
+            )
+            if knife_face is None:
+                ag_utils.debugprint(f"knife face not found in {sec.name}")
+                bpy.ops.mesh.delete(type="FACE")
+                continue
+
+            bpy.ops.mesh.select_all(action="INVERT")  # 反选
             # 交集(切割)，剪切模式
             bpy.ops.mesh.intersect(mode="SELECT_UNSELECT", separate_mode="CUT")
 
             bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
             bm_edit.faces.ensure_lookup_table()
-            bm_edit.faces[0].select_set(True)  # 选择连接扇区面
+            knife_face.select_set(True)  # 选择刀具面
             bmesh.update_edit_mesh(
                 mesh, loop_triangles=False, destructive=False
             )  # 更新网格
             bpy.ops.mesh.select_linked()  # 选择关联项
             # 删除刀具面
-            bpy.ops.mesh.select_all(action="INVERT")  # 反选
+            # bpy.ops.mesh.select_all(action="INVERT")  # 反选
             bpy.ops.mesh.delete(type="FACE")  # 删除面
 
             bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -964,6 +981,8 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         connect_face_idx = [-1, -1]
         bm_cmp = bmesh.new()
+
+        has_connect = False
 
         bvh = bvhtree.BVHTree.FromBMesh(knife_bm)
         for index in range(2):
@@ -1036,20 +1055,26 @@ class OT_Sector_Connect(bpy.types.Operator):
         if -1 not in connect_face_idx:
             bm_cmp = ag_utils.ensure_lookup_table(bm_cmp)
             ag_utils.unsubdivide(bm_cmp)  # 反细分边
+
+            # bm_cmp_mesh = bpy.data.meshes.new("AG.Compare")
+            # bm_cmp.to_mesh(bm_cmp_mesh)
             # bm_cmp_obj = bpy.data.objects.new("AG.Compare", bm_cmp_mesh)
             # data.link2coll(bm_cmp_obj, context.scene.collection)
 
             bm_cmp.faces.ensure_lookup_table()
             verts_set_1 = {v.co.to_tuple(3) for v in bm_cmp.faces[0].verts}
             verts_set_2 = {v.co.to_tuple(3) for v in bm_cmp.faces[1].verts}
-            if verts_set_1.issubset(verts_set_2) or verts_set_2.issubset(verts_set_1):
-                bm_cmp.free()
-                return True, connect_face_idx
+            # if verts_set_1.issubset(verts_set_2) or verts_set_2.issubset(verts_set_1):
+            if verts_set_1 == verts_set_2:
+                has_connect = True
             else:
                 ag_utils.debugprint(f"No match for {sec_1.name} and {sec_2.name}")
+        # 单连接的情况，只有一个项是-1
+        elif connect_face_idx[0] != connect_face_idx[1]:
+            has_connect = True
 
         bm_cmp.free()
-        return False, connect_face_idx
+        return has_connect, connect_face_idx
 
 
 class OT_Sector_Connect_More(bpy.types.Operator):
