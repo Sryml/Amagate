@@ -1250,6 +1250,128 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
 
+# 断开连接
+class OT_Sector_Disconnect(bpy.types.Operator):
+    bl_idname = "amagate.sector_disconnect"
+    bl_label = "Disconnect"
+    bl_description = "Disconnect selected sectors"
+
+    undo: BoolProperty(default=True)  # type: ignore
+    is_button: BoolProperty(default=False)  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
+
+    def execute(self, context: Context):
+        # 如果是从F3执行，获取当前选中的扇区
+        if not self.is_button:
+            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
+        self.is_button = False  # 重置，因为从F3执行时会使用缓存值
+
+        # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
+        if context.mode == "EDIT_MESH":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            data.geometry_modify_post(selected_sectors)
+
+        selected_sectors = data.SELECTED_SECTORS.copy()
+
+        if len(selected_sectors) == 0:
+            self.report({"WARNING"}, "Select at least one sector")
+            return {"CANCELLED"}
+
+        self.disconnect(self, context, selected_sectors)
+
+        self.report({"INFO"}, pgettext("Disconnect", "Operator"))
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Disconnect")
+
+        return {"FINISHED"}
+
+    @staticmethod
+    def disconnect(this, context: Context, sectors: list[Object]):
+        """断开连接"""
+        if context.mode == "EDIT_MESH":
+            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+
+        scene_data = context.scene.amagate_data
+        sectors_dict = scene_data["SectorManage"]["sectors"]  # type: dict
+
+        for sec in sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            layer = bm.faces.layers.int.get("amagate_connected")
+            faces_set = set(bm.faces)
+
+            has_connected = False
+            while faces_set:
+                bm.faces.ensure_lookup_table()
+                # 获取相连的平展面
+                faces_idx = ag_utils.get_linked_flat(faces_set.pop())
+                faces = [bm.faces[i] for i in faces_idx]
+                faces_set.difference_update(faces)
+
+                conn_sid = 0
+                for f in faces:
+                    if f[layer] != 0:  # type: ignore
+                        conn_sid = f[layer]  # type: ignore
+                        f[layer] = 0  # type: ignore
+                # 如果没有连接面，跳过
+                if conn_sid == 0:
+                    continue
+                # 如果有，融并平展面
+                bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
+                has_connected = True
+
+                # 同时断开连接目标的连接
+                sec_dict = sectors_dict.get(str(conn_sid))
+                if not sec_dict:
+                    continue
+                conn_sec = sec_dict["obj"]
+                mesh_2 = conn_sec.data  # type: bpy.types.Mesh # type: ignore
+                bm_2 = bmesh.new()
+                bm_2.from_mesh(mesh_2)
+                layer_2 = bm_2.faces.layers.int.get("amagate_connected")
+
+                for face_idx in range(len(mesh_2.polygons)):
+                    bm_2.faces.ensure_lookup_table()
+                    conn_sid_2 = mesh_2.attributes["amagate_connected"].data[face_idx].value  # type: ignore
+
+                    if conn_sid_2 == sec_data.id:
+                        # 获取相连的平展面
+                        faces_idx = ag_utils.get_linked_flat(bm_2.faces[face_idx])
+                        faces = [bm_2.faces[i] for i in faces_idx]
+                        for f in faces:
+                            if f[layer_2] != 0:  # type: ignore
+                                f[layer_2] = 0  # type: ignore
+                        bmesh.ops.dissolve_faces(bm_2, faces=faces, use_verts=False)
+
+                        ag_utils.unsubdivide(bm_2)  # 反细分边
+                        bm_2.to_mesh(mesh_2)
+                        bm_2.free()
+                        break
+                # 如果没有发生break，说明没有找到对应的连接面
+                else:
+                    bm_2.free()
+            ##############
+            if has_connected:
+                ag_utils.unsubdivide(bm)  # 反细分边
+                bm.to_mesh(mesh)
+            bm.free()
+            # 重置连接属性
+            # attributes = mesh.attributes.get("amagate_connected")
+            # if attributes:
+            #     mesh.attributes.remove(attributes)
+            # mesh.attributes.new(
+            #     name="amagate_connected", type="INT", domain="FACE"
+            # )
+
+        data.area_redraw("VIEW_3D")
+
+
 # 分离凸多面体
 class OT_Sector_SeparateConvex(bpy.types.Operator):
     bl_idname = "amagate.sector_separate_convex"
@@ -1456,12 +1578,12 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
 
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
-            # 跳过凸多面体
-            if sec_data.is_convex:
-                continue
             # 跳过非二维球面
             if not sec_data.is_2d_sphere:
                 non_2d_sphere_list.append(sec)
+                continue
+            # 跳过凸多面体
+            if sec_data.is_convex:
                 continue
 
             concave_type = sec_data["ConcaveData"]["concave_type"]
@@ -1469,6 +1591,10 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             if concave_type == ag_utils.CONCAVE_T_COMPLEX:
                 complex_list.append(sec)
                 continue
+
+            # 断开凹扇区的连接
+            OT_Sector_Disconnect.disconnect(None, context, [sec])
+            sec_data.is_convex = ag_utils.is_convex(sec)
 
             # 简单凹面的情况
             # if concave_type == ag_utils.CONCAVE_T_SIMPLE:

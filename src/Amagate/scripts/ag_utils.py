@@ -206,8 +206,8 @@ def simulate_keypress(keycode: int):
     ctypes.windll.user32.keybd_event(keycode, 0, 2, 0)
 
 
-# 获取相同法线的相连面
-def get_faces_with_normal_conn(face):  # type: ignore
+# 获取相连的平展面
+def get_linked_flat(face):  # type: ignore
     # type: (bmesh.types.BMFace) -> set[int]
     visited = set()  # 初始化已访问集合
     stack = [face]  # type: list[bmesh.types.BMFace]
@@ -676,7 +676,7 @@ def is_convex(obj: Object):
                 if f.normal.dot(normal_ext) > epsilon2:
                     # 如果是同一平面，则为外部面
                     if abs((f.verts[0].co - i[1]).dot(normal_ext)) < epsilon:
-                        faces_ext_idx.update(get_faces_with_normal_conn(f))
+                        faces_ext_idx.update(get_linked_flat(f))
                         break
         # 外部顶点
         # verts_ext_idx = set(v.index for i in faces_ext_idx for v in sec_bm.faces[i])
@@ -785,7 +785,7 @@ def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
             continue
 
         # 获取相同法线的相连面
-        faces_idx = get_faces_with_normal_conn(f)
+        faces_idx = get_linked_flat(f)
         visited.update(faces_idx)
         faces_lst.append([bm.faces[i] for i in faces_idx])
 

@@ -529,6 +529,9 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         #     icon_only=True,
         #     toggle=True,
         # )
+        row_2 = row.row(align=True)
+        op = row_2.operator(OP_SECTOR.OT_Sector_Disconnect.bl_idname, icon="X")
+        op.is_button = True  # type: ignore
 
 
 class AMAGATE_PT_Sector_Props(N_Panel, bpy.types.Panel):
