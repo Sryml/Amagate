@@ -695,6 +695,107 @@ def is_convex(obj: Object):
     return convex
 
 
+def disconnect(
+    this,
+    context: Context,
+    sectors: list[Object],
+    target_id: int | None = None,
+    dis_target=True,
+):
+    """断开连接"""
+    if context.mode == "EDIT_MESH":
+        bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+
+    scene_data = context.scene.amagate_data
+    sectors_dict = scene_data["SectorManage"]["sectors"]  # type: dict
+
+    for sec in sectors:
+        sec_data = sec.amagate_data.get_sector_data()
+        mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        layer = bm.faces.layers.int.get("amagate_connected")
+        faces_set = set(bm.faces)
+
+        has_connect = False
+        while faces_set and sec_data.connect_num > 0:
+            bm.faces.ensure_lookup_table()
+            # 获取相连的平展面
+            faces_idx = get_linked_flat(faces_set.pop())
+            faces = [bm.faces[i] for i in faces_idx]
+            faces_set.difference_update(faces)
+
+            conn_sid = 0
+            for f in faces:
+                if f[layer] != 0:  # type: ignore
+                    conn_sid = f[layer]  # type: ignore
+                    f[layer] = 0  # type: ignore
+            # 如果没有连接面，跳过
+            if conn_sid == 0:
+                continue
+            if target_id is not None and conn_sid != target_id:
+                continue
+
+            if not has_connect:
+                has_connect = True
+            # 如果有，融并平展面
+            bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
+            sec_data.connect_num -= 1
+
+            if not dis_target:
+                continue
+
+            # 如果要断开目标
+            sec_dict = sectors_dict.get(str(conn_sid))
+            if not sec_dict:
+                continue
+            conn_sec = sec_dict["obj"]  # type: Object
+            conn_sec_data = conn_sec.amagate_data.get_sector_data()
+            if conn_sec_data.connect_num == 0:
+                continue
+
+            mesh_2 = conn_sec.data  # type: bpy.types.Mesh # type: ignore
+            bm_2 = bmesh.new()
+            bm_2.from_mesh(mesh_2)
+            layer_2 = bm_2.faces.layers.int.get("amagate_connected")
+
+            for face_idx in range(len(mesh_2.polygons)):
+                bm_2.faces.ensure_lookup_table()
+                conn_sid_2 = mesh_2.attributes["amagate_connected"].data[face_idx].value  # type: ignore
+
+                if conn_sid_2 == sec_data.id:
+                    # 获取相连的平展面
+                    faces_idx = get_linked_flat(bm_2.faces[face_idx])
+                    faces = [bm_2.faces[i] for i in faces_idx]
+                    for f in faces:
+                        if f[layer_2] != 0:  # type: ignore
+                            f[layer_2] = 0  # type: ignore
+                    bmesh.ops.dissolve_faces(bm_2, faces=faces, use_verts=False)
+                    conn_sec_data.connect_num -= 1
+
+                    unsubdivide(bm_2)  # 反细分边
+                    bm_2.to_mesh(mesh_2)
+                    bm_2.free()
+                    break
+            # 如果没有发生break，说明没有找到对应的连接面
+            else:
+                bm_2.free()
+        ##############
+        if has_connect:
+            unsubdivide(bm)  # 反细分边
+            bm.to_mesh(mesh)
+        bm.free()
+        # 重置连接属性
+        # attributes = mesh.attributes.get("amagate_connected")
+        # if attributes:
+        #     mesh.attributes.remove(attributes)
+        # mesh.attributes.new(
+        #     name="amagate_connected", type="INT", domain="FACE"
+        # )
+
+    data.area_redraw("VIEW_3D")
+
+
 # 删除扇区
 def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
     """删除扇区"""
@@ -714,6 +815,14 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
         bpy.data.meshes.remove(mesh)
     else:
         bpy.data.objects.remove(obj)
+
+    sector_mgr_remove(id_key)
+
+
+# 扇区管理移除
+def sector_mgr_remove(id_key: str):
+    scene_data = bpy.context.scene.amagate_data
+    SectorManage = scene_data["SectorManage"]
     #
     for l in SectorManage["sectors"][id_key]["light_objs"]:
         l.hide_viewport = True

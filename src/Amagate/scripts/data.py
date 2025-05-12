@@ -97,6 +97,7 @@ C_COLL = "Camera Collection"
 DEPSGRAPH_UPDATE_LOCK = threading.Lock()
 # DELETE_POST_LOCK = threading.Lock()
 
+S_COLL_OBJECTS = 0
 WM_OPERATORS = 0
 draw_handler = None
 
@@ -104,6 +105,17 @@ SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
 
 FACE_FLAG = {"Floor": -1, "Ceiling": -2, "Wall": -3}
+
+COLLECTION_OP = (
+    "Move to Collection",
+    "Remove from Collection",
+    "Remove from All Collections",
+    "Remove Selected from Active Collection",
+    "Remove Collection",
+    "Unlink Collection",
+)
+
+DELETE_OP = ("OBJECT_OT_delete", "OUTLINER_OT_delete")
 
 ############################
 
@@ -273,6 +285,8 @@ def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
             item = scene_data.ensure_coll.add()
             item.name = name
         item.obj = coll
+    elif item.obj.name not in scene.collection.children:
+        scene.collection.children.link(item.obj)
     return item.obj
 
 
@@ -637,6 +651,138 @@ def unregister_shortcuts():
 ############################
 
 
+# 扇区集合检查
+def check_sector_coll():
+    scene_data = bpy.context.scene.amagate_data
+
+    coll = ensure_collection(S_COLL)
+    SectorManage = scene_data.get("SectorManage")
+
+    exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
+    all_ids = set(SectorManage["sectors"].keys())
+    deleted_ids = sorted(all_ids - exist_ids, reverse=True)
+
+    if deleted_ids:
+        # 如果只是移动到其它集合，则撤销操作
+        obj = SectorManage["sectors"][deleted_ids[0]]["obj"]
+        if obj and bpy.context.scene in obj.users_scene:
+            bpy.ops.ed.undo()
+            bpy.ops.ed.undo_push(message="Sector Collection Check")
+            return
+
+
+# 扇区删除检查
+def check_sector_delete():
+    scene_data = bpy.context.scene.amagate_data
+
+    # 如果用户删除了扇区物体，则进行自动清理
+    coll = ensure_collection(S_COLL)
+    SectorManage = scene_data.get("SectorManage")
+
+    exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
+    all_ids = set(SectorManage["sectors"].keys())
+    deleted_ids = sorted(all_ids - exist_ids, reverse=True)
+
+    if deleted_ids:
+        bpy.ops.ed.undo()
+        coll = ensure_collection(S_COLL)
+        # scene_data = bpy.context.scene.amagate_data
+        # SectorManage = scene_data["SectorManage"]
+
+        disconnect = []  # 需要与删除扇区解除连接的扇区
+        sectors = [
+            SectorManage["sectors"][id_key]["obj"] for id_key in deleted_ids
+        ]  # type: list[Object]
+        for sec in sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            # 如果没有连接，跳过
+            if sec_data.connect_num == 0:
+                continue
+
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            connect = {
+                mesh.attributes["amagate_connected"].data[i].value  # type: ignore
+                for i in range(len(mesh.polygons))
+            }
+            connect.discard(0)
+            if connect:
+                disconnect.append((connect, sec_data.id))
+        for sectors, sid in disconnect:
+            ag_utils.disconnect(None, bpy.context, sectors, sid, dis_target=False)
+
+        for id_key in deleted_ids:
+            ag_utils.delete_sector(id_key=id_key)
+
+        bpy.ops.ed.undo_push(message="Delete Sector")
+
+
+# 特殊对象检查
+def check_special_objects():
+    scene_data = bpy.context.scene.amagate_data
+    for i in [
+        scene_data.ensure_null_obj,
+        scene_data.ensure_null_tex,
+        scene_data.sec_node,
+        scene_data.eval_node,
+    ] + [item.obj for item in scene_data.ensure_coll]:
+        if not i:
+            bpy.ops.ed.undo()
+            bpy.ops.ed.undo_push(message="Special Object Check")
+            return
+
+
+# 扇区合并检查
+def check_sector_join():
+    context = bpy.context
+    bpy.ops.ed.undo()
+
+    active_object = context.active_object
+    selected_sectors = ag_utils.get_selected_sectors()[0]
+    if active_object in selected_sectors:
+        selected_sectors.remove(active_object)
+    remove_ids = [sec.amagate_data.get_sector_data().id for sec in selected_sectors]
+
+    ag_utils.disconnect(None, context, selected_sectors)
+    bpy.ops.object.join()
+
+    for id in remove_ids:
+        ag_utils.sector_mgr_remove(str(id))
+    bpy.ops.ed.undo_push(message="Join Sector")
+
+
+# 分离扇区检查
+def check_sector_separate():
+    context = bpy.context
+    # 获取编辑模式下的物体
+    edit_objects = context.objects_in_mode.copy()
+    sec_ids = [
+        obj.amagate_data.get_sector_data().id
+        for obj in edit_objects
+        if obj.amagate_data.is_sector
+    ]
+
+    if not sec_ids:
+        return
+
+    # 编辑模式之外的选中物体
+    selected_objects = [
+        obj for obj in context.selected_objects if obj not in edit_objects
+    ]
+    for obj in selected_objects:
+        # 跳过非扇区
+        if not obj.amagate_data.is_sector:
+            continue
+
+        sec_data = obj.amagate_data.get_sector_data()
+        # 如果扇区ID与编辑模式下的扇区ID相同，则为分离出的扇区
+        if sec_data.id in sec_ids:
+            sec_data.init(post_copy=True)
+            sec_data.reset_connect_data()  # 重置连接数据
+    bpy.ops.ed.undo_push(message="Sector Check")
+
+    return
+
+
 def delete_post_func():
     scene_data = bpy.context.scene.amagate_data
 
@@ -695,9 +841,9 @@ def geometry_modify_post(selected_sectors: list[Object] = [], undo=True):
             sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
             sec_data.is_convex = ag_utils.is_convex(sec)
 
-        # 凸面检查
+        # 扇区编辑检查
         if undo:
-            bpy.ops.ed.undo_push(message="Convex Check")
+            bpy.ops.ed.undo_push(message="Sector Check")
 
 
 # def delete_post_func_release():
@@ -706,7 +852,7 @@ def geometry_modify_post(selected_sectors: list[Object] = [], undo=True):
 
 # @bpy.app.handlers.persistent
 def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
-    global WM_OPERATORS
+    global WM_OPERATORS, S_COLL_OBJECTS
     scene_data = scene.amagate_data
     if not scene_data.is_blade:
         return
@@ -715,25 +861,73 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
     if not DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
         return
 
+    # if depsgraph.id_type_updated("MESH"):
+    #     print("至少有一个网格更新了！")
+    #     # 遍历所有更新的物体
+    #     for update in depsgraph.updates:
+    #         if isinstance(update.id, bpy.types.Object):
+    #             obj = update.id
+    #             if update.is_updated_transform:  # 明确检查变换更新
+    #                 print(f"物体 '{obj.name}' 的位置/旋转/缩放已修改！")
+    #             if update.is_updated_geometry:  # 明确检查几何体更新
+    #                 print(f"物体 '{obj.name}' 的几何体已修改！")
+    #             if update.is_updated_shading:  # 明确检查材质更新
+    #                 print(f"物体 '{obj.name}' 的材质已修改！")
+    # elif depsgraph.id_type_updated("COLLECTION"):
+    #     print("至少有一个集合更新了！")
+    # elif depsgraph.id_type_updated("MATERIAL"):
+    #     print("至少有一个材质更新了！")
+    # elif depsgraph.id_type_updated("OBJECT"):
+    #     # for update in depsgraph.updates:
+    #     #     print(update.is_property_set("location"))
+    #     print("至少有一个对象更新了！")
+
     # 删除操作后的回调
-    delete_post_func()
+    # delete_post_func()
     # if DELETE_POST_LOCK.acquire(blocking=False):
     # delete_post_func()
     # DELETE_POST_LOCK.release()
     # bpy.app.timers.register(delete_post_func_release, first_interval=0.2)
 
-    # 从编辑模式切换到物体模式的回调
-    wm_operators = len(bpy.context.window_manager.operators)
+    s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
+    item = scene_data.ensure_coll.get(S_COLL)
+    if item and item.obj:
+        all_objects = len(item.obj.all_objects)
+        if S_COLL_OBJECTS != all_objects:
+            S_COLL_OBJECTS = all_objects
+            s_coll_objects_neq = True
+
+    wm_operators = len(bpy.context.window_manager.operators)  # 撤销就变0
     if wm_operators != WM_OPERATORS:
         WM_OPERATORS = wm_operators
         if WM_OPERATORS != 0:
+            bl_label = bpy.context.window_manager.operators[-1].bl_label
             bl_idname = bpy.context.window_manager.operators[-1].bl_idname
             # print(bl_idname)
             if bl_idname == "OBJECT_OT_editmode_toggle":
+                # 从编辑模式切换到物体模式的回调
                 if bpy.context.mode == "OBJECT":
                     geometry_modify_post()
+            # 应用修改器的回调
             elif bl_idname == "OBJECT_OT_modifier_apply":
                 geometry_modify_post()
+            # 移动/移除扇区集合的回调
+            elif bl_label in COLLECTION_OP:
+                check_sector_coll()
+            # 删除扇区的回调
+            elif bl_idname in DELETE_OP and s_coll_objects_neq:
+                check_sector_delete()
+            # 任意删除的回调
+            elif bl_idname in DELETE_OP:
+                check_special_objects()
+            # 合并扇区的回调
+            elif bl_idname == "OBJECT_OT_join":
+                check_sector_join()
+            # 分离扇区的回调
+            elif bl_idname == "MESH_OT_separate":
+                check_sector_separate()
+            # 复制/粘贴扇区的回调 ['OBJECT_OT_duplicate_move', 'OBJECT_OT_duplicate_move_linked', 'VIEW3D_OT_pastebuffer']
+            # 变换扇区的回调
 
     DEPSGRAPH_UPDATE_LOCK.release()
 
@@ -1776,6 +1970,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     has_sky: BoolProperty(default=False)  # type: ignore
     is_convex: BoolProperty(default=False)  # type: ignore
     is_2d_sphere: BoolProperty(default=False)  # type: ignore
+    connect_num: IntProperty(default=0)  # type: ignore
 
     # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
@@ -2043,6 +2238,15 @@ class SectorProperty(bpy.types.PropertyGroup):
             "concave_type": ag_utils.CONCAVE_T_NONE,
         }
 
+    def reset_connect_data(self):
+        mesh = self.id_data.data  # type: bpy.types.Mesh # type: ignore
+        self.connect_num = 0  # 重置连接数
+        # 重置连接属性
+        attributes = mesh.attributes.get("amagate_connected")
+        if attributes:
+            mesh.attributes.remove(attributes)
+        mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
+
     def init(self, post_copy=False):
         scene = bpy.context.scene
         scene_data = scene.amagate_data
@@ -2064,7 +2268,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         # self["ConnectManager"] = {"sec_ids": [], "faces": {}, "new_verts": []}
 
         # 在属性面板显示ID
-        obj[f"AG.Sector ID"] = id_
+        # obj[f"AG.Sector ID"] = id_
 
         # 凹多面体投影切割数据
         self.reset_concave_data()
