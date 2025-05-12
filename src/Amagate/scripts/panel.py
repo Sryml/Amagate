@@ -485,7 +485,22 @@ class AMAGATE_PT_Sector(N_Panel, bpy.types.Panel):
         layout = self.layout
         scene_data = context.scene.amagate_data
 
-        # selected_sectors = data.SELECTED_SECTORS
+        col = layout.column(align=True)
+
+        # 扇区 ID
+        id_ = "*"
+        if len(selected_sectors) == 1:
+            id_ = selected_sectors[0].amagate_data.get_sector_data().id
+        elif len(selected_sectors) == 0:
+            id_ = pgettext("None")
+        col.label(text=f"{pgettext('Sector ID')}: {id_}")
+        # 扇区连接数量
+        num = "*"
+        if len(selected_sectors) == 1:
+            num = selected_sectors[0].amagate_data.get_sector_data().connect_num
+        elif len(selected_sectors) == 0:
+            num = pgettext("None")
+        col.label(text=f"{pgettext('Sector Connections')}: {num}")
 
         col = layout.column()
         # 扇区数量
