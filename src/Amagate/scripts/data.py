@@ -755,15 +755,14 @@ def check_sector_separate():
     context = bpy.context
     # 获取编辑模式下的物体
     edit_objects = context.objects_in_mode.copy()
-    sec_ids = [
-        obj.amagate_data.get_sector_data().id
-        for obj in edit_objects
-        if obj.amagate_data.is_sector
-    ]
+    edit_sectors = [obj for obj in edit_objects if obj.amagate_data.is_sector]
 
-    if not sec_ids:
+    if not edit_sectors:
         return
 
+    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+
+    sec_ids = [sec.amagate_data.get_sector_data().id for sec in edit_sectors]
     # 编辑模式之外的选中物体
     selected_objects = [
         obj for obj in context.selected_objects if obj not in edit_objects
@@ -776,10 +775,22 @@ def check_sector_separate():
         sec_data = obj.amagate_data.get_sector_data()
         # 如果扇区ID与编辑模式下的扇区ID相同，则为分离出的扇区
         if sec_data.id in sec_ids:
+            sid = sec_data.id
             sec_data.init(post_copy=True)
-            sec_data.reset_connect_data()  # 重置连接数据
-    bpy.ops.ed.undo_push(message="Sector Check")
+            ag_utils.check_connect(obj, sid)
 
+    for sec in edit_sectors:
+        ag_utils.check_connect(sec)
+
+    # 恢复选择
+    ag_utils.select_active(context, edit_objects[0])  # 单选并设为活动
+    for obj in edit_objects:
+        obj.select_set(True)
+    bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+    for obj in selected_objects:
+        obj.select_set(True)
+
+    bpy.ops.ed.undo_push(message="Sector Check")
     return
 
 
@@ -2286,6 +2297,11 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         # self.flat_light.color = scene_data.defaults.flat_light.color
 
+        # 判断是否为二维球面
+        self.is_2d_sphere = ag_utils.is_2d_sphere(obj)
+        # 判断是否为凸物体
+        self.is_convex = ag_utils.is_convex(obj)
+
         # 非复制的情况
         if not post_copy:
             # 添加修改器
@@ -2353,11 +2369,6 @@ class SectorProperty(bpy.types.PropertyGroup):
             self.atmo_id = self.atmo_id
             self.external_id = self.external_id
             self.ambient_color = self.ambient_color
-
-        # 判断是否为二维球面
-        self.is_2d_sphere = ag_utils.is_2d_sphere(obj)
-        # 判断是否为凸物体
-        self.is_convex = ag_utils.is_convex(obj)
 
         obj.amagate_data.is_sector = True
 
