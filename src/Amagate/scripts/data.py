@@ -95,7 +95,8 @@ E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
 
 DEPSGRAPH_UPDATE_LOCK = threading.Lock()
-# DELETE_POST_LOCK = threading.Lock()
+CHECK_CONNECT = threading.Lock()
+CONNECT_SECTORS = set()
 
 S_COLL_OBJECTS = 0
 WM_OPERATORS = 0
@@ -116,6 +117,13 @@ COLLECTION_OP = (
 )
 
 DELETE_OP = ("OBJECT_OT_delete", "OUTLINER_OT_delete")
+
+DUPLICATE_OP = (
+    "OBJECT_OT_duplicate_move",
+    "OBJECT_OT_duplicate_move_linked",
+)  # 'VIEW3D_OT_pastebuffer'
+
+TRANSFORM_OP = ("TRANSFORM_OT_translate", "TRANSFORM_OT_resize", "TRANSFORM_OT_rotate")
 
 ############################
 
@@ -686,14 +694,14 @@ def check_sector_delete():
     if deleted_ids:
         bpy.ops.ed.undo()
         coll = ensure_collection(S_COLL)
-        # scene_data = bpy.context.scene.amagate_data
-        # SectorManage = scene_data["SectorManage"]
+        scene_data = bpy.context.scene.amagate_data
+        SectorManage = scene_data["SectorManage"]
 
         disconnect = []  # 需要与删除扇区解除连接的扇区
-        sectors = [
+        sectors_del = [
             SectorManage["sectors"][id_key]["obj"] for id_key in deleted_ids
         ]  # type: list[Object]
-        for sec in sectors:
+        for sec in sectors_del:
             sec_data = sec.amagate_data.get_sector_data()
             # 如果没有连接，跳过
             if sec_data.connect_num == 0:
@@ -706,7 +714,12 @@ def check_sector_delete():
             }
             connect.discard(0)
             if connect:
-                disconnect.append((connect, sec_data.id))
+                sectors = [
+                    SectorManage["sectors"][f"{i}"]["obj"]
+                    for i in connect
+                    if SectorManage["sectors"][f"{i}"]["obj"] not in sectors_del
+                ]
+                disconnect.append((sectors, sec_data.id))
         for sectors, sid in disconnect:
             ag_utils.disconnect(None, bpy.context, sectors, sid, dis_target=False)
 
@@ -742,8 +755,13 @@ def check_sector_join():
         selected_sectors.remove(active_object)
     remove_ids = [sec.amagate_data.get_sector_data().id for sec in selected_sectors]
 
-    ag_utils.disconnect(None, context, selected_sectors)
+    if selected_sectors:
+        ag_utils.disconnect(None, context, selected_sectors)
     bpy.ops.object.join()
+    if active_object.amagate_data.is_sector:
+        sec_data = active_object.amagate_data.get_sector_data()
+        sec_data.is_2d_sphere = ag_utils.is_2d_sphere(active_object)
+        sec_data.is_convex = ag_utils.is_convex(active_object)
 
     for id in remove_ids:
         ag_utils.sector_mgr_remove(str(id))
@@ -753,34 +771,44 @@ def check_sector_join():
 # 分离扇区检查
 def check_sector_separate():
     context = bpy.context
-    # 获取编辑模式下的物体
+    # 编辑模式下的物体
     edit_objects = context.objects_in_mode.copy()
+    # 编辑模式下的扇区
     edit_sectors = [obj for obj in edit_objects if obj.amagate_data.is_sector]
 
     if not edit_sectors:
         return
-
-    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
     sec_ids = [sec.amagate_data.get_sector_data().id for sec in edit_sectors]
     # 编辑模式之外的选中物体
     selected_objects = [
         obj for obj in context.selected_objects if obj not in edit_objects
     ]
-    for obj in selected_objects:
-        # 跳过非扇区
-        if not obj.amagate_data.is_sector:
-            continue
+    # 分离出的扇区
+    sep_sectors = [
+        obj
+        for obj in selected_objects
+        if obj.amagate_data.is_sector
+        and obj.amagate_data.get_sector_data().id in sec_ids
+    ]
+    if not sep_sectors:
+        return
 
-        sec_data = obj.amagate_data.get_sector_data()
-        # 如果扇区ID与编辑模式下的扇区ID相同，则为分离出的扇区
-        if sec_data.id in sec_ids:
-            sid = sec_data.id
-            sec_data.init(post_copy=True)
-            ag_utils.check_connect(obj, sid)
+    bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+
+    # 分离出的扇区ID
+    sec_ids_2 = [sec.amagate_data.get_sector_data().id for sec in sep_sectors]
+    for sec in sep_sectors:
+        sec_data = sec.amagate_data.get_sector_data()
+        sid = sec_data.id
+        sec_data.init(post_copy=True)
+        ag_utils.check_connect(sec, sid)
 
     for sec in edit_sectors:
-        ag_utils.check_connect(sec)
+        sec_data = sec.amagate_data.get_sector_data()
+        # 如果该扇区被分离了，检查连接
+        if sec_data.id in sec_ids_2:
+            ag_utils.check_connect(sec)
 
     # 恢复选择
     ag_utils.select_active(context, edit_objects[0])  # 单选并设为活动
@@ -791,57 +819,52 @@ def check_sector_separate():
         obj.select_set(True)
 
     bpy.ops.ed.undo_push(message="Sector Check")
-    return
 
 
-def delete_post_func():
-    scene_data = bpy.context.scene.amagate_data
+# 复制扇区检查
+def check_sector_duplicate():
+    context = bpy.context
+    dup_sectors = [
+        obj for obj in context.selected_objects if obj.amagate_data.is_sector
+    ]
+    if not dup_sectors:
+        return
 
-    # XXX 不起作用，因为复制场景不会触发依赖图更新
-    # 如果用户复制了场景(存在2个blade场景)，则撤销操作
-    # if len([1 for i in bpy.data.scenes if i.amagate_data.is_blade]) > 1:  # type: ignore
-    #     print("撤销操作")
-    #     bpy.ops.ed.undo()
-    #     return
+    for sec in dup_sectors:
+        sec_data = sec.amagate_data.get_sector_data()
+        sec_data.init(post_copy=True)
+    ag_utils.disconnect(None, context, dup_sectors, dis_target=False)
 
-    # 如果用户删除了特殊对象，则撤销操作
-    for i in [
-        scene_data.ensure_null_obj,
-        scene_data.ensure_null_tex,
-        scene_data.sec_node,
-        scene_data.eval_node,
-    ] + [item.obj for item in scene_data.ensure_coll]:
-        if not i:
-            bpy.ops.ed.undo()
-            return
+    # XXX 待优化。取消用户的操作选项
+    bpy.ops.object.mode_set(mode="EDIT")
+    bpy.app.timers.register(
+        lambda: bpy.ops.object.mode_set(mode="OBJECT") and None, first_interval=0.1
+    )
 
-    # 如果用户删除了扇区物体，则进行自动清理
-    coll = ensure_collection(S_COLL)
-    SectorManage = scene_data.get("SectorManage")
-    if len(SectorManage["sectors"]) != len(coll.all_objects):
-        exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
-        all_ids = set(SectorManage["sectors"].keys())
-        deleted_ids = sorted(all_ids - exist_ids, reverse=True)
-
-        if deleted_ids:
-            # 如果只是移动到其它集合，则撤销操作
-            obj = SectorManage["sectors"][deleted_ids[0]]["obj"]
-            if obj and bpy.context.scene in obj.users_scene:
-                bpy.ops.ed.undo()
-                return
-
-            bpy.ops.ed.undo()
-            coll = ensure_collection(S_COLL)
-            # scene_data = bpy.context.scene.amagate_data
-            # SectorManage = scene_data["SectorManage"]
-
-            for id_key in deleted_ids:
-                ag_utils.delete_sector(id_key=id_key)
-
-            bpy.ops.ed.undo_push(message="Delete Sector")
+    bpy.ops.ed.undo_push(message="Sector Check")
 
 
-def geometry_modify_post(selected_sectors: list[Object] = [], undo=True):
+# 扇区变换检查
+def check_sector_transform():
+    context = bpy.context
+    conn_sectors = [
+        obj
+        for obj in context.selected_objects
+        if obj.amagate_data.is_sector
+        and obj.amagate_data.get_sector_data().connect_num != 0
+    ]
+    if not conn_sectors:
+        return
+
+    for sec in conn_sectors:
+        ag_utils.check_connect(sec)
+
+    bpy.ops.ed.undo_push(message="Sector Check")
+
+
+def geometry_modify_post(
+    selected_sectors: list[Object] = [], undo=True, check_connect=True
+):
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
     if selected_sectors:
@@ -851,10 +874,24 @@ def geometry_modify_post(selected_sectors: list[Object] = [], undo=True):
                 continue
             sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
             sec_data.is_convex = ag_utils.is_convex(sec)
+            if sec_data.connect_num != 0 and check_connect:
+                ag_utils.check_connect(sec)
 
         # 扇区编辑检查
         if undo:
             bpy.ops.ed.undo_push(message="Sector Check")
+
+
+def check_connect_timer():
+    global CONNECT_SECTORS
+
+    for sec in CONNECT_SECTORS:
+        ag_utils.check_connect(sec)
+
+    ag_utils.debugprint("check_connect_timer done")
+
+    CONNECT_SECTORS = set()
+    CHECK_CONNECT.release()
 
 
 # def delete_post_func_release():
@@ -872,33 +909,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
     if not DEPSGRAPH_UPDATE_LOCK.acquire(blocking=False):
         return
 
-    # if depsgraph.id_type_updated("MESH"):
-    #     print("至少有一个网格更新了！")
-    #     # 遍历所有更新的物体
-    #     for update in depsgraph.updates:
-    #         if isinstance(update.id, bpy.types.Object):
-    #             obj = update.id
-    #             if update.is_updated_transform:  # 明确检查变换更新
-    #                 print(f"物体 '{obj.name}' 的位置/旋转/缩放已修改！")
-    #             if update.is_updated_geometry:  # 明确检查几何体更新
-    #                 print(f"物体 '{obj.name}' 的几何体已修改！")
-    #             if update.is_updated_shading:  # 明确检查材质更新
-    #                 print(f"物体 '{obj.name}' 的材质已修改！")
-    # elif depsgraph.id_type_updated("COLLECTION"):
-    #     print("至少有一个集合更新了！")
-    # elif depsgraph.id_type_updated("MATERIAL"):
-    #     print("至少有一个材质更新了！")
-    # elif depsgraph.id_type_updated("OBJECT"):
-    #     # for update in depsgraph.updates:
-    #     #     print(update.is_property_set("location"))
-    #     print("至少有一个对象更新了！")
-
-    # 删除操作后的回调
-    # delete_post_func()
-    # if DELETE_POST_LOCK.acquire(blocking=False):
-    # delete_post_func()
-    # DELETE_POST_LOCK.release()
-    # bpy.app.timers.register(delete_post_func_release, first_interval=0.2)
+    context = bpy.context
 
     s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
     item = scene_data.ensure_coll.get(S_COLL)
@@ -908,16 +919,16 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             S_COLL_OBJECTS = all_objects
             s_coll_objects_neq = True
 
-    wm_operators = len(bpy.context.window_manager.operators)  # 撤销就变0
+    wm_operators = len(context.window_manager.operators)  # 撤销就变0
     if wm_operators != WM_OPERATORS:
         WM_OPERATORS = wm_operators
         if WM_OPERATORS != 0:
-            bl_label = bpy.context.window_manager.operators[-1].bl_label
-            bl_idname = bpy.context.window_manager.operators[-1].bl_idname
+            bl_label = context.window_manager.operators[-1].bl_label
+            bl_idname = context.window_manager.operators[-1].bl_idname
             # print(bl_idname)
             if bl_idname == "OBJECT_OT_editmode_toggle":
                 # 从编辑模式切换到物体模式的回调
-                if bpy.context.mode == "OBJECT":
+                if context.mode == "OBJECT":
                     geometry_modify_post()
             # 应用修改器的回调
             elif bl_idname == "OBJECT_OT_modifier_apply":
@@ -937,8 +948,31 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             # 分离扇区的回调
             elif bl_idname == "MESH_OT_separate":
                 check_sector_separate()
-            # 复制/粘贴扇区的回调 ['OBJECT_OT_duplicate_move', 'OBJECT_OT_duplicate_move_linked', 'VIEW3D_OT_pastebuffer']
-            # 变换扇区的回调
+            # 复制/粘贴扇区的回调
+            elif bl_idname in DUPLICATE_OP:
+                check_sector_duplicate()
+            # 扇区变换的回调
+            elif bl_idname in TRANSFORM_OP:
+                check_sector_transform()
+    # 无操作回调，例如在属性面板修改
+    # else:
+    #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":
+    #         for update in depsgraph.updates:
+    #             if not update.is_updated_transform:
+    #                 break
+
+    #             obj = update.id  # type: Object # type: ignore
+    #             if not isinstance(obj, bpy.types.Object):
+    #                 break
+
+    #             sec_data = obj.amagate_data.get_sector_data()
+    #             if sec_data is None:
+    #                 continue
+    #             if sec_data.connect_num != 0:
+    #                 CONNECT_SECTORS.add(obj)
+
+    #                 if CHECK_CONNECT.acquire(blocking=False):
+    #                     bpy.app.timers.register(check_connect_timer, first_interval=2.0)
 
     DEPSGRAPH_UPDATE_LOCK.release()
 

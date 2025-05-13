@@ -522,7 +522,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors)
+            data.geometry_modify_post(selected_sectors, check_connect=False)
 
         selected_sectors = data.SELECTED_SECTORS.copy()
         # if len(selected_sectors) < 2:
@@ -1134,7 +1134,7 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
             # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
             if context.mode == "EDIT_MESH":
                 bpy.ops.object.mode_set(mode="OBJECT")
-                data.geometry_modify_post(selected_sectors)
+                data.geometry_modify_post(selected_sectors, check_connect=False)
 
             selected_sectors = data.SELECTED_SECTORS.copy()
 
@@ -1257,10 +1257,10 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                             sec_data_2.connect_num += 1
 
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        # 重新计算法向（内侧）
+        # # 重新计算法向（内侧）
         bpy.ops.mesh.normals_make_consistent(inside=True)
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-        data.geometry_modify_post(sectors, undo=False)
+        data.geometry_modify_post(sectors, undo=False, check_connect=False)
 
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
@@ -1287,7 +1287,7 @@ class OT_Sector_Disconnect(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors)
+            data.geometry_modify_post(selected_sectors, check_connect=False)
 
         selected_sectors = data.SELECTED_SECTORS.copy()
 
@@ -1520,7 +1520,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors)
+            data.geometry_modify_post(selected_sectors, check_connect=False)
 
         # knife_project = []
         separate_list = []

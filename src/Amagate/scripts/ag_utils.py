@@ -824,8 +824,32 @@ def check_connect(sec, check_id=None):
     bm.from_mesh(mesh)
     layer = bm.faces.layers.int.get("amagate_connected")
     faces_set = set(bm.faces)
+    has_dissolve = [False]
 
-    has_dissolve = False
+    # 解除连接面
+    def disconnect_face(faces, bm_2, face_2, layer_2, conn_sec_data, mesh_2):
+        # 融并连接面
+        for f in faces:
+            f[layer] = 0  # type: ignore
+        bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
+        sec_data.connect_num -= 1
+        if not has_dissolve[0]:
+            has_dissolve[0] = True
+
+        # 融并目标的连接面
+        bm_2.faces.ensure_lookup_table()
+        faces_idx_2 = get_linked_flat(face_2)
+        faces_2 = [bm_2.faces[i] for i in faces_idx_2]
+        for f in faces_2:
+            if f[layer_2] != 0:  # type: ignore
+                f[layer_2] = 0  # type: ignore
+        bmesh.ops.dissolve_faces(bm_2, faces=faces_2, use_verts=False)
+        conn_sec_data.connect_num -= 1
+
+        unsubdivide(bm_2)  # 反细分边
+        bm_2.to_mesh(mesh_2)
+        bm_2.free()
+
     match_count = 0
     while faces_set and sec_data.connect_num > 0:
         bm.faces.ensure_lookup_table()
@@ -842,7 +866,7 @@ def check_connect(sec, check_id=None):
         # 如果没有连接面，跳过
         if conn_sid == 0:
             continue
-        normal_1 = face_1.normal.copy()
+        normal_1 = matrix_1.to_quaternion() @ face_1.normal.copy()
 
         # 连接目标
         sec_dict = sectors_dict.get(str(conn_sid))
@@ -863,9 +887,10 @@ def check_connect(sec, check_id=None):
         for face_2 in bm_2.faces:
             if face_2[layer_2] == check_id:  # type: ignore
                 # 判断共面性
-                normal_2 = face_2.normal.copy()
+                normal_2 = matrix_2.to_quaternion() @ face_2.normal.copy()
                 # 如果法向不是完全相反，跳过
                 if normal_1.dot(normal_2) > -epsilon2:
+                    disconnect_face(faces, bm_2, face_2, layer_2, conn_sec_data, mesh_2)
                     break
 
                 # 获取面的顶点坐标
@@ -874,6 +899,7 @@ def check_connect(sec, check_id=None):
                 dir = (co2 - co1).normalized()
                 # 如果顶点不是在同一平面，跳过
                 if abs(dir.dot(normal_1)) > epsilon:
+                    disconnect_face(faces, bm_2, face_2, layer_2, conn_sec_data, mesh_2)
                     break
 
                 has_coplanar = True
@@ -891,28 +917,7 @@ def check_connect(sec, check_id=None):
 
                 # 如果连接面不匹配
                 if verts_set_1 != verts_set_2:
-                    # 融并连接面
-                    for f in faces:
-                        f[layer] = 0  # type: ignore
-                    bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
-                    sec_data.connect_num -= 1
-                    if not has_dissolve:
-                        has_dissolve = True
-
-                    # 融并目标的连接面
-                    bm_2.faces.ensure_lookup_table()
-                    faces_idx_2 = get_linked_flat(face_2)
-                    faces_2 = [bm_2.faces[i] for i in faces_idx_2]
-                    for f in faces_2:
-                        if f[layer_2] != 0:  # type: ignore
-                            f[layer_2] = 0  # type: ignore
-                    bmesh.ops.dissolve_faces(bm_2, faces=faces_2, use_verts=False)
-                    conn_sec_data.connect_num -= 1
-
-                    unsubdivide(bm_2)  # 反细分边
-                    bm_2.to_mesh(mesh_2)
-                    bm_2.free()
-                    # debugprint(f"connect_mismatch: {sec.name} -> {conn_sec.name}")
+                    disconnect_face(faces, bm_2, face_2, layer_2, conn_sec_data, mesh_2)
                 # 如果是匹配的
                 else:
                     # 纠正连接的扇区ID
@@ -921,17 +926,17 @@ def check_connect(sec, check_id=None):
                     match_count += 1
                     # debugprint(f"connect_match: {sec.name} -> {conn_sec.name}")
                 break
-
-        if not has_coplanar:
+        # 如果没有发生break，说明没有找到目标面
+        else:
             # 融并连接面
             for f in faces:
                 f[layer] = 0  # type: ignore
             bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
             sec_data.connect_num -= 1
-            if not has_dissolve:
-                has_dissolve = True
+            if not has_dissolve[0]:
+                has_dissolve[0] = True
 
-    if has_dissolve:
+    if has_dissolve[0]:
         unsubdivide(bm)  # 反细分边
         bm.to_mesh(mesh)
     sec_data.connect_num = match_count

@@ -1068,7 +1068,7 @@ class OT_ExportMap(bpy.types.Operator):
             selected_objects = context.selected_objects.copy()
             if context.active_object not in selected_objects:
                 selected_objects.append(context.active_object)
-            data.geometry_modify_post(selected_objects)
+            data.geometry_modify_post(selected_objects, check_connect=False)
 
         # 收集可见的凸扇区
         sectors_dict = scene_data["SectorManage"]["sectors"]
