@@ -476,12 +476,12 @@ class OT_Sector_Convert(bpy.types.Operator):
         for obj in mesh_objects:
             obj.select_set(True)  # 选择 MESH 对象
 
-        bpy.ops.object.mode_set(mode="EDIT")
-        # 全选所有面
-        bpy.ops.mesh.select_all(action="SELECT")
-        # 重新计算法向（内侧）
-        bpy.ops.mesh.normals_make_consistent(inside=True)
-        bpy.ops.object.mode_set(mode="OBJECT")
+        # bpy.ops.object.mode_set(mode="EDIT")
+        # # 全选所有面
+        # bpy.ops.mesh.select_all(action="SELECT")
+        # # 重新计算法向（内侧）
+        # bpy.ops.mesh.normals_make_consistent(inside=True)
+        # bpy.ops.object.mode_set(mode="OBJECT")
 
         # 恢复选择
         # bpy.ops.object.select_all(action="DESELECT")
@@ -543,6 +543,11 @@ class OT_Sector_Connect(bpy.types.Operator):
         self.failed_lst = []  # type: list[str] # 失败列表
 
         active_object = context.active_object
+
+        # 确保网格数据为单用户的
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            sec_data.mesh_unique()
 
         self.connect(context, selected_sectors)
 
@@ -614,8 +619,9 @@ class OT_Sector_Connect(bpy.types.Operator):
                         # 获取面的顶点坐标
                         co1 = matrix_1 @ face_1.verts[0].co
                         co2 = matrix_2 @ face_2.verts[0].co
+                        dir = (co2 - co1).normalized()
                         # 如果顶点不是在同一平面，跳过
-                        if abs((co2 - co1).dot(normal_1)) > epsilon:
+                        if abs(dir.dot(normal_1)) > epsilon:
                             continue
 
                         sec_info = [
@@ -652,9 +658,11 @@ class OT_Sector_Connect(bpy.types.Operator):
                             if connect_face_idx[0] != -1:
                                 mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
                                 success.add(sec_1)
+                                sec_data_1.connect_num += 1
                             if connect_face_idx[1] != -1:
                                 mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
                                 success.add(sec_2)
+                                sec_data_2.connect_num += 1
                         # if has_connect:
                         #     mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
                         #     mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
@@ -1146,6 +1154,11 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                 context.view_layer.objects.active = selected_sectors[0]
 
             self.failed_lst = []  # type: list[str] # 失败列表
+
+            # 确保网格数据为单用户的
+            for sec in selected_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                sec_data.mesh_unique()
             self.connect(context, selected_sectors)
 
             # 如果有连接失败的扇区，提示
@@ -1232,14 +1245,16 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                         face = next((f for f in bm_edit_1.faces if f.select), None)
                         if face is not None:
                             layer = bm_edit_1.faces.layers.int.get("amagate_connected")
-                            face[layer] = sec_2.amagate_data.get_sector_data().id  # type: ignore
+                            face[layer] = sec_data_2.id  # type: ignore
                             success.add(sec_1)
+                            sec_data_1.connect_num += 1
 
                         face = next((f for f in bm_edit_2.faces if f.select), None)
                         if face is not None:
                             layer = bm_edit_2.faces.layers.int.get("amagate_connected")
-                            face[layer] = sec_1.amagate_data.get_sector_data().id  # type: ignore
+                            face[layer] = sec_data_1.id  # type: ignore
                             success.add(sec_2)
+                            sec_data_2.connect_num += 1
 
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
         # 重新计算法向（内侧）
@@ -1281,18 +1296,18 @@ class OT_Sector_Disconnect(bpy.types.Operator):
             return {"CANCELLED"}
 
         Connectionless = []
-        # 排除无连接扇区
-        for i in range(len(selected_sectors) - 1, -1, -1):
-            sec = selected_sectors[i]
-            sec_data = sec.amagate_data.get_sector_data()
-            if sec_data.connect_num == 0:
-                selected_sectors.remove(sec)
-                Connectionless.append(sec.name)
+        # # 排除无连接扇区
+        # for i in range(len(selected_sectors) - 1, -1, -1):
+        #     sec = selected_sectors[i]
+        #     sec_data = sec.amagate_data.get_sector_data()
+        #     if sec_data.connect_num == 0:
+        #         selected_sectors.remove(sec)
+        #         Connectionless.append(sec.name)
 
-        if len(selected_sectors) == 0:
-            # 扇区没有连接
-            self.report({"WARNING"}, "No connection found")
-            return {"CANCELLED"}
+        # if len(selected_sectors) == 0:
+        #     # 扇区没有连接
+        #     self.report({"WARNING"}, "No connection found")
+        #     return {"CANCELLED"}
 
         ag_utils.disconnect(self, context, selected_sectors)
 
@@ -1530,7 +1545,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
                 continue
 
             # 断开凹扇区的连接
-            OT_Sector_Disconnect.disconnect(None, context, [sec])
+            if sec_data.connect_num > 0:
+                ag_utils.disconnect(None, context, [sec])
             sec_data.is_convex = ag_utils.is_convex(sec)
 
             # 简单凹面的情况

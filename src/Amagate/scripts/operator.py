@@ -899,7 +899,7 @@ class OT_InitMap(bpy.types.Operator):
         # 初始化场景数据
         scene_data.id = 1
         ## 创建集合
-        data.ensure_collection(data.C_COLL)
+        data.ensure_collection(data.C_COLL, hide_select=True)
         data.ensure_collection(data.GS_COLL)
         data.ensure_collection(data.S_COLL)
         data.ensure_collection(data.E_COLL)
@@ -1222,110 +1222,97 @@ class OT_ExportMap(bpy.types.Operator):
                 re_z_axis = Vector((0, 0, -1))
 
                 conn_face_visited = set()
+                connect_num = 0
                 # 先找出连接面
                 for face_index, face in enumerate(sec_bm.faces):
+                    if connect_num == sec_data.connect_num:
+                        break
                     if face_index in conn_face_visited:
                         continue
 
                     connected_sid = mesh.attributes["amagate_connected"].data[face_index].value  # type: ignore
                     # 如果是连接面且连接目标在导出列表中
                     if (
-                        connected_sid != 0
-                        and global_sector_map.get(connected_sid) is not None
+                        connected_sid == 0
+                        or global_sector_map.get(connected_sid) is None
                     ):
-                        connect_info = []
-                        normal = matrix_world.to_quaternion() @ face.normal
-                        group_face_idx = ag_utils.get_linked_flat(face)
-                        conn_face_visited.update(group_face_idx)
+                        continue
 
-                        if len(group_face_idx) == 1:
-                            face_type = 7002  # 整个面是连接的
-                            verts_idx = [
-                                sec_vertex_indices[v.index] for v in face.verts
+                    connect_num += 1
+                    connect_info = []
+                    normal = matrix_world.to_quaternion() @ face.normal
+                    group_face_idx = ag_utils.get_linked_flat(face)
+                    conn_face_visited.update(group_face_idx)
+
+                    if len(group_face_idx) == 1:
+                        face_type = 7002  # 整个面是连接的
+                        verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
+                        connect_info.append((connected_sid, (), ()))
+                    else:
+                        conn_face_num = 0
+                        for i in group_face_idx:
+                            conn_sid = mesh.attributes["amagate_connected"].data[i].value  # type: ignore
+                            if conn_sid == 0:
+                                continue
+
+                            conn_face_num += 1
+                            face_conn = sec_bm.faces[i]
+                            center = matrix_world @ face_conn.calc_center_bounds()
+                            # 按照顶点顺序计算切线
+                            tangent_data = []  # 切线数据
+                            verts_sub_idx = [v.index for v in face_conn.verts]
+                            verts_sub_idx_num = len(verts_sub_idx)
+                            for i in range(verts_sub_idx_num):
+                                j = (i + 1) % verts_sub_idx_num
+
+                                co1 = matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
+                                co2 = matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
+                                cross = (co2 - co1).cross(normal)  # type: Vector
+                                cross.normalize()
+                                dist = (-co1).dot(cross) * 1000
+
+                                tangent_data.append((dist, cross))
+
+                            # 转换为全局顶点索引
+                            verts_sub_idx = [
+                                sec_vertex_indices[i] for i in verts_sub_idx
                             ]
-                            connect_info.append((connected_sid, (), ()))
-                        else:
-                            conn_face_num = 0
-                            for i in group_face_idx:
-                                conn_sid = mesh.attributes["amagate_connected"].data[i].value  # type: ignore
-                                if conn_sid != 0:
-                                    conn_face_num += 1
-                                    face_conn = sec_bm.faces[i]
-                                    center = (
-                                        matrix_world @ face_conn.calc_center_bounds()
-                                    )
-                                    # 调整顶点顺序
-                                    verts_sub_idx = [v.index for v in face_conn.verts]
-                                    edges_info = []
-                                    co1 = matrix_world @ face_conn.verts[0].co
-                                    co2 = matrix_world @ face_conn.verts[1].co
-                                    cross = (co2 - co1).cross(normal)  # type: Vector
-                                    cross.normalize()
-                                    if (co1 - center).dot(cross) < 0:
-                                        verts_sub_idx.reverse()
-                                    # 按照顶点顺序计算边信息
-                                    verts_sub_idx_num = len(verts_sub_idx)
-                                    for i in range(verts_sub_idx_num):
-                                        j = (i + 1) % verts_sub_idx_num
 
-                                        co1 = (
-                                            matrix_world
-                                            @ sec_bm.verts[verts_sub_idx[i]].co
-                                        )
-                                        co2 = (
-                                            matrix_world
-                                            @ sec_bm.verts[verts_sub_idx[j]].co
-                                        )
-                                        cross = (co2 - co1).cross(
-                                            normal
-                                        )  # type: Vector
-                                        cross.normalize()
-                                        dist = (-co1).dot(cross) * 1000
+                            connect_info.append((conn_sid, verts_sub_idx, tangent_data))
 
-                                        edges_info.append((dist, cross))
-
-                                    # 转换为全局顶点索引
-                                    verts_sub_idx = [
-                                        sec_vertex_indices[i] for i in verts_sub_idx
-                                    ]
-
-                                    connect_info.append(
-                                        (conn_sid, verts_sub_idx, edges_info)
-                                    )
-
-                            face_type = 7003  # 面中的单连接
-                            # if conn_face_num == 1:
-                            #     face_type = 7003  # 面中的单连接
-                            # else:
-                            #     face_type = 7004  # 面中的多连接
-                            # 获取凸壳顶点
-                            bm_convex = sec_bm.copy()
-                            bmesh.ops.delete(
-                                bm_convex,
-                                geom=[
-                                    f
-                                    for f in bm_convex.faces
-                                    if f.index not in group_face_idx
-                                ],
-                                context="FACES",
-                            )  # 删除非组面
-                            bmesh.ops.dissolve_faces(
-                                bm_convex, faces=list(bm_convex.faces), use_verts=False
-                            )  # 合并组面
-                            ag_utils.unsubdivide(bm_convex)  # 反细分
-                            bm_convex.faces.ensure_lookup_table()
-                            verts_idx = [
-                                global_vertex_map[
-                                    ((matrix_world @ v.co) * 1000).to_tuple(1)
-                                ]
-                                for v in bm_convex.faces[0].verts
+                        face_type = 7003  # 面中的单连接
+                        # if conn_face_num == 1:
+                        #     face_type = 7003  # 面中的单连接
+                        # else:
+                        #     face_type = 7004  # 面中的多连接
+                        # 获取凸壳顶点
+                        bm_convex = sec_bm.copy()
+                        bmesh.ops.delete(
+                            bm_convex,
+                            geom=[
+                                f
+                                for f in bm_convex.faces
+                                if f.index not in group_face_idx
+                            ],
+                            context="FACES",
+                        )  # 删除非组面
+                        bmesh.ops.dissolve_faces(
+                            bm_convex, faces=list(bm_convex.faces), use_verts=False
+                        )  # 合并组面
+                        ag_utils.unsubdivide(bm_convex)  # 反细分
+                        bm_convex.faces.ensure_lookup_table()
+                        verts_idx = [
+                            global_vertex_map[
+                                ((matrix_world @ v.co) * 1000).to_tuple(1)
                             ]
-                            # 清理
-                            bm_convex.free()
+                            for v in bm_convex.faces[0].verts
+                        ]
+                        # 清理
+                        bm_convex.free()
 
-                        faces_sorted.append(
-                            (face_index, verts_idx, normal, face_type, connect_info)
-                        )
+                    faces_sorted.append(
+                        (face_index, verts_idx, normal, face_type, connect_info)
+                    )
 
                 # 再找出普通面和天空面
                 connect_info = [((), (), ())]  # 空的连接信息
@@ -1344,7 +1331,7 @@ class OT_ExportMap(bpy.types.Operator):
                     )
 
                 sec_bm.free()
-
+                # ag_utils.debugprint(f"{sec.name}: {[i[0] for i in faces_sorted]}")
                 # faces_sorted.sort(key=lambda x: -x[3]) # 连接面排前面
                 # faces_sorted.sort(key=lambda x: x[2].to_tuple(3)) # 按法向排列
                 faces_sorted.sort(
@@ -1359,7 +1346,7 @@ class OT_ExportMap(bpy.types.Operator):
                     face_type,
                     connect_info,
                 ) in faces_sorted:
-                    conn_sid, verts_sub_idx, edges_info = connect_info[0]
+                    conn_sid, verts_sub_idx, tangent_data = connect_info[0]
                     f.write(struct.pack("<I", face_type))
                     ## 法向
                     # normal = matrix_world.to_quaternion() @ face.normal
@@ -1402,8 +1389,8 @@ class OT_ExportMap(bpy.types.Operator):
                             f.write(struct.pack("<I", v_idx))
                         f.write(struct.pack("<I", global_sector_map[conn_sid]))
 
-                        f.write(struct.pack("<I", len(edges_info)))
-                        for dist, cross in edges_info:
+                        f.write(struct.pack("<I", len(tangent_data)))
+                        for dist, cross in tangent_data:
                             f.write(struct.pack("<ddd", cross[0], -cross[2], cross[1]))
                             f.write(struct.pack("<d", dist))
 
@@ -1411,14 +1398,14 @@ class OT_ExportMap(bpy.types.Operator):
                     # elif face_type == 7004:
                     #     f.write(struct.pack("<I", len(connect_info)))
 
-                    #     for conn_sid, verts_sub_idx, edges_info in connect_info:
+                    #     for conn_sid, verts_sub_idx, tangent_data in connect_info:
                     #         f.write(struct.pack("<I", len(verts_sub_idx)))
                     #         for v_idx in verts_sub_idx:
                     #             f.write(struct.pack("<I", v_idx))
                     #         f.write(struct.pack("<I", global_sector_map[conn_sid]))
 
-                    #         f.write(struct.pack("<I", len(edges_info)))
-                    #         for dist, cross in edges_info:
+                    #         f.write(struct.pack("<I", len(tangent_data)))
+                    #         for dist, cross in tangent_data:
                     #             f.write(
                     #                 struct.pack("<ddd", cross[0], -cross[2], cross[1])
                     #             )
@@ -1428,9 +1415,9 @@ class OT_ExportMap(bpy.types.Operator):
                     #     for i in range(len(connect_info) - 1, -1, -1):
                     #         f.write(struct.pack("<I", 8003))
                     #         f.write(struct.pack("<I", 1))  # 隐藏面
-                    #         conn_sid, verts_sub_idx, edges_info = connect_info[i]
+                    #         conn_sid, verts_sub_idx, tangent_data = connect_info[i]
                     #         f.write(struct.pack("<I", i))
-                    #         edges_num = len(edges_info)
+                    #         edges_num = len(tangent_data)
                     #         f.write(struct.pack("<I", edges_num))
                     #         f.write(
                     #             struct.pack(
@@ -1563,26 +1550,16 @@ class OT_Test(bpy.types.Operator):
         return {"FINISHED"}
 
     def test1(self, context: Context):
-        mesh = bpy.data.meshes["Cube"]
-        bm_convex = bmesh.new()
-        bm_convex.from_mesh(mesh)
-        # bmesh.ops.delete(
-        #     bm_convex,
-        #     geom=[f for f in bm_convex.faces if f.index not in (4, 6, 7, 8, 9)],
-        #     context="FACES",
-        # )
-        # bmesh.ops.dissolve_faces(
-        #     bm_convex, faces=list(bm_convex.faces), use_verts=False
-        # )
-        ag_utils.unsubdivide(bm_convex)
-
-        name = "AG.test"
-        mesh_new = bpy.data.meshes.new(name)
-        bm_convex.to_mesh(mesh_new)
-        obj = bpy.data.objects.new(name, mesh_new)
-        bpy.context.scene.collection.objects.link(obj)
-
-        bm_convex.free()
+        # bpy.ops.ed.undo()
+        # bpy.ops.ed.redo()
+        #         print(context.area.type)
+        #         print(context.region.type)
+        #         with bpy.context.temp_override(
+        #     # window=bpy.context.window_manager.windows[0],  # 使用主窗口
+        #     area=context.area,  # 使用第一个区域（如 3D 视图）
+        #     region=context.region,  # 使用第一个区域内的区域
+        # ):
+        bpy.ops.ed.undo_redo()
 
     def test2(self, context: Context):
         bm = bmesh.new()

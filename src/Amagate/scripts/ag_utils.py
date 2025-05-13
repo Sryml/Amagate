@@ -718,6 +718,7 @@ def disconnect(
 
     for sec in sectors:
         sec_data = sec.amagate_data.get_sector_data()
+        sec_data.mesh_unique()
         mesh = sec.data  # type: bpy.types.Mesh # type: ignore
         bm = bmesh.new()
         bm.from_mesh(mesh)
@@ -760,6 +761,7 @@ def disconnect(
             if conn_sec_data.connect_num == 0:
                 continue
 
+            conn_sec_data.mesh_unique()
             mesh_2 = conn_sec.data  # type: bpy.types.Mesh # type: ignore
             bm_2 = bmesh.new()
             bm_2.from_mesh(mesh_2)
@@ -806,6 +808,7 @@ def disconnect(
 # 检查连接
 def check_connect(sec, check_id=None):
     # type: (Object, int | None) -> None
+    """check_id参数只有当自身id发生变化时才需要传值"""
     context = bpy.context
     matrix_1 = sec.matrix_world.copy()
     sec_data = sec.amagate_data.get_sector_data()
