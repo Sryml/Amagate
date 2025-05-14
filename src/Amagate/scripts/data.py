@@ -270,6 +270,7 @@ def ensure_render_camera() -> Object:
         cam_data.sensor_width = 100
         cam_data.passepartout_alpha = 0.98
         # cam_data.show_limits = True
+        render_cam.location = (0, -0.1, 0)  # 避免0位置崩溃
         render_cam.rotation_euler = (math.pi / 2, 0, 0)
         # 正交摄像机
         # render_cam.data.type = "ORTHO"
@@ -1853,7 +1854,8 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0, get=lambda self: int(self["name"]))  # type: ignore
     name: StringProperty(name="id key", default="0")  # type: ignore
     item_name: StringProperty(name="Light Name", default="", get=lambda self: self.get_item_name(), set=lambda self, value: self.set_item_name(value))  # type: ignore
-    obj: PointerProperty(type=bpy.types.Light)  # type: ignore
+    obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    data: PointerProperty(type=bpy.types.Light)  # type: ignore
     users_obj: CollectionProperty(type=SectorCollection)  # type: ignore
 
     color: FloatVectorProperty(
@@ -1915,27 +1917,39 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
         self["_item_name"] = value
 
     def ensure_obj(self):
-        if not self.obj:
-            name = f"AG.Sun{self.id}"
+        name = f"AG.Sun{self.id}"
+        if not self.data:
             light_data = bpy.data.lights.get(name)
             if not (light_data and light_data.type == "SUN"):
                 light_data = bpy.data.lights.new("", type="SUN")
-                light_data.volume_factor = 0.0
                 light_data.rename(name, mode="ALWAYS")
-            self.obj = light_data
+            else:
+                light_data.volume_factor = 0.0  # 体积散射
+            self.data = light_data
+        if not self.obj:
+            light_data = self.data
+            light = bpy.data.objects.get(name)
+            if not light:
+                light = bpy.data.objects.new(name, light_data)
+            else:
+                light.data = light_data
+            self.obj = light
+            light.hide_select = True  # 不可选
+            link2coll(light, ensure_collection(AG_COLL, hide_select=True))
 
-        return self.obj
+        # return self.data
 
-    def sync_users(self, rotation_euler):
-        for i in self.users_obj:
-            sec = i.obj  # type: Object
-            sec.amagate_data.get_sector_data().update_external(self, rotation_euler)
+    # def sync_users(self, rotation_euler):
+    #     for i in self.users_obj:
+    #         sec = i.obj  # type: Object
+    #         sec.amagate_data.get_sector_data().update_external(self, rotation_euler)
 
     def update_obj(self, context=None):
         self.ensure_obj()
-        self.obj.color = self.color  # 设置颜色
+        self.data.color = self.color  # 设置颜色
         rotation_euler = self.vector.to_track_quat("-Z", "Z").to_euler()
-        self.sync_users(rotation_euler)
+        self.obj.rotation_euler = rotation_euler  # 设置方向
+        # self.sync_users(rotation_euler)
         # light_data.energy = self.energy  # 设置能量
 
 
@@ -2098,7 +2112,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         external = get_external_by_id(scene_data, value)[1]
         if not external:
             return
-        if not external.obj:
+        if not (external.data and external.obj):
             external.update_obj()
 
         if value != self.external_id:
@@ -2112,48 +2126,48 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         self["_external_id"] = value
         scene_data["SectorManage"]["sectors"][str(self.id)]["external_id"] = value
-        self.update_external(external)
+        # self.update_external(external)
 
-    def update_external(self, external, rotation_euler=None):
-        if not rotation_euler:
-            rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
-        obj = self.ensure_external_obj(external)
-        obj.rotation_euler = rotation_euler
+    # def update_external(self, external, rotation_euler=None):
+    #     if not rotation_euler:
+    #         rotation_euler = external.vector.to_track_quat("-Z", "Z").to_euler()
+    #     obj = self.ensure_external_obj(external)
+    #     obj.rotation_euler = rotation_euler
 
-    def ensure_external_obj(self, external):
-        light_data = external.obj
+    # def ensure_external_obj(self, external):
+    #     light_data = external.obj
 
-        light = self.external_obj
-        if not light:
-            name = f"AG.Sector{self.id}.Sun"
-            light = bpy.data.objects.get(name)
-            if not light:
-                light = bpy.data.objects.new(name, object_data=light_data)
-            else:
-                light.data = light_data
-            self.external_obj = light
+    #     light = self.external_obj
+    #     if not light:
+    #         name = f"AG.Sector{self.id}.Sun"
+    #         light = bpy.data.objects.get(name)
+    #         if not light:
+    #             light = bpy.data.objects.new(name, object_data=light_data)
+    #         else:
+    #             light.data = light_data
+    #         self.external_obj = light
 
-            light.hide_select = True  # 不可选
-            light.hide_viewport = True  # 不可见
-            # self.id_data.users_collection[0].objects.link(light)
-            # light.parent = self.id_data
-            link2coll(light, ensure_collection(AG_COLL, hide_select=True))
-            # 创建灯光链接集合
-            collections = bpy.data.collections
-            name = f"{name}.Linking"
-            lightlink_coll = collections.get(name)
-            if lightlink_coll:
-                collections.remove(lightlink_coll)
-            lightlink_coll = collections.new(name)
-            # light.light_linking.receiver_collection = lightlink_coll
-            # light.light_linking.blocker_collection = lightlink_coll
-            # link2coll(ensure_null_object(), lightlink_coll)
+    #         light.hide_select = True  # 不可选
+    #         light.hide_viewport = True  # 不可见
+    #         # self.id_data.users_collection[0].objects.link(light)
+    #         # light.parent = self.id_data
+    #         link2coll(light, ensure_collection(AG_COLL, hide_select=True))
+    #         # 创建灯光链接集合
+    #         collections = bpy.data.collections
+    #         name = f"{name}.Linking"
+    #         lightlink_coll = collections.get(name)
+    #         if lightlink_coll:
+    #             collections.remove(lightlink_coll)
+    #         lightlink_coll = collections.new(name)
+    #         # light.light_linking.receiver_collection = lightlink_coll
+    #         # light.light_linking.blocker_collection = lightlink_coll
+    #         # link2coll(ensure_null_object(), lightlink_coll)
 
-            # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
-        elif light.data != light_data:
-            light.data = light_data
+    #         # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
+    #     elif light.data != light_data:
+    #         light.data = light_data
 
-        return self.external_obj
+    #     return self.external_obj
 
     ############################
     def get_ambient_color(self):
@@ -2171,6 +2185,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             for sec in SELECTED_SECTORS:
                 sec_data = sec.amagate_data.get_sector_data()
                 setattr(sec_data, attr, value)
+            area_redraw("VIEW_3D")
         else:
             # if value == tuple(getattr(self, attr)):
             #     return
@@ -2178,45 +2193,46 @@ class SectorProperty(bpy.types.PropertyGroup):
             self[attr] = value
 
             if self.target == "Sector":
-                light_data = self.ensure_ambient_light()
-                light_data.color = getattr(self, attr)
+                self.id_data.update_tag(refresh={"OBJECT"})
+                # light_data = self.ensure_ambient_light()
+                # light_data.color = getattr(self, attr)
 
-    def ensure_ambient_light(self):
-        scene_data = bpy.context.scene.amagate_data
-        name = f"AG.Sector{self.id}.Ambient"
-        light_data = bpy.data.lights.get(name)
-        if not light_data:
-            light_data = bpy.data.lights.new(name, type="SUN")
-            light_data.volume_factor = 0.0
-            light_data.use_shadow = False
-            light_data.angle = math.pi  # type: ignore
-            light_data.energy = 8.0  # type: ignore
-            light_data.color = self.ambient_color
-        # 创建灯光链接集合
-        collections = bpy.data.collections
-        name = f"{name}.Linking"
-        lightlink_coll = collections.get(name)
-        if not lightlink_coll:
-            lightlink_coll = collections.new(name)
-            # link2coll(ensure_null_object(), lightlink_coll)
-        link2coll(self.id_data, lightlink_coll)
+    # def ensure_ambient_light(self):
+    #     scene_data = bpy.context.scene.amagate_data
+    #     name = f"AG.Sector{self.id}.Ambient"
+    #     light_data = bpy.data.lights.get(name)
+    #     if not light_data:
+    #         light_data = bpy.data.lights.new(name, type="SUN")
+    #         light_data.volume_factor = 0.0
+    #         light_data.use_shadow = False
+    #         light_data.angle = math.pi  # type: ignore
+    #         light_data.energy = 8.0  # type: ignore
+    #         light_data.color = self.ambient_color
+    #     # 创建灯光链接集合
+    #     collections = bpy.data.collections
+    #     name = f"{name}.Linking"
+    #     lightlink_coll = collections.get(name)
+    #     if not lightlink_coll:
+    #         lightlink_coll = collections.new(name)
+    #         # link2coll(ensure_null_object(), lightlink_coll)
+    #     link2coll(self.id_data, lightlink_coll)
 
-        for i in range(1, 3):  # 1 2
-            name = f"{light_data.name}{i}"
-            obj = bpy.data.objects.get(name)
-            if not obj:
-                obj = bpy.data.objects.new(name, object_data=light_data)
-            elif obj.data != light_data:
-                obj.data = light_data
-            if i == 1:
-                obj.rotation_euler = (0, 0, 0)
-            else:
-                obj.rotation_euler = (math.pi, 0, 0)
-            link2coll(obj, ensure_collection(AG_COLL, hide_select=True))
-            obj.light_linking.receiver_collection = lightlink_coll
-            obj.light_linking.blocker_collection = lightlink_coll
+    #     for i in range(1, 3):  # 1 2
+    #         name = f"{light_data.name}{i}"
+    #         obj = bpy.data.objects.get(name)
+    #         if not obj:
+    #             obj = bpy.data.objects.new(name, object_data=light_data)
+    #         elif obj.data != light_data:
+    #             obj.data = light_data
+    #         if i == 1:
+    #             obj.rotation_euler = (0, 0, 0)
+    #         else:
+    #             obj.rotation_euler = (math.pi, 0, 0)
+    #         link2coll(obj, ensure_collection(AG_COLL, hide_select=True))
+    #         obj.light_linking.receiver_collection = lightlink_coll
+    #         obj.light_linking.blocker_collection = lightlink_coll
 
-        return light_data
+    #     return light_data
 
     ############################
     def set_matslot(self, mat, faces=[]):
@@ -2487,6 +2503,7 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.target = "Scene"
         defaults.atmo_id = 1
         defaults.external_id = 1
+        defaults.ambient_color = (0.5, 0.5, 0.5)
 
         self.sector_public.target = "SectorPublic"
         ############################

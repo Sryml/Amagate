@@ -313,7 +313,7 @@ class OT_Scene_External_Remove(bpy.types.Operator):
             )
             return {"CANCELLED"}
 
-        bpy.data.lights.remove(item.obj)
+        bpy.data.lights.remove(item.data)
         externals.remove(active_idx)
 
         if active_idx >= len(externals):
@@ -930,7 +930,7 @@ class OT_InitMap(bpy.types.Operator):
             n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
         )
         Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
-        Background.inputs[1].default_value = 0.02  # type: ignore
+        Background.inputs[1].default_value = 0.0  # type: ignore
         scene.world = world
         ##
         scene.tool_settings.use_snap = True  # 吸附开关
