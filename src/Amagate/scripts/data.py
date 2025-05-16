@@ -230,7 +230,10 @@ def ensure_null_texture() -> Image:
     scene_data = bpy.context.scene.amagate_data
     img = scene_data.ensure_null_tex  # type: Image
     if not img:
-        img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
+        # img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
+        filepath = os.path.join(ADDON_PATH, "textures/panorama/Fortress of Nemrut.jpg")
+        img = bpy.data.images.load(filepath)  # type: Image # type: ignore
+        img.name = "NULL"
         img.amagate_data.id = -1  # type: ignore
         scene_data.ensure_null_tex = img
     # elif not img.amagate_data.id:  # type: ignore
@@ -573,12 +576,12 @@ class AmagatePreferences(bpy.types.AddonPreferences):
     bl_idname = PACKAGE  # type: ignore
 
     # 用于保存面板的展开状态
-    fold_state: BoolProperty(name="Fold State", default=True)  # type: ignore
+    expand_state: BoolProperty(name="Expand State", default=True)  # type: ignore
     is_user_modified: BoolProperty(default=False)  # type: ignore
 
     # def __init__(self):
     #     super().__init__()
-    # self.fold_state = False
+    # self.expand_state = False
 
     def draw(self, context: Context):
         self.is_user_modified = False
@@ -601,9 +604,9 @@ class AmagatePreferences(bpy.types.AddonPreferences):
         col.alignment = "LEFT"
         col.prop(
             self,
-            "fold_state",
+            "expand_state",
             text="",
-            icon="TRIA_DOWN" if self.fold_state else "TRIA_RIGHT",
+            icon="TRIA_DOWN" if self.expand_state else "TRIA_RIGHT",
             emboss=False,
         )
         row.label(text="Keymap")
@@ -612,7 +615,7 @@ class AmagatePreferences(bpy.types.AddonPreferences):
         #     col.alignment = "RIGHT"
         #     col.operator("preferences.keymap_restore", text="Restore")
 
-        if self.fold_state and keymap_items:
+        if self.expand_state and keymap_items:
             box = layout.box()
             split = box.split()
             col = split.column()
@@ -1351,6 +1354,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
 
         row = layout.row()
 
+        # tex.preview.reload()
         i = tex.preview.icon_id if tex.preview else 1
         col = row.column()
         col.alignment = "LEFT"
@@ -1923,8 +1927,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
             if not (light_data and light_data.type == "SUN"):
                 light_data = bpy.data.lights.new("", type="SUN")
                 light_data.rename(name, mode="ALWAYS")
-            else:
-                light_data.volume_factor = 0.0  # 体积散射
+            light_data.volume_factor = 0.0  # 体积散射
             self.data = light_data
         if not self.obj:
             light_data = self.data
@@ -2436,6 +2439,7 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
 class ImageProperty(bpy.types.PropertyGroup):
     id: IntProperty(name="ID", default=0)  # type: ignore
     mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
+    # Amagate内置纹理标识
     builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
 
 
@@ -2481,6 +2485,44 @@ class SceneProperty(bpy.types.PropertyGroup):
     # 进度条
     progress_bar: PointerProperty(type=ProgressBarProperty)  # type: ignore
 
+    # 天空纹理枚举
+    sky_tex_enum: EnumProperty(
+        name="",
+        description="",
+        items=[
+            ("1", "Kashgar", ""),
+            ("2", "Tabriz", ""),
+            ("3", "Khazel Zalam", ""),
+            ("4", "Marakamda", ""),
+            ("5", "Mines of Kelbegen", ""),
+            ("6", "Fortress of Tell Halaf", ""),
+            ("7", "Tombs of Ephyra", ""),
+            ("8", "Island of Karum", ""),
+            ("9", "Shalatuwar Fortress", ""),
+            ("10", "The Gorge of Orlok", ""),
+            ("11", "Fortress of Nemrut", ""),
+            ("12", "The Oasis of Nejeb", ""),
+            ("13", "Temple of Al Farum", ""),
+            ("14", "Forge of Xshathra", ""),
+            ("15", "The Temple of Ianna", ""),
+            ("16", "Tower of Dal Gurak", ""),
+            ("17", "The Abyss", ""),
+            ("18", "Custom", ""),
+        ],
+        default="1",  # 默认选中项
+        update=lambda self, context: self.update_sky_tex_enum(context),
+    )  # type: ignore
+    # 天空颜色
+    sky_color: FloatVectorProperty(
+        name="Color",
+        subtype="COLOR",
+        size=3,
+        min=0.0,
+        max=1.0,
+        default=(1, 1, 1),
+        # update=lambda self, context: self.update_sky_color(context),
+    )  # type: ignore
+
     ############################
 
     def get_active_texture(self):
@@ -2493,6 +2535,26 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     def set_active_texture(self, value):
         self["_active_texture"] = value
+
+    ############################
+
+    def update_sky_tex_enum(self, context):
+        prop_rna = self.bl_rna.properties["sky_tex_enum"]
+        enum_items = prop_rna.enum_items  # type: ignore
+        enum_id = self.sky_tex_enum
+        if enum_id == "18":
+            return
+
+        # 通过ID查找名称
+        selected_name = next(
+            (item.name for item in enum_items if item.identifier == enum_id),
+            "Marakamda",
+        )
+        filepath = os.path.join(ADDON_PATH, f"textures/panorama/{selected_name}.jpg")
+        img = ensure_null_texture()
+        img.filepath = filepath
+        img.reload()
+        # print(f"selected_name: {selected_name}")
 
     ############################
     def init(self):

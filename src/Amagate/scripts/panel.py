@@ -279,6 +279,34 @@ class AMAGATE_PT_Texture(N_Panel, bpy.types.Panel):
         col.operator(OP.OT_Texture_Package.bl_idname, text="", icon="UGLYPACKAGE")
 
 
+############################
+############################ 天空纹理面板
+############################
+class AMAGATE_PT_SkyTexture(N_Panel, bpy.types.Panel):
+    bl_label = "Sky texture"
+    bl_parent_id = "AMAGATE_PT_Scene"  # 设置父面板
+    # bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data
+
+        row = layout.row()
+        split = row.split(factor=0.7)
+        #
+        row1 = split.row(align=True)
+
+        col = row1.column()
+        col.prop(scene_data, "sky_tex_enum", text="")
+
+        col = row1.column()
+        col.operator(OP.OT_SkyTexture_Open.bl_idname, text="", icon="FILEBROWSER")
+        col.enabled = scene_data.sky_tex_enum == "18"
+        #
+        row2 = split.row()
+        row2.prop(scene_data, "sky_color", text="")
+
+
 # 场景面板 -> 默认属性面板
 class AMAGATE_PT_Scene_Default(N_Panel, bpy.types.Panel):
     bl_label = "Default Properties"
