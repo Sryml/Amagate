@@ -1,11 +1,25 @@
+# Author: Sryml
+# Email: sryml@hotmail.com
+# Python Version: 3.11
+# License: GPL-3.0
+
+from __future__ import annotations
+from typing import Any, TYPE_CHECKING
+
 import importlib
 import time
 import os
 
 import bpy
 
-from .scripts import data, operator, operator_sector, panel, translations
+if TYPE_CHECKING:
+    from .scripts import data, operator, panel, translations
 
+module_list = ("data", "operator", "panel", "translations")
+for module in module_list:
+    globals()[module] = importlib.import_module(
+        f".{module}", package=f"{__package__}.scripts"
+    )
 
 loaded = False
 
@@ -24,7 +38,7 @@ def register():
             if sys.modules.get(m_name):
                 del sys.modules[m_name]
         # from . import data, operator, panel, translations
-        for module in ("data", "operator", "operator_sector", "panel", "translations"):
+        for module in module_list:
             globals()[module] = importlib.import_module(
                 f".{module}", package=f"{__package__}.scripts"
             )
@@ -36,7 +50,6 @@ def register():
 
     data.register()
     operator.register()
-    operator_sector.register()
     panel.register()
     translations.register()
     data.register_shortcuts()
@@ -66,7 +79,6 @@ def unregister():
     data.unregister_shortcuts()
     translations.unregister()
     panel.unregister()
-    operator_sector.unregister()
     operator.unregister()
     data.unregister()
     print("Amagate unregister")

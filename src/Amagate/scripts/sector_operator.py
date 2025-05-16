@@ -35,7 +35,7 @@ from bpy.props import (
 )
 from mathutils import *  # type: ignore
 
-from . import data
+from . import data, L3D_data
 from . import ag_utils
 
 
@@ -516,15 +516,17 @@ class OT_Sector_Connect(bpy.types.Operator):
     def execute(self, context: Context):
         # 如果是从F3执行，获取当前选中的扇区
         if not self.is_button:
-            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
+            L3D_data.SELECTED_SECTORS, L3D_data.ACTIVE_SECTOR = (
+                ag_utils.get_selected_sectors()
+            )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
-        selected_sectors = data.SELECTED_SECTORS.copy()
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
         # if len(selected_sectors) < 2:
         #     self.report({"WARNING"}, "Select at least two sectors")
         #     return {"CANCELLED"}
@@ -1128,7 +1130,7 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
         else:
             # 如果是从F3执行，获取当前选中的扇区
             if not self.is_button:
-                data.SELECTED_SECTORS, data.ACTIVE_SECTOR = (
+                L3D_data.SELECTED_SECTORS, L3D_data.ACTIVE_SECTOR = (
                     ag_utils.get_selected_sectors()
                 )
             self.is_button = False  # 重置，因为从F3执行时会使用缓存值
@@ -1136,9 +1138,9 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
             # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
             if context.mode == "EDIT_MESH":
                 bpy.ops.object.mode_set(mode="OBJECT")
-                data.geometry_modify_post(selected_sectors, check_connect=False)
+                L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
-            selected_sectors = data.SELECTED_SECTORS.copy()
+            selected_sectors = L3D_data.SELECTED_SECTORS.copy()
 
             # 排除拓扑类型是二维球面的扇区
             for i in range(len(selected_sectors) - 1, -1, -1):
@@ -1262,7 +1264,7 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
         # # 重新计算法向（内侧）
         bpy.ops.mesh.normals_make_consistent(inside=True)
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-        data.geometry_modify_post(sectors, undo=False, check_connect=False)
+        L3D_data.geometry_modify_post(sectors, undo=False, check_connect=False)
 
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
@@ -1283,15 +1285,17 @@ class OT_Sector_Disconnect(bpy.types.Operator):
     def execute(self, context: Context):
         # 如果是从F3执行，获取当前选中的扇区
         if not self.is_button:
-            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
+            L3D_data.SELECTED_SECTORS, L3D_data.ACTIVE_SECTOR = (
+                ag_utils.get_selected_sectors()
+            )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
-        selected_sectors = data.SELECTED_SECTORS.copy()
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
 
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
@@ -1511,10 +1515,12 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         global SEPARATE_DATA, REGION_DATA
         # 如果是从F3执行，获取当前选中的扇区
         if not self.is_button:
-            data.SELECTED_SECTORS, data.ACTIVE_SECTOR = ag_utils.get_selected_sectors()
+            L3D_data.SELECTED_SECTORS, L3D_data.ACTIVE_SECTOR = (
+                ag_utils.get_selected_sectors()
+            )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
-        selected_sectors = data.SELECTED_SECTORS
+        selected_sectors = L3D_data.SELECTED_SECTORS
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
             return {"CANCELLED"}
@@ -1522,7 +1528,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if context.mode == "EDIT_MESH":
             bpy.ops.object.mode_set(mode="OBJECT")
-            data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
         # knife_project = []
         separate_list = []

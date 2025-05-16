@@ -27,7 +27,7 @@ import bmesh
 from mathutils import *  # type: ignore
 
 #
-from . import data
+from . import data, L3D_data
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -976,13 +976,13 @@ def sector_mgr_remove(id_key: str):
     for l in SectorManage["sectors"][id_key]["light_objs"]:
         l.hide_viewport = True
     #
-    atmo = data.get_atmo_by_id(scene_data, SectorManage["sectors"][id_key]["atmo_id"])[
-        1
-    ]
+    atmo = L3D_data.get_atmo_by_id(
+        scene_data, SectorManage["sectors"][id_key]["atmo_id"]
+    )[1]
     if atmo:
         atmo.users_obj.remove(atmo.users_obj.find(id_key))
     #
-    external = data.get_external_by_id(
+    external = L3D_data.get_external_by_id(
         scene_data, SectorManage["sectors"][id_key]["external_id"]
     )[1]
     if external:
