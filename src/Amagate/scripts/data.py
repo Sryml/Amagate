@@ -236,6 +236,7 @@ def ensure_null_texture() -> Image:
         img.name = "NULL"
         img.amagate_data.id = -1  # type: ignore
         scene_data.ensure_null_tex = img
+        ensure_material(img)
     # elif not img.amagate_data.id:  # type: ignore
     #     img.amagate_data.id = -1  # type: ignore
     if not img.use_fake_user:
@@ -312,9 +313,15 @@ def ensure_material(tex: Image) -> bpy.types.Material:
         mat.rename(name, mode="ALWAYS")
         filepath = os.path.join(ADDON_PATH, "bin/nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
-        import_nodes(mat, nodes_data["AG.Mat1"])
+        if tex_data.id == -1:
+            import_nodes(mat, nodes_data["AG.Mat-1"])
+        else:
+            import_nodes(mat, nodes_data["AG.Mat1"])
         mat.use_fake_user = True
-        mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+        if tex_data.id == -1:
+            mat.node_tree.nodes["Environment Texture"].image = tex  # type: ignore
+        else:
+            mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
         mat.use_backface_culling = True
         tex_data.mat_obj = mat
 
@@ -2520,7 +2527,7 @@ class SceneProperty(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(1, 1, 1),
-        # update=lambda self, context: self.update_sky_color(context),
+        update=lambda self, context: self.update_sky_color(context),
     )  # type: ignore
 
     ############################
@@ -2555,6 +2562,11 @@ class SceneProperty(bpy.types.PropertyGroup):
         img.filepath = filepath
         img.reload()
         # print(f"selected_name: {selected_name}")
+
+    def update_sky_color(self, context):
+        scene = self.id_data  # type: Scene
+        scene.update_tag()
+        area_redraw("VIEW_3D")
 
     ############################
     def init(self):
