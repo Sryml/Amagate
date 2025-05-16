@@ -854,6 +854,8 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         row = layout.row(align=True)
         row.enabled = scene_data.is_blade
         row.operator(OP_L3D.OT_ExportMap.bl_idname, icon="EXPORT")
+        op = row.operator(OP_L3D.OT_ExportMap.bl_idname, text="", icon="DOWNARROW_HLT")
+        op.more = True  # type: ignore
 
 
 ############################

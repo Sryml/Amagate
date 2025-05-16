@@ -959,8 +959,6 @@ class OT_InitMap(bpy.types.Operator):
         ##
         scene_data.init()
 
-        # TODO 添加默认摄像机 添加默认扇区 调整视角
-
         ## 分割编辑器
         split_editor(context)
         scene_data.is_blade = True
@@ -1065,11 +1063,33 @@ class OT_ImportMap(bpy.types.Operator):
 
 
 #  -> 导出地图
+class ExportMap_Prop(bpy.types.PropertyGroup):
+    with_run_script: BoolProperty(default=False, get=lambda s: False, set=lambda s, v: s.with_run_script_set())  # type: ignore
+
+    def with_run_script_set(self):
+        bpy.ops.amagate.exportmap(with_run_script=True)  # type: ignore
+
+
 class OT_ExportMap(bpy.types.Operator):
     bl_idname = "amagate.exportmap"
-    bl_label = "Export Map (with Run Script)"
+    bl_label = "Export Map"
     bl_description = "Export Blade Map"
     bl_options = {"INTERNAL"}
+
+    with_run_script: BoolProperty(default=False)  # type: ignore
+    more: BoolProperty(default=False)  # type: ignore
+    prop: PointerProperty(type=ExportMap_Prop)  # type: ignore
+    #
+
+    def draw(self, context):
+        layout = self.layout
+        col = layout.column()
+        col.prop(
+            self.prop,
+            "with_run_script",
+            text="Export Map (with Run Script)",
+            toggle=True,
+        )
 
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
@@ -1212,7 +1232,7 @@ class OT_ExportMap(bpy.types.Operator):
                 f.write(bytes.fromhex("CD" * 8))
                 f.write(struct.pack("<I", 0))
 
-                # 平面光  # TODO
+                # TODO 平面光
                 f.write(struct.pack("<BBB", 0, 0, 0))
                 f.write(struct.pack("<f", 0.0))
                 f.write(ambient_light_p)
@@ -1523,11 +1543,14 @@ class OT_ExportMap(bpy.types.Operator):
             color = tuple(math.ceil(c * 255) for c in scene_data.sky_color)
             file.write(f"Raster.SetDomeColor{color}\n\n")
         # 地图运行脚本
-        scripts_dir = os.path.join(data.ADDON_PATH, "blade_scripts")
-        for f in os.listdir(scripts_dir):
-            shutil.copy(
-                os.path.join(scripts_dir, f), os.path.join(os.path.dirname(bw_file), f)
-            )
+        if self.with_run_script:
+            scripts_dir = os.path.join(data.ADDON_PATH, "blade_scripts")
+            for f in os.listdir(scripts_dir):
+                shutil.copy(
+                    os.path.join(scripts_dir, f),
+                    os.path.join(os.path.dirname(bw_file), f),
+                )
+            # ag_utils.debugprint("Export Map (with Run Script)")
 
         # self.report({'WARNING'}, "Export Map Failed")
         self.report(
@@ -1535,6 +1558,12 @@ class OT_ExportMap(bpy.types.Operator):
             f"{pgettext('Export Map')} - {pgettext('Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {len(sector_ids)} {pgettext('Sectors')}",
         )
         return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        if self.more:
+            return context.window_manager.invoke_popup(self, width=180)  # type: ignore
+        else:
+            return self.execute(context)
 
 
 ############################
