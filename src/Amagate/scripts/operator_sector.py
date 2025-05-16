@@ -892,6 +892,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 continue
 
             sec = sec_info[index]["sec"]  # type: Object
+            bm_face = sec_info[index]["bm_face"]
             matrix = sec.matrix_world
             quat = matrix.to_quaternion()
             flat_info = sec_info[index]["flat_info"]  # type: tuple[float, Vector]
@@ -900,8 +901,9 @@ class OT_Sector_Connect(bpy.types.Operator):
 
             # 如果存在天空纹理，跳过
             layer = bm_edit.faces.layers.int.get("amagate_tex_id")
-            for f in bm_edit.faces:
-                if f[layer] == -1:  # type: ignore
+            faces = ag_utils.get_linked_flat(bm_face)
+            for i in faces:
+                if bm_edit.faces[i][layer] == -1:  # type: ignore
                     sec_info[index]["is_sky"] = True
                     bmesh.ops.delete(bm_edit, geom=[bm_edit.faces[-1]], context="FACES")
                     bmesh.update_edit_mesh(mesh)  # 更新网格
