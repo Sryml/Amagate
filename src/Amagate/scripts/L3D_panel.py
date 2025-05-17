@@ -40,6 +40,7 @@ class L3D_Panel:
 ############################
 class AMAGATE_PT_L3D(L3D_Panel, bpy.types.Panel):
     bl_label = "L3D"
+    bl_order = 0
 
     @classmethod
     def poll(cls, context):

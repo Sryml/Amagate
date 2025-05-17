@@ -62,6 +62,23 @@ class AMAGATE_PT_PyPackages(AG_Panel, bpy.types.Panel):
 
 
 ############################
+############################ 坐标转换面板
+############################
+class AMAGATE_PT_CoordConver(AG_Panel, bpy.types.Panel):
+    bl_label = "Coord Conver"
+    bl_order = 1
+
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
+        layout = self.layout
+        col = layout.column()
+
+        col.label(text="Convert selected object/cursor", icon="FILE_REFRESH")
+        col.prop(scene_data, "coord_conv_1", text=f"{pgettext('To')} Blade")
+        col.prop(scene_data, "coord_conv_2", text=f"{pgettext('From')} Blade")
+
+
+############################
 ############################ 关于面板
 ############################
 class AMAGATE_PT_About(AG_Panel, bpy.types.Panel):

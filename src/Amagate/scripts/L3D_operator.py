@@ -824,7 +824,7 @@ class OT_PolyPath(bpy.types.Operator):
         curve_data = bpy.data.curves.new(
             "PolyPath", type="CURVE"
         )  # type: bpy.types.Curve
-        curve_data.dimensions = "2D"
+        # curve_data.dimensions = "2D"
         curve_data.splines.new("POLY")
 
         curve = bpy.data.objects.new(
@@ -836,7 +836,7 @@ class OT_PolyPath(bpy.types.Operator):
         # 移动到当前视图焦点
         rv3d = context.region_data
         curve.location = rv3d.view_location.to_tuple(0)
-        # rv3d.view_distance = 7
+        # rv3d.view_distance = 10
 
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
 

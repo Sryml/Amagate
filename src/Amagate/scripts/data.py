@@ -521,12 +521,12 @@ def register():
     icons_dir = os.path.join(ADDON_PATH, "icons")
     for name in ("star", "blade", "knife", "L3D", "L3D_2"):
         ICONS.load(name, os.path.join(icons_dir, f"{name}.png"), "IMAGE")
-
+    #
     bpy.utils.register_class(AmagatePreferences)
-
+    #
     for cls in classes:
         bpy.utils.register_class(cls)
-
+    #
     from . import sector_data, L3D_data
 
     sector_data.register()
@@ -540,10 +540,10 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
     bpy.utils.unregister_class(AmagatePreferences)
-
+    #
     bpy.utils.previews.remove(ICONS)
     ICONS = None
-
+    #
     from . import sector_data, L3D_data
 
     L3D_data.unregister()

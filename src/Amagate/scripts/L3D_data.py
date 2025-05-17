@@ -12,6 +12,7 @@ import shutil
 import pickle
 import threading
 import contextlib
+import ast
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -805,7 +806,7 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
-        # 按A-Z排序 FIXME 没有按照预期排序，不知道为什么
+        # 按A-Z排序 # FIXME 没有按照预期排序，不知道为什么
         if self.use_filter_sort_alpha:
             flt_neworder = sorted(
                 range(len(items)), key=lambda i: items[i].item_name.lower()
@@ -1367,6 +1368,43 @@ class SceneProperty(bpy.types.PropertyGroup):
         default=(1, 1, 1),
         update=lambda self, context: self.update_sky_color(context),
     )  # type: ignore
+
+    # 坐标转换
+    coord_conv_1: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get_coord_conv_1(), set=lambda self, value: None)  # type: ignore
+    coord_conv_2: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get("set_coord_conv_2", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_2(value))  # type: ignore
+
+    def get_coord_conv_1(self):
+        context = bpy.context
+        selected_objects = context.selected_objects
+        if selected_objects:
+            location = (selected_objects[0].location * 1000).to_tuple(0)
+        # 如果没有选中物体，则返回游标位置
+        else:
+            location = (context.scene.cursor.location * 1000).to_tuple(0)
+        return f"{location[0], -location[2], location[1]}"
+
+    def set_coord_conv_2(self, value):
+        self["set_coord_conv_2"] = value
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        try:
+            position = ast.literal_eval(scene_data.coord_conv_2)
+        except:
+            return
+        # 如果元组不是3个数字，则不处理
+        if len(position) != 3 or not all(isinstance(i, (int, float)) for i in position):
+            return
+
+        self["set_coord_conv_2"] = str(position)
+        location = position[0], position[2], -position[1]
+
+        selected_objects = context.selected_objects
+        if selected_objects:
+            for obj in selected_objects:
+                obj.location = location
+        # 如果没有选中物体，则设置游标位置
+        else:
+            context.scene.cursor.location = location
 
     ############################
 
