@@ -65,7 +65,7 @@ CHECK_CONNECT = threading.Lock()
 CONNECT_SECTORS = set()
 
 S_COLL_OBJECTS = 0
-WM_OPERATORS = 0
+OPERATOR_POINTER = None
 draw_handler = None
 
 SELECTED_SECTORS: list[Object] = []
@@ -524,7 +524,7 @@ def geometry_modify_post(
 
 # @bpy.app.handlers.persistent
 def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
-    global WM_OPERATORS, S_COLL_OBJECTS
+    global OPERATOR_POINTER, S_COLL_OBJECTS
     scene_data = scene.amagate_data
     if not scene_data.is_blade:
         return
@@ -543,41 +543,43 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             S_COLL_OBJECTS = all_objects
             s_coll_objects_neq = True
 
-    wm_operators = len(context.window_manager.operators)  # 撤销就变0
-    if wm_operators != WM_OPERATORS:
-        WM_OPERATORS = wm_operators
-        if WM_OPERATORS != 0:
-            bl_label = context.window_manager.operators[-1].bl_label
-            bl_idname = context.window_manager.operators[-1].bl_idname
-            # print(bl_idname)
-            if bl_idname == "OBJECT_OT_editmode_toggle":
-                # 从编辑模式切换到物体模式的回调
-                if context.mode == "OBJECT":
-                    geometry_modify_post()
-            # 应用修改器的回调
-            elif bl_idname == "OBJECT_OT_modifier_apply":
+    operator_pointer = context.active_operator.as_pointer() if context.active_operator else None  # type: ignore
+    if (operator_pointer is not None) and operator_pointer != OPERATOR_POINTER:
+        OPERATOR_POINTER = operator_pointer
+        #
+        bl_label = context.window_manager.operators[-1].bl_label
+        bl_idname = context.window_manager.operators[-1].bl_idname
+        # print(bl_idname)
+        if bl_idname == "OBJECT_OT_editmode_toggle":
+            scene_data.is_edit_mode = context.mode != "OBJECT"
+            scene.update_tag()
+            # 从编辑模式切换到物体模式的回调
+            if context.mode == "OBJECT":
                 geometry_modify_post()
-            # 移动/移除扇区集合的回调
-            elif bl_label in COLLECTION_OP:
-                check_sector_coll()
-            # 删除扇区的回调
-            elif bl_idname in DELETE_OP and s_coll_objects_neq:
-                check_sector_delete()
-            # 任意删除的回调
-            elif bl_idname in DELETE_OP:
-                check_special_objects()
-            # 合并扇区的回调
-            elif bl_idname == "OBJECT_OT_join":
-                check_sector_join()
-            # 分离扇区的回调
-            elif bl_idname == "MESH_OT_separate":
-                check_sector_separate()
-            # 复制/粘贴扇区的回调
-            elif bl_idname in DUPLICATE_OP:
-                check_sector_duplicate()
-            # 扇区变换的回调
-            elif bl_idname in TRANSFORM_OP:
-                check_sector_transform()
+        # 应用修改器的回调
+        elif bl_idname == "OBJECT_OT_modifier_apply":
+            geometry_modify_post()
+        # 移动/移除扇区集合的回调
+        elif bl_label in COLLECTION_OP:
+            check_sector_coll()
+        # 删除扇区的回调
+        elif bl_idname in DELETE_OP and s_coll_objects_neq:
+            check_sector_delete()
+        # 任意删除的回调
+        elif bl_idname in DELETE_OP:
+            check_special_objects()
+        # 合并扇区的回调
+        elif bl_idname == "OBJECT_OT_join":
+            check_sector_join()
+        # 分离扇区的回调
+        elif bl_idname == "MESH_OT_separate":
+            check_sector_separate()
+        # 复制/粘贴扇区的回调
+        elif bl_idname in DUPLICATE_OP:
+            check_sector_duplicate()
+        # 扇区变换的回调
+        elif bl_idname in TRANSFORM_OP:
+            check_sector_transform()
     # 无操作回调，例如在属性面板修改
     # else:
     #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":
@@ -760,7 +762,7 @@ def draw_callback_3d():
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
-    global WM_OPERATORS, draw_handler
+    global OPERATOR_POINTER, draw_handler
     scene_data = bpy.context.scene.amagate_data
     if scene_data.is_blade:
         if scene_data.render_view_index != -1:
@@ -773,7 +775,11 @@ def load_post(filepath=""):
             draw_handler = bpy.types.SpaceView3D.draw_handler_add(
                 draw_callback_3d, (), "WINDOW", "POST_PIXEL"
             )
-        WM_OPERATORS = len(bpy.context.window_manager.operators)
+        OPERATOR_POINTER = (
+            bpy.context.active_operator.as_pointer()
+            if bpy.context.active_operator
+            else None
+        )
     else:
         if draw_handler is not None:
             bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
@@ -1372,6 +1378,11 @@ class SceneProperty(bpy.types.PropertyGroup):
     # 坐标转换
     coord_conv_1: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get_coord_conv_1(), set=lambda self, value: None)  # type: ignore
     coord_conv_2: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get("set_coord_conv_2", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_2(value))  # type: ignore
+
+    # 编辑模式标识
+    is_edit_mode: BoolProperty(name="Edit Mode", default=False)  # type: ignore
+
+    ############################
 
     def get_coord_conv_1(self):
         context = bpy.context
