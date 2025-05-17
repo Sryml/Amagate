@@ -54,6 +54,44 @@ if TYPE_CHECKING:
 
 
 ############################
+############################ Collection Props
+############################
+# 布尔收集器
+class BoolCollection(bpy.types.PropertyGroup):
+    index: IntProperty(default=0)  # type: ignore
+    value: BoolProperty(default=False, get=lambda self: self.get_value(), set=lambda self, value: self.set_value(value))  # type: ignore
+
+    def get_value(self):
+        from . import L3D_data
+
+        active_sec_data = L3D_data.ACTIVE_SECTOR.amagate_data.get_sector_data()
+        group = ag_utils.int_to_uint(active_sec_data.group)
+        return (group >> self.index) & 1
+
+    def set_value(self, value):
+        from . import L3D_data
+
+        mask_limit = 0xFFFFFFFF
+        mask = 1 << self.index
+
+        selected_sectors = L3D_data.SELECTED_SECTORS
+
+        # 全部设置为代表扇区的相反值
+        if value:
+            for sec in selected_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                group = ag_utils.uint_to_int(sec_data.group | mask)  # 设置为1
+                sec_data.group = group
+        else:
+            for sec in selected_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                group = ag_utils.uint_to_int(
+                    sec_data.group & (~mask & mask_limit)
+                )  # 设置为0
+                sec_data.group = group
+
+
+############################
 ############################ Object Props
 ############################
 
@@ -464,12 +502,13 @@ class SectorProperty(bpy.types.PropertyGroup):
 
     spot_light: CollectionProperty(type=SectorFocoLightProperty)  # type: ignore # 聚光灯
 
+    comment: StringProperty(name="Comment", description="", default="")  # type: ignore
     group: IntProperty(
         name="Group",
         description="",
         default=0,  # 默认值为0
     )  # type: ignore
-    comment: StringProperty(name="Comment", description="", default="")  # type: ignore
+    group_set: CollectionProperty(type=BoolCollection)  # type: ignore
 
     ############################
     def get_atmo_id(self):
@@ -575,7 +614,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     #         # light.light_linking.blocker_collection = lightlink_coll
     #         # link2coll(ensure_null_object(), lightlink_coll)
 
-    #         # TODO 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
+    #         # 将外部光物体约束到扇区中心，如果为天空扇区则可见，否则不可见
     #     elif light.data != light_data:
     #         light.data = light_data
 

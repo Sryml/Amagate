@@ -1208,7 +1208,7 @@ class OT_ExportMap(bpy.types.Operator):
                         )
 
                 # 组
-                group_buffer.write(struct.pack("<I", sec_data.group))
+                group_buffer.write(struct.pack("<i", sec_data.group))  # 有符号整数
 
                 # 扇区名称
                 buffer = sec.name.encode("utf-8")

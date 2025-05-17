@@ -1437,6 +1437,11 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop.name = i
             prop.target = "SectorPublic"
 
+        # 添加32个组
+        for i in range(32):
+            prop = self.sector_public.group_set.add()
+            prop.index = i
+
 
 ############################
 

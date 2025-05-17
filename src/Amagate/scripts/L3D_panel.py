@@ -639,7 +639,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         layout.separator()
 
         box = layout.box()
-        if active_sector.mode == "OBJECT":
+        if context.mode == "OBJECT":
             # 地板 天花板 墙壁
             for i, prop in enumerate(scene_data.sector_public.textures):
                 name = prop.name
@@ -824,6 +824,30 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         # column.separator(type="SPACE")
         # row = column.row()
         # row.prop(scene_data.defaults.flat_light, "vector", text="")
+
+        layout.separator()
+
+        box = layout.box()
+        column = box.column(align=True)
+        column.label(text=f"{pgettext('Groups')}:")
+        col_flow = column.grid_flow(row_major=True, columns=8, align=True)
+        for i in range(32):
+            flag = ""
+            active_group = ag_utils.int_to_uint(active_sec_data.group)
+            check = (active_group >> i) & 1  # 访问第i位
+            for sec in selected_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                group = ag_utils.int_to_uint(sec_data.group)
+                if (group >> i) & 1 != check:
+                    flag = "*"
+                    break
+
+            col_flow.prop(
+                scene_data.sector_public.group_set[i],
+                "value",
+                text=f"{i+1}{flag}",
+                toggle=True,
+            )
 
 
 ############################

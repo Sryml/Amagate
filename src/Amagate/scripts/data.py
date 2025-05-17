@@ -458,6 +458,7 @@ def unregister_shortcuts():
 ############################
 
 
+# 整型收集器
 class IntegerCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
     value: IntProperty(default=0, update=lambda self, context: self.update_value(context))  # type: ignore
@@ -466,10 +467,12 @@ class IntegerCollection(bpy.types.PropertyGroup):
         self.name = str(self.value)
 
 
+# 字符串收集器
 class StringCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
 
 
+# 扇区收集器
 class SectorCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
     obj: PointerProperty(type=bpy.types.Object, update=lambda self, context: self.update_obj(context))  # type: ignore
@@ -479,6 +482,7 @@ class SectorCollection(bpy.types.PropertyGroup):
             self.name = str(self.obj.amagate_data.get_sector_data().id)
 
 
+# 集合收集器
 class CollCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore
     obj: PointerProperty(type=bpy.types.Collection)  # type: ignore

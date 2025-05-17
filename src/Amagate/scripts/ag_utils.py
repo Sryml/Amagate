@@ -1075,5 +1075,20 @@ def ensure_lookup_table(bm: bmesh.types.BMesh):
 
 
 ############################
+
+# 无符号与有符号整数之间的转换
+
+
+def int_to_uint(i: int) -> int:
+    """将整数转换为无符号整数"""
+    return i & 0xFFFFFFFF if i < 0 else i
+
+
+def uint_to_int(i: int) -> int:
+    """将无符号整数转换为整数"""
+    return i - (1 << 32) if i >= (1 << 31) else i
+
+
+############################
 ############################
 ############################
