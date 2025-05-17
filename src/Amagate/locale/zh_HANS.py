@@ -19,6 +19,7 @@
     ("Operator", "Sector Collection Check"): "扇区集合检查",
     ("Operator", "Delete Sector"): "删除扇区",
     ("Operator", "Special Object Check"): "特殊对象检查",
+    ("Operator", "Sector Paste Check"): "扇区粘贴检查",
     ("Operator", "Join Sector"): "合并扇区",
     ("Property", "Yes"): "是",
     ("Property", "No"): "否",

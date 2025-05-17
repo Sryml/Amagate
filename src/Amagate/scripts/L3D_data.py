@@ -87,7 +87,7 @@ DELETE_OP = ("OBJECT_OT_delete", "OUTLINER_OT_delete")
 DUPLICATE_OP = (
     "OBJECT_OT_duplicate_move",
     "OBJECT_OT_duplicate_move_linked",
-)  # 'VIEW3D_OT_pastebuffer'
+)
 
 TRANSFORM_OP = ("TRANSFORM_OT_translate", "TRANSFORM_OT_resize", "TRANSFORM_OT_rotate")
 
@@ -468,6 +468,16 @@ def check_sector_duplicate():
     bpy.ops.ed.undo_push(message="Sector Check")
 
 
+# 粘贴扇区检查
+def check_sector_paste():
+    context = bpy.context
+    copy_sectors = [
+        obj for obj in context.selected_objects if obj.amagate_data.is_sector
+    ]
+    bpy.ops.ed.undo()
+    bpy.ops.ed.undo_push(message="Sector Paste Check")
+
+
 # 扇区变换检查
 def check_sector_transform():
     context = bpy.context
@@ -574,9 +584,12 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         # 分离扇区的回调
         elif bl_idname == "MESH_OT_separate":
             check_sector_separate()
-        # 复制/粘贴扇区的回调
+        # 复制扇区的回调
         elif bl_idname in DUPLICATE_OP:
             check_sector_duplicate()
+        # 粘贴扇区的回调
+        elif bl_idname == "VIEW3D_OT_pastebuffer":
+            check_sector_paste()
         # 扇区变换的回调
         elif bl_idname in TRANSFORM_OP:
             check_sector_transform()
