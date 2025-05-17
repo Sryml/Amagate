@@ -65,14 +65,14 @@ def handler8003(mark, f, Info, i) -> Any:
     num = unpack("i", f)[0]
     for j in range(num):
         # 扇区相对索引
-        rel_sector_id = unpack("i", f)[0]
+        hole_index = unpack("i", f)[0]
         # 顶点数量
         vertex_num = unpack("i", f)[0]
-        # 顶点相对索引列表
-        rel_vertices = []
+        # 切线索引列表
+        tangent_idx = []
         for k in range(vertex_num):
-            rel_vertices.append(unpack("i", f)[0])
-        msg = f"{' ':<{7+4+4}}{mark}8003 {num}, rel_sector: {rel_sector_id}, rel_vertices: {rel_vertices} - {address}"
+            tangent_idx.append(unpack("i", f)[0])
+        msg = f"{' ':<{7+4+4}}{mark}8003 {num}, hole_index: {hole_index}, tangent_idx: {tangent_idx} - {address}"
         Info.append(msg)
         print_(msg, sector=i)
     if num == 0:
@@ -236,14 +236,14 @@ def parse(file):
                     vertex_list.append(unpack("i", f)[0])
 
                 print_(
-                    f"{' ':<{7+4}}{j}: {id1}, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), Vertexs: {vertex_list} - {address}",
+                    f"{' ':<{7+4}}{j}: {id1} {id2}, Normal: {normal}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}), Vertexs: {vertex_list} - {address}",
                     sector=i,
                 )
 
                 if id1 == 7004:
                     passable_sectors = unpack("i", f)[0]
                     print_(
-                        f"{' ':<{7+4+4}}passable sectors: {passable_sectors}\n",
+                        f"{' ':<{7+4+4}}holes: {passable_sectors}\n",
                         sector=i,
                     )
                     for k in range(passable_sectors):
@@ -255,18 +255,18 @@ def parse(file):
                             share_vertices.append(unpack("i", f)[0])
                         # 连接的扇区
                         sector_id = unpack("i", f)[0]
-                        # 面数
-                        face_num = unpack("i", f)[0]
+                        # 切线数据
+                        tangent_num = unpack("i", f)[0]
                         print_(
-                            f"{' ':<{7+4+4}}{k}: partially passable, Share vertices: {share_vertices}, Sector: {sector_id}, Faces: {face_num}",
+                            f"{' ':<{7+4+4}}hole {k}: vertices_index: {share_vertices}, Sector: {sector_id}, Tangent num: {tangent_num}",
                             sector=i,
                         )
-                        for k in range(face_num):
-                            normal = unpack("ddd", f)
+                        for k in range(tangent_num):
+                            tangent = unpack("ddd", f)
                             address = f"{f.tell():X}"
                             distance = unpack("d", f)[0]
                             print_(
-                                f"{' ':<{7+4+4+4}}{k}: Normal: {normal}, {distance} - {address}",
+                                f"{' ':<{7+4+4+4}}Tangent {k}: {tangent}, distance: {distance} address: {address}",
                                 sector=i,
                             )
 
@@ -281,7 +281,7 @@ def parse(file):
                             if mark1 in (8001, 8002):
                                 marks.append(str(mark1))
                             elif mark1 == 8003:
-                                vertex_num = handler8003("".join(marks), f, Info, i)
+                                vertex_num = handler8003(" ".join(marks), f, Info, i)
                                 marks = []
                             elif mark1 in (7001, 7002, 7003, 7004, 7005):
                                 f.seek(-4, 1)  # back 4
@@ -319,7 +319,7 @@ def parse(file):
                                     Info.append(msg)
                                     print_(msg, sector=i)
                                 else:
-                                    msg = f"{' ':<{7+4+4}}Vector: {vector}, {distance} - {address}"
+                                    msg = f"{' ':<{7+4+4}}Tangent: {vector}, distance: {distance} address: {address}"
                                     Info.append(msg)
                                     print_(msg, sector=i)
                                     f.seek(-8, 1)  # back
