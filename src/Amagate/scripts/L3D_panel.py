@@ -527,7 +527,16 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
             num = pgettext("None")
         col.label(text=f"{pgettext('Sector Connections')}: {num}")
 
-        col = layout.column()
+        #
+        box = layout.box()
+        col = box.column()
+
+        # 多线段路径 Poly Path
+        col.operator(OP_L3D.OT_PolyPath.bl_idname, icon="CURVE_PATH")
+
+        #
+        box = layout.box()
+        col = box.column()
         # 扇区数量
         # col.label(
         #     text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"

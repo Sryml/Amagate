@@ -807,6 +807,43 @@ class OT_SkyTexture_Open(bpy.types.Operator):
 
 
 ############################
+############################ 扇区工具
+############################
+
+
+# 多线段路径
+class OT_PolyPath(bpy.types.Operator):
+    bl_idname = "amagate.poly_path"
+    bl_label = "Poly Path"
+    bl_description = "Create polyline path"
+
+    def execute(self, context: Context):
+        if "EDIT" in context.mode:
+            bpy.ops.object.mode_set(mode="OBJECT")  # 编辑模式
+
+        curve_data = bpy.data.curves.new(
+            "PolyPath", type="CURVE"
+        )  # type: bpy.types.Curve
+        curve_data.dimensions = "2D"
+        curve_data.splines.new("POLY")
+
+        curve = bpy.data.objects.new(
+            "PolyPath", curve_data
+        )  # type: Object # type: ignore
+        data.link2coll(curve, context.scene.collection)
+        ag_utils.select_active(context, curve)  # 单选并设为活跃
+
+        # 移动到当前视图焦点
+        rv3d = context.region_data
+        curve.location = rv3d.view_location.to_tuple(0)
+        # rv3d.view_distance = 7
+
+        bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+
+        return {"FINISHED"}
+
+
+############################
 ############################ 工具面板
 ############################
 
@@ -1099,7 +1136,7 @@ class OT_ExportMap(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
-        if context.mode == "EDIT_MESH":
+        if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             selected_objects = context.selected_objects.copy()
             if context.active_object not in selected_objects:
