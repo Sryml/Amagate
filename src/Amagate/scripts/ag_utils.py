@@ -710,7 +710,7 @@ def disconnect(
     dis_target=True,
 ):
     """断开连接"""
-    if context.mode == "EDIT_MESH":
+    if "EDIT" in context.mode:
         bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
     scene_data = context.scene.amagate_data

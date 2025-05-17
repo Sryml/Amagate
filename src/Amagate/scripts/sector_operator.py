@@ -522,7 +522,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
-        if context.mode == "EDIT_MESH":
+        if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
@@ -1136,7 +1136,7 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
             self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
             # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
-            if context.mode == "EDIT_MESH":
+            if "EDIT" in context.mode:
                 bpy.ops.object.mode_set(mode="OBJECT")
                 L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
@@ -1291,7 +1291,7 @@ class OT_Sector_Disconnect(bpy.types.Operator):
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
-        if context.mode == "EDIT_MESH":
+        if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
@@ -1526,7 +1526,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
-        if context.mode == "EDIT_MESH":
+        if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
 
