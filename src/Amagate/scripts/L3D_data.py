@@ -123,9 +123,7 @@ def ensure_null_texture() -> Image:
     img = scene_data.ensure_null_tex  # type: Image
     if not img:
         # img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
-        filepath = os.path.join(
-            data.ADDON_PATH, "textures/panorama/Fortress of Nemrut.jpg"
-        )
+        filepath = os.path.join(data.ADDON_PATH, "textures/panorama/Khazel Zalam.jpg")
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img.name = "NULL"
         img.amagate_data.id = -1  # type: ignore
@@ -562,8 +560,8 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
     if (operator_pointer is not None) and operator_pointer != OPERATOR_POINTER:
         OPERATOR_POINTER = operator_pointer
         #
-        bl_label = context.window_manager.operators[-1].bl_label
-        bl_idname = context.window_manager.operators[-1].bl_idname
+        bl_label = context.active_operator.bl_label
+        bl_idname = context.active_operator.bl_idname
         # print(bl_idname)
         if bl_idname == "OBJECT_OT_editmode_toggle":
             scene_data.is_edit_mode = context.mode != "OBJECT"
@@ -1359,24 +1357,26 @@ class SceneProperty(bpy.types.PropertyGroup):
         name="",
         description="",
         items=[
-            ("1", "Kashgar", ""),
-            ("2", "Tabriz", ""),
-            ("3", "Khazel Zalam", ""),
-            ("4", "Marakamda", ""),
-            ("5", "Mines of Kelbegen", ""),
-            ("6", "Fortress of Tell Halaf", ""),
-            ("7", "Tombs of Ephyra", ""),
-            ("8", "Island of Karum", ""),
-            ("9", "Shalatuwar Fortress", ""),
-            ("10", "The Gorge of Orlok", ""),
-            ("11", "Fortress of Nemrut", ""),
-            ("12", "The Oasis of Nejeb", ""),
-            ("13", "Temple of Al Farum", ""),
-            ("14", "Forge of Xshathra", ""),
-            ("15", "The Temple of Ianna", ""),
-            ("16", "Tower of Dal Gurak", ""),
-            ("17", "The Abyss", ""),
-            ("18", "Custom", ""),
+            ("1", "Casa", "Casa"),
+            ("2", "Kashgar", "Kashgar"),
+            ("3", "Tabriz (The Abyss)", "Tabriz"),
+            ("4", "Khazel Zalam (Fortress of Nemrut)", "Khazel Zalam"),
+            ("5", "Marakamda", "Marakamda"),
+            ("6", "Mines of Kelbegen", "Mines of Kelbegen"),
+            (
+                "7",
+                "Fortress of Tell Halaf (The Gorge of Orlok)",
+                "Fortress of Tell Halaf",
+            ),
+            ("8", "Tombs of Ephyra", "Tombs of Ephyra"),
+            ("9", "Island of Karum", "Island of Karum"),
+            ("10", "Shalatuwar Fortress", "Shalatuwar Fortress"),
+            ("11", "The Oasis of Nejeb", "The Oasis of Nejeb"),
+            ("12", "Temple of Al Farum", "Temple of Al Farum"),
+            ("13", "Forge of Xshathra", "Forge of Xshathra"),
+            ("14", "The Temple of Ianna", "The Temple of Ianna"),
+            ("15", "Tower of Dal Gurak", "Tower of Dal Gurak"),
+            ("-1", "Custom", ""),
         ],
         default="1",  # 默认选中项
         update=lambda self, context: self.update_sky_tex_enum(context),
@@ -1454,14 +1454,17 @@ class SceneProperty(bpy.types.PropertyGroup):
         prop_rna = self.bl_rna.properties["sky_tex_enum"]
         enum_items = prop_rna.enum_items  # type: ignore
         enum_id = self.sky_tex_enum
-        if enum_id == "18":
+        if enum_id == "-1":
             return
 
         # 通过ID查找名称
         selected_name = next(
-            (item.name for item in enum_items if item.identifier == enum_id),
-            "Marakamda",
+            (item.description for item in enum_items if item.identifier == enum_id),
+            None,
         )
+        if selected_name is None:
+            return
+
         filepath = os.path.join(
             data.ADDON_PATH, f"textures/panorama/{selected_name}.jpg"
         )

@@ -86,12 +86,16 @@
     # 天空纹理面板
     ("Operator", "Open Panorama"): "打开全景图",
     ("*", "Sky texture"): "天空纹理",
+    ("*","Casa"): "家园",
     ("*","Kashgar"): "喀什葛尔山脉",
     ("*","Tabriz"): "大不里士城堡",
+    ("*","Tabriz (The Abyss)"): "大不里士城堡 (深渊)",
     ("*","Khazel Zalam"): "卡泽尔·扎拉姆",
+    ("*","Khazel Zalam (Fortress of Nemrut)"): "卡泽尔·扎拉姆 (内姆鲁特要塞)",
     ("*","Marakamda"): "失落的马拉坎达",
     ("*","Mines of Kelbegen"): "卡尔贝根矿山",
     ("*","Fortress of Tell Halaf"): "塔尔哈拉堡垒",
+    ("*","Fortress of Tell Halaf (The Gorge of Orlok)"): "塔尔哈拉堡垒 (奥罗峡谷)",
     ("*","Tombs of Ephyra"): "伊菲拉墓地",
     ("*","Island of Karum"): "卡伦岛",
     ("*","Shalatuwar Fortress"): "沙拉图沃堡垒",
@@ -157,4 +161,8 @@
     ("*", "Coord Conver"): "坐标转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",
     ("Operator", "Apply Location"): "应用坐标",
+    # Cubemap 转换
+    ("*", "Cubemap Conver"): "立方体贴图转换",
+    ("*", "Export as panorama"): "导出为全景图",
+    ("Operator", "Select and export"): "选择并导出",
 }

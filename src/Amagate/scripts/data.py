@@ -365,9 +365,57 @@ addon_keymaps = []
 class AmagatePreferences(bpy.types.AddonPreferences):
     bl_idname = PACKAGE  # type: ignore
 
+    # Cubemap转换设置
+    cubemap_out_format: EnumProperty(
+        name="Format",
+        description="",
+        items=[
+            ("JPEG", "JPEG", ""),
+            ("PNG", "PNG", ""),
+            ("TARGA", "TARGA", ""),
+            ("OPEN_EXR", "OPEN_EXR", ""),
+            ("HDR", "HDR", ""),
+        ],
+        default="JPEG",
+    )  # type: ignore
+    cubemap_out_res: EnumProperty(
+        name="Resolution",
+        description="",
+        items=[
+            ("1K", "1K", ""),
+            ("2K", "2K", ""),
+            ("4K", "4K", ""),
+            ("8K", "8K", ""),
+        ],
+        default="1K",
+        update=lambda self, context: self.cubemap_res_enum_update(context),  # type: ignore
+    )  # type: ignore
+    cubemap_out_res_x: IntProperty(
+        name="Resolution",
+        description="",
+        default=1024,
+        step=1024,
+        subtype="PIXEL",
+    )  # type: ignore
+    cubemap_out_res_y: IntProperty(
+        name="Resolution",
+        description="",
+        default=512,
+        step=512,
+        subtype="PIXEL",
+    )  # type: ignore
+
     # 用于保存面板的展开状态
     expand_state: BoolProperty(name="Expand State", default=True)  # type: ignore
     is_user_modified: BoolProperty(default=False)  # type: ignore
+
+    ############################
+    def cubemap_res_enum_update(self, context):
+        F = int(self.cubemap_out_res[0])
+        self.cubemap_out_res_x = F * 1024
+        self.cubemap_out_res_y = F * 512
+
+    ############################
 
     # def __init__(self):
     #     super().__init__()

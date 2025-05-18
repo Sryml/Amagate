@@ -291,7 +291,7 @@ class AMAGATE_PT_SkyTexture(L3D_Panel, bpy.types.Panel):
 
         col = row1.column()
         col.operator(OP_L3D.OT_SkyTexture_Open.bl_idname, text="", icon="FILEBROWSER")
-        col.enabled = scene_data.sky_tex_enum == "18"
+        col.enabled = scene_data.sky_tex_enum == "-1"
         #
         row2 = split.row()
         row2.prop(scene_data, "sky_color", text="")

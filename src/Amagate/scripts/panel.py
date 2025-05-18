@@ -79,6 +79,33 @@ class AMAGATE_PT_CoordConver(AG_Panel, bpy.types.Panel):
 
 
 ############################
+############################ Cubemap转换面板
+############################
+
+
+class AMAGATE_PT_Cubemap(AG_Panel, bpy.types.Panel):
+    bl_label = "Cubemap Conver"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = 2
+
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
+        preferences = context.preferences.addons[data.PACKAGE].preferences  # type: ignore
+        layout = self.layout
+
+        col = layout.column()
+        col.label(text=f"{pgettext('Export as panorama')}:")
+        col.prop(preferences, "cubemap_out_format", text="Format")
+        col.prop(preferences, "cubemap_out_res", text="Resolution")
+        col = layout.column(align=True)
+        # col.use_property_split = True
+        col.prop(preferences, "cubemap_out_res_x", text="X")
+        col.prop(preferences, "cubemap_out_res_y", text="Y")
+        col = layout.column()
+        col.operator(OP.OT_Cubemap2Equirect.bl_idname, icon="EXPORT")
+
+
+############################
 ############################ 关于面板
 ############################
 class AMAGATE_PT_About(AG_Panel, bpy.types.Panel):

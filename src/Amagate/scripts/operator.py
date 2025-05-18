@@ -209,8 +209,10 @@ class OT_ExportNode(bpy.types.Operator):
         filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         # 导出节点
         nodes_data = {}
-        nodes_data["AG.Mat1"] = data.export_nodes(bpy.data.materials["AG.Mat1"])
-        nodes_data["AG.Mat-1"] = data.export_nodes(bpy.data.materials["AG.Mat-1"])
+        for name in ("AG.Mat1", "AG.Mat-1", "AG.Cubemap"):
+            mat = bpy.data.materials.get(name)
+            if mat:
+                nodes_data[name] = data.export_nodes(mat)
         nodes_data["Amagate Eval"] = data.export_nodes(
             bpy.data.node_groups["Amagate Eval"]
         )
@@ -272,6 +274,219 @@ class OT_ImportNode(bpy.types.Operator):
         # NodeTree.is_modifier = True  # type: ignore
         # data.import_nodes(NodeTree, nodes_data[name])
         return {"FINISHED"}
+
+
+############################
+############################ Cubemap转换
+############################
+
+
+class OT_Cubemap2Equirect(bpy.types.Operator):
+    bl_idname = "amagate.cubemap2equirect"
+    bl_label = "Select and export"
+    bl_options = {"INTERNAL"}
+
+    # 过滤文件
+    # filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    # filter_image: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+
+    # 相对路径
+    # relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # filename: StringProperty()  # type: ignore
+    directory: StringProperty()  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context: Context):
+        name_set = {
+            "DomeBack",
+            "DomeDown",
+            "DomeFront",
+            "DomeLeft",
+            "DomeRight",
+            "DomeUp",
+        }
+        files = []
+        for f in self.files:
+            if not name_set:
+                break
+            name = os.path.splitext(f.name)[0]
+            if name in name_set:
+                name_set.discard(name)
+                files.append(f.name)
+
+        if len(files) != 6:
+            self.report({"ERROR"}, f"Please select the six cubemap images: {name_set}")
+            return {"CANCELLED"}
+
+        scene = bpy.data.scenes.new("AG.Cubemap")
+        prev_scene = context.window.scene
+        context.window.scene = scene  # 切换场景
+        cycles = scene.cycles
+        pref = context.preferences.addons[
+            data.PACKAGE
+        ].preferences  # type: data.AmagatePreferences # type: ignore
+        file_format = pref.cubemap_out_format
+
+        # 保存设置
+        # settings = {
+        #     "scene.render.engine": scene.render.engine,
+        #     "cycles.device": cycles.device,
+        #     "cycles.use_adaptive_sampling": cycles.use_adaptive_sampling,
+        #     "cycles.adaptive_threshold": cycles.adaptive_threshold,
+        #     "cycles.samples": cycles.samples,
+        #     "cycles.adaptive_min_samples": cycles.adaptive_min_samples,
+        #     "cycles.time_limit": cycles.time_limit,
+        #     "cycles.use_denoising": cycles.use_denoising,
+        #     "cycles.denoiser": cycles.denoiser,
+        #     "cycles.denoising_input_passes": cycles.denoising_input_passes,
+        #     "cycles.denoising_prefilter": cycles.denoising_prefilter,
+        #     "scene.view_settings.view_transform": scene.view_settings.view_transform,
+        #     "scene.view_settings.look": scene.view_settings.look,
+        #     "scene.view_settings.exposure": scene.view_settings.exposure,
+        #     "scene.view_settings.gamma": scene.view_settings.gamma,
+        #     "scene.render.use_border": scene.render.use_border,
+        #     "scene.render.pixel_aspect_x": scene.render.pixel_aspect_x,
+        #     "scene.render.pixel_aspect_y": scene.render.pixel_aspect_y,
+        #     "scene.render.resolution_percentage": scene.render.resolution_percentage,
+        #     "scene.render.resolution_x": scene.render.resolution_x,
+        #     "scene.render.resolution_y": scene.render.resolution_y,
+        #     "scene.render.image_settings.color_management": scene.render.image_settings.color_management,
+        #     "scene.render.filepath": scene.render.filepath,
+        #     "scene.render.image_settings.file_format": scene.render.image_settings.file_format,
+        #     "scene.render.image_settings.quality": scene.render.image_settings.quality,
+        #     "scene.render.image_settings.color_mode": scene.render.image_settings.color_mode,
+        #     "scene.render.image_settings.compression": scene.render.image_settings.compression,
+        #     "scene.render.image_settings.color_depth": scene.render.image_settings.color_depth,
+        #     "scene.render.image_settings.exr_codec": scene.render.image_settings.exr_codec,
+        #     "scene.render.use_file_extension": scene.render.use_file_extension,
+        # }
+
+        directory = self.directory.replace("\\", "/")
+        if directory.endswith("/"):
+            dir_name = directory.split("/")[-2]
+        else:
+            dir_name = directory.split("/")[-1]
+        out_filepath = os.path.join(
+            self.directory,
+            f"{dir_name}_{pref.cubemap_out_res_x}x{pref.cubemap_out_res_y}",
+        )
+
+        # 设置
+        scene.render.engine = "CYCLES"  # type: ignore
+        # 渲染
+        cycles.device = "GPU"
+        cycles.use_adaptive_sampling = True
+        cycles.adaptive_threshold = 0.01
+        cycles.samples = 128  # 采样
+        cycles.adaptive_min_samples = 0
+        cycles.time_limit = 0.0
+        cycles.use_denoising = True
+        cycles.denoiser = "OPENIMAGEDENOISE"
+        cycles.denoising_input_passes = "RGB_ALBEDO_NORMAL"
+        cycles.denoising_prefilter = "ACCURATE"
+        scene.view_settings.view_transform = "Standard"  # type: ignore
+        scene.view_settings.look = "None"  # type: ignore
+        scene.view_settings.exposure = 0.0
+        scene.view_settings.gamma = 1.0
+
+        # 输出
+        scene.render.use_border = False
+        scene.render.pixel_aspect_x = 1.0
+        scene.render.pixel_aspect_y = 1.0
+        scene.render.resolution_percentage = 100
+        scene.render.resolution_x = pref.cubemap_out_res_x
+        scene.render.resolution_y = pref.cubemap_out_res_y
+        scene.render.image_settings.color_management = "FOLLOW_SCENE"
+        scene.render.filepath = out_filepath
+        scene.render.image_settings.file_format = file_format
+        scene.render.image_settings.quality = 95
+        scene.render.image_settings.color_mode = "RGB"
+        scene.render.image_settings.compression = 15
+        if file_format == "OPEN_EXR":
+            scene.render.image_settings.color_depth = "16"
+        elif file_format == "HDR":
+            scene.render.image_settings.color_depth = "32"
+        else:
+            scene.render.image_settings.color_depth = "8"
+        scene.render.image_settings.exr_codec = "DWAA"
+        scene.render.use_file_extension = True
+
+        #
+        normal_dict = {}
+        for f_name in files:
+            filepath = os.path.join(self.directory, f_name)
+            if "Back" in f_name:
+                normal_dict[(0, 1, 0)] = filepath
+            elif "Down" in f_name:
+                normal_dict[(0, 0, 1)] = filepath
+            elif "Front" in f_name:
+                normal_dict[(0, -1, 0)] = filepath
+            elif "Left" in f_name:
+                normal_dict[(1, 0, 0)] = filepath
+            elif "Right" in f_name:
+                normal_dict[(-1, 0, 0)] = filepath
+            elif "Up" in f_name:
+                normal_dict[(0, 0, -1)] = filepath
+        # 添加摄像机
+        bpy.ops.object.camera_add()
+        cam_obj = context.object
+        cam_obj.rotation_euler = Euler(
+            (1.5707963705062866, 0.0, -1.5707963705062866), "XYZ"
+        )
+        scene.camera = cam_obj  # 设置活动摄像机
+        cam = cam_obj.data  # type: bpy.types.Camera # type: ignore
+        cam.type = "PANO"  # 全景
+        cam.panorama_type = "EQUIRECTANGULAR"  # ERP
+        # 添加立方体
+        bpy.ops.mesh.primitive_cube_add(enter_editmode=True)  # 创建立方体
+        # bpy.ops.view3d.localview()  # 局部视图
+        obj = context.object
+        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        bpy.ops.mesh.normals_make_consistent(inside=True)  # 重新计算法向(内侧)
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        bpy.ops.object.editmode_toggle()  # 退出编辑模式
+        # 设置材质
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        tex_lst = []
+        mat_lst = []
+        for face in mesh.polygons:
+            filepath = normal_dict.get(tuple(int(i) for i in face.normal))
+            if not filepath:
+                ag_utils.debugprint(f"No cubemap image for normal: {face.normal}")
+                return {"CANCELLED"}
+
+            tex = bpy.data.images.load(filepath)  # type: Image # type: ignore
+            mat = bpy.data.materials.new(tex.name)
+            data.import_nodes(mat, nodes_data["AG.Cubemap"])
+            mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+            mat.use_backface_culling = True
+            mesh.materials.append(mat)
+            slot = obj.material_slots[-1]
+            face.material_index = slot.slot_index
+            #
+            tex_lst.append(tex)
+            mat_lst.append(mat)
+        #
+        bpy.ops.render.render(write_still=True)  # 渲染
+
+        # 清理场景
+        context.window.scene = prev_scene
+        bpy.data.scenes.remove(scene)
+        bpy.data.meshes.remove(mesh)
+        bpy.data.cameras.remove(cam)
+        for tex in tex_lst:
+            bpy.data.images.remove(tex)
+        for mat in mat_lst:
+            bpy.data.materials.remove(mat)
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        self.filepath = "//"
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
 
 
 ############################
