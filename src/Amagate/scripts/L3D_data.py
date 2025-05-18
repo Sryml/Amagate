@@ -123,7 +123,9 @@ def ensure_null_texture() -> Image:
     img = scene_data.ensure_null_tex  # type: Image
     if not img:
         # img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
-        filepath = os.path.join(data.ADDON_PATH, "textures/panorama/Khazel Zalam.jpg")
+        enum_items = scene_data.bl_rna.properties["sky_tex_enum"].enum_items  # type: ignore
+        file_name = enum_items[int(scene_data.sky_tex_enum) - 1].description
+        filepath = os.path.join(data.ADDON_PATH, f"textures/panorama/{file_name}.jpg")
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img.name = "NULL"
         img.amagate_data.id = -1  # type: ignore
@@ -1376,9 +1378,23 @@ class SceneProperty(bpy.types.PropertyGroup):
             ("13", "Forge of Xshathra", "Forge of Xshathra"),
             ("14", "The Temple of Ianna", "The Temple of Ianna"),
             ("15", "Tower of Dal Gurak", "Tower of Dal Gurak"),
+            #
+            ("16", "Casa - Reforged", "Casa - Reforged"),
+            ("17", "Kashgar - Reforged", "Kashgar - Reforged"),
+            ("18", "Khazel Zalam - Reforged", "Khazel Zalam - Reforged"),
+            ("19", "Marakamda - Reforged", "Marakamda - Reforged"),
+            ("20", "Mines of Kelbegen - Reforged", "Mines of Kelbegen - Reforged"),
+            ("21", "Tombs of Ephyra - Reforged", "Tombs of Ephyra - Reforged"),
+            ("22", "Shalatuwar Fortress - Reforged", "Shalatuwar Fortress - Reforged"),
+            ("23", "Fortress of Nemrut - Reforged", "Fortress of Nemrut - Reforged"),
+            ("24", "The Oasis of Nejeb - Reforged", "The Oasis of Nejeb - Reforged"),
+            ("25", "Temple of Al Farum - Reforged", "Temple of Al Farum - Reforged"),
+            ("26", "The Temple of Ianna - Reforged", "The Temple of Ianna - Reforged"),
+            ("27", "Tower of Dal Gurak - Reforged", "Tower of Dal Gurak - Reforged"),
+            ("28", "The Abyss - Reforged", "The Abyss - Reforged"),
             ("-1", "Custom", ""),
         ],
-        default="1",  # 默认选中项
+        default="5",  # 默认选中项
         update=lambda self, context: self.update_sky_tex_enum(context),
     )  # type: ignore
     # 天空颜色

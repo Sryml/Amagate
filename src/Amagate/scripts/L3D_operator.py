@@ -1003,6 +1003,7 @@ class OT_InitMap(bpy.types.Operator):
         L3D_data.ensure_node()
         ## 设置渲染引擎
         scene.render.engine = "BLENDER_EEVEE_NEXT"
+        scene.eevee.taa_samples = 4
         scene.eevee.use_shadows = True
         scene.view_settings.view_transform = "Standard"  # type: ignore
         ## 设置世界环境

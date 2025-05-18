@@ -378,10 +378,10 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
         cycles.device = "GPU"
         cycles.use_adaptive_sampling = True
         cycles.adaptive_threshold = 0.01
-        cycles.samples = 128  # 采样
+        cycles.samples = 1  # 采样
         cycles.adaptive_min_samples = 0
         cycles.time_limit = 0.0
-        cycles.use_denoising = True
+        cycles.use_denoising = False  # 降噪
         cycles.denoiser = "OPENIMAGEDENOISE"
         cycles.denoising_input_passes = "RGB_ALBEDO_NORMAL"
         cycles.denoising_prefilter = "ACCURATE"
@@ -400,7 +400,7 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
         scene.render.image_settings.color_management = "FOLLOW_SCENE"
         scene.render.filepath = out_filepath
         scene.render.image_settings.file_format = file_format
-        scene.render.image_settings.quality = 95
+        scene.render.image_settings.quality = 92
         scene.render.image_settings.color_mode = "RGB"
         scene.render.image_settings.compression = 15
         if file_format == "OPEN_EXR":
