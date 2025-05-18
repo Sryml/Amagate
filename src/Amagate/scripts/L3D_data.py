@@ -558,12 +558,12 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             S_COLL_OBJECTS = all_objects
             s_coll_objects_neq = True
 
-    operator_pointer = context.active_operator.as_pointer() if context.active_operator else None  # type: ignore
+    operator_pointer = context.window_manager.operators[-1].as_pointer() if context.window_manager.operators else None  # type: ignore
     if (operator_pointer is not None) and operator_pointer != OPERATOR_POINTER:
         OPERATOR_POINTER = operator_pointer
         #
-        bl_label = context.active_operator.bl_label
-        bl_idname = context.active_operator.bl_idname
+        bl_label = context.window_manager.operators[-1].bl_label
+        bl_idname = context.window_manager.operators[-1].bl_idname
         # print(bl_idname)
         if bl_idname == "OBJECT_OT_editmode_toggle":
             scene_data.is_edit_mode = context.mode != "OBJECT"
@@ -781,10 +781,11 @@ def draw_callback_3d():
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
     global OPERATOR_POINTER, draw_handler
-    scene_data = bpy.context.scene.amagate_data
+    context = bpy.context
+    scene_data = context.scene.amagate_data
     if scene_data.is_blade:
         if scene_data.render_view_index != -1:
-            spaces = bpy.context.screen.areas[scene_data.render_view_index].spaces[0]
+            spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
             if hasattr(spaces, "shading"):
                 spaces.shading.type = "RENDERED"
         bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
@@ -794,8 +795,8 @@ def load_post(filepath=""):
                 draw_callback_3d, (), "WINDOW", "POST_PIXEL"
             )
         OPERATOR_POINTER = (
-            bpy.context.active_operator.as_pointer()
-            if bpy.context.active_operator
+            context.window_manager.operators[-1].as_pointer()
+            if context.window_manager.operators
             else None
         )
     else:
