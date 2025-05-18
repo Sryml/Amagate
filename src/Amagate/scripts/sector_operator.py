@@ -146,7 +146,7 @@ def knife_project_timer():
             # 访问选中的面
             if f.select:
                 # 定义射线起点、方向和距离
-                ray_origin = matrix_world @ f.calc_center_bounds()  # 位于面内部的中心点
+                ray_origin = matrix_world @ f.calc_center_bounds()
                 ray_direction = proj_normal_prime
                 # 执行射线检测
                 hit_loc, hit_normal, hit_index, hit_dist = bvhtree.BVHTree.ray_cast(
@@ -665,10 +665,6 @@ class OT_Sector_Connect(bpy.types.Operator):
                                 mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
                                 success.add(sec_2)
                                 sec_data_2.connect_num += 1
-                        # if has_connect:
-                        #     mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
-                        #     mesh_2.attributes["amagate_connected"].data[connect_face_idx[1]].value = sec_data_1.id  # type: ignore
-                        #     success.update({sec_1, sec_2})
 
                         #
                         knife_bm.free()
@@ -1036,7 +1032,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 hit = False
                 for f in connect_faces:
                     # 定义射线起点、方向和距离
-                    ray_origin = sec_matrix @ f.calc_center_bounds()
+                    ray_origin = sec_matrix @ f.calc_center_median()
                     ray_direction = proj_normal
                     # 执行射线检测
                     hit_loc, hit_normal, hit_index, hit_dist = bvhtree.BVHTree.ray_cast(
