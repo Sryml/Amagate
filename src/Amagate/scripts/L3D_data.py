@@ -1380,6 +1380,8 @@ class SceneProperty(bpy.types.PropertyGroup):
             ("14", "The Temple of Ianna", "The Temple of Ianna"),
             ("15", "Tower of Dal Gurak", "Tower of Dal Gurak"),
             #
+            ("", "", ""),
+            #
             ("16", "Casa - Reforged", "Casa - Reforged"),
             ("17", "Kashgar - Reforged", "Kashgar - Reforged"),
             ("18", "Khazel Zalam - Reforged", "Khazel Zalam - Reforged"),
