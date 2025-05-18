@@ -143,6 +143,7 @@
     ("*", "Separate selected sectors into convex parts"): "将所选扇区分离为凸部分",
     ("*", "Select at least one sector"): "至少选择一个扇区",
     ("Operator", "Poly Path"): "多线段路径",
+    ("*", "Is Too Steep"): "是否陡峭",
     #
     # 工具面板
     ("Operator", "New Map"): "新建地图",

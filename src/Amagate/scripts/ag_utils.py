@@ -1090,5 +1090,28 @@ def uint_to_int(i: int) -> int:
 
 
 ############################
+
+
+def steep_check(sec: Object):
+    sec_data = sec.amagate_data.get_sector_data()
+    if not sec_data.is_convex:
+        return
+
+    matrix_world = sec.matrix_world
+    quat = matrix_world.to_quaternion()
+    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+    z_axis = Vector((0, 0, 1))
+
+    faces_normal = [quat @ f.normal for f in mesh.polygons]
+    faces_normal.sort(key=lambda x: round(x.dot(-z_axis), 3))
+    first_normal = faces_normal[0]
+    cos = first_normal.dot(z_axis)
+    if cos < 0.7665:  # 地面大于39.96（误差）度，会被引擎设为滑坡
+        sec_data.steep_check = True
+    else:
+        sec_data.steep_check = False
+
+
+############################
 ############################
 ############################

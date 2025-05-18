@@ -49,6 +49,36 @@ if TYPE_CHECKING:
 
 
 ############################
+
+epsilon: float = ag_utils.epsilon
+epsilon2: float = ag_utils.epsilon2
+
+############################
+steep_auto_code = """
+for pos in steep_auto:
+    s = Bladex.GetSector(pos[0], pos[1], pos[2])
+    s.TooSteep = 1
+    s.TooSteepAngle = 0.698132
+
+"""
+
+steep_yes_code = """
+for pos in steep_yes:
+    s = Bladex.GetSector(pos[0], pos[1], pos[2])
+    s.TooSteep = 1
+    s.TooSteepAngle = -1
+
+"""
+
+steep_no_code = """
+for pos in steep_no:
+    s = Bladex.GetSector(pos[0], pos[1], pos[2])
+    s.TooSteep = 0
+    s.TooSteepAngle = -1
+
+"""
+
+############################
 ############################ 场景面板 -> 属性面板
 ############################
 
@@ -824,7 +854,7 @@ class OT_PolyPath(bpy.types.Operator):
         curve_data = bpy.data.curves.new(
             "PolyPath", type="CURVE"
         )  # type: bpy.types.Curve
-        # curve_data.dimensions = "2D"
+        curve_data.dimensions = "3D"
         curve_data.splines.new("POLY")
 
         curve = bpy.data.objects.new(
@@ -1219,6 +1249,9 @@ class OT_ExportMap(bpy.types.Operator):
             spot_num = 0
             group_buffer = BytesIO()  # 缓存组数据
             sec_name_buffer = BytesIO()  # 缓存扇区名称数据
+            steep_auto = []  # 自动陡峭
+            steep_yes = []
+            steep_no = []
             f.write(struct.pack("<I", len(sector_ids)))
             for sector_id in sector_ids:
                 sec = sectors_dict[str(sector_id)]["obj"]  # type: Object
@@ -1292,7 +1325,7 @@ class OT_ExportMap(bpy.types.Operator):
                 # f.write(struct.pack("<I", len(mesh.polygons)))
                 # 排序面，地板优先
                 faces_sorted = []
-                re_z_axis = Vector((0, 0, -1))
+                z_axis = Vector((0, 0, 1))
 
                 conn_face_visited = set()
                 connect_num = 0
@@ -1330,7 +1363,6 @@ class OT_ExportMap(bpy.types.Operator):
 
                             conn_face_num += 1
                             face_conn = sec_bm.faces[i]
-                            center = matrix_world @ face_conn.calc_center_bounds()
                             # 按照顶点顺序计算切线
                             tangent_data = []  # 切线数据
                             verts_sub_idx = [v.index for v in face_conn.verts]
@@ -1408,8 +1440,23 @@ class OT_ExportMap(bpy.types.Operator):
                 # faces_sorted.sort(key=lambda x: -x[3]) # 连接面排前面
                 # faces_sorted.sort(key=lambda x: x[2].to_tuple(3)) # 按法向排列
                 faces_sorted.sort(
-                    key=lambda x: round(x[2].dot(re_z_axis), 3)
+                    key=lambda x: round(x[2].dot(-z_axis), 3)
                 )  # 然后地板面排前面，避免滑坡问题
+
+                # 如果不会被引擎设为滑坡且为自动模式
+                if not sec_data.steep_check and sec_data.steep == "0":
+                    for item in faces_sorted:
+                        cos = item[2].dot(z_axis)
+                        # 与z轴点乘为0或负，跳过
+                        if cos < epsilon:
+                            continue
+                        if cos < 0.7665:
+                            steep_auto.append(sec)
+                elif sec_data.steep == "1":
+                    steep_yes.append(sec)
+                elif sec_data.steep == "2":
+                    steep_no.append(sec)
+
                 global_face_count += len(faces_sorted)
                 f.write(struct.pack("<I", len(faces_sorted)))
                 for (
@@ -1579,6 +1626,26 @@ class OT_ExportMap(bpy.types.Operator):
             file.write("####\n")
             color = tuple(math.ceil(c * 255) for c in scene_data.sky_color)
             file.write(f"Raster.SetDomeColor{color}\n\n")
+            #
+            file.write("####\n")
+            coll = (
+                ("steep_auto", steep_auto_code),
+                ("steep_yes", steep_yes_code),
+                ("steep_no", steep_no_code),
+            )
+            for key, code in coll:
+                pos_list = []
+                for sec in locals()[key]:
+                    matrix_world = sec.matrix_world
+                    # 计算几何中心
+                    bbox_corners = [
+                        matrix_world @ Vector(corner) for corner in sec.bound_box
+                    ]
+                    center = sum(bbox_corners, Vector()) / 8
+                    center = (center * 1000).to_tuple(0)
+                    pos_list.append((center[0], -center[2], center[1]))
+                file.write(f"{key} = {pos_list}\n")
+                file.write(code)
         # 地图运行脚本
         if self.with_run_script:
             scripts_dir = os.path.join(data.ADDON_PATH, "blade_scripts")

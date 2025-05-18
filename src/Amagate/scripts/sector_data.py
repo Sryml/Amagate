@@ -510,6 +510,21 @@ class SectorProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     group_set: CollectionProperty(type=BoolCollection)  # type: ignore
 
+    # 陡峭设置
+    steep_check: BoolProperty(default=False)  # type: ignore
+    steep: EnumProperty(
+        name="",
+        description="",
+        items=[
+            ("0", "Auto", ""),
+            ("1", "Yes", ""),
+            ("2", "No", ""),
+        ],
+        default="0",
+        get=lambda self: self.get_steep(),
+        set=lambda self, value: self.set_steep(value),
+    )  # type: ignore
+
     ############################
     def get_atmo_id(self):
         return self.get("_atmo_id", 0)
@@ -693,6 +708,35 @@ class SectorProperty(bpy.types.PropertyGroup):
     #         obj.light_linking.blocker_collection = lightlink_coll
 
     #     return light_data
+
+    ############################
+
+    def get_steep(self):
+        from . import L3D_data
+
+        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+
+        attr = "steep"
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            return int(getattr(sec_data, attr))
+        else:
+            return self.get(attr, 0)
+
+    def set_steep(self, value):
+        from . import L3D_data
+
+        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
+
+        attr = "steep"
+
+        if self.target == "SectorPublic":
+            for sec in SELECTED_SECTORS:
+                sec_data = sec.amagate_data.get_sector_data()
+                setattr(sec_data, attr, str(value))
+        else:
+            self[attr] = value
 
     ############################
     def set_matslot(self, mat, faces=[]):

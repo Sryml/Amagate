@@ -479,19 +479,23 @@ def check_sector_paste():
 
 
 # 扇区变换检查
-def check_sector_transform():
+def check_sector_transform(bl_idname):
     context = bpy.context
+
+    sectors = [obj for obj in context.selected_objects if obj.amagate_data.is_sector]
     conn_sectors = [
-        obj
-        for obj in context.selected_objects
-        if obj.amagate_data.is_sector
-        and obj.amagate_data.get_sector_data().connect_num != 0
+        sec for sec in sectors if sec.amagate_data.get_sector_data().connect_num != 0
     ]
     if not conn_sectors:
         return
 
     for sec in conn_sectors:
         ag_utils.check_connect(sec)
+
+    # 如果是旋转操作，检查陡峭
+    if bl_idname == "TRANSFORM_OT_rotate":
+        for sec in sectors:
+            ag_utils.steep_check(sec)
 
     bpy.ops.ed.undo_push(message="Sector Check")
 
@@ -510,6 +514,7 @@ def geometry_modify_post(
             sec_data.is_convex = ag_utils.is_convex(sec)
             if sec_data.connect_num != 0 and check_connect:
                 ag_utils.check_connect(sec)
+            ag_utils.steep_check(sec)
 
         # 扇区编辑检查
         if undo:
@@ -592,7 +597,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             check_sector_paste()
         # 扇区变换的回调
         elif bl_idname in TRANSFORM_OP:
-            check_sector_transform()
+            check_sector_transform(bl_idname)
     # 无操作回调，例如在属性面板修改
     # else:
     #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":

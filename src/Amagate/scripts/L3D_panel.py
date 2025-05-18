@@ -604,6 +604,38 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         scene_data = context.scene.amagate_data
         active_sec_data = active_sector.amagate_data.get_sector_data()
 
+        # 陡峭
+        row = layout.row()
+        split = row.split(factor=0.5, align=True)
+
+        row = split.row()
+        is_uniform = True
+        steep_check = active_sec_data.steep_check
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.steep_check != steep_check:
+                is_uniform = False
+                break
+
+        text = ("Yes" if steep_check else "No") if is_uniform else "*"
+        row.label(text=f"{pgettext('Is Too Steep')}: {text}")
+        #
+        row = split.row()
+        is_uniform = True
+        steep = active_sec_data.steep
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.steep != steep:
+                is_uniform = False
+                break
+
+        text = "" if is_uniform else "*"
+        row.prop(
+            scene_data.sector_public, "steep", text=f"{pgettext('Override')}{text}"
+        )
+
+        layout.separator()
+
         # 大气
         atmo_id = active_sec_data.atmo_id
         is_uniform = True
@@ -837,6 +869,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         layout.separator()
 
+        # 组
         box = layout.box()
         column = box.column(align=True)
         column.label(text=f"{pgettext('Groups')}:")
