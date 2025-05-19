@@ -68,8 +68,9 @@ S_COLL_OBJECTS = 0
 OPERATOR_POINTER = None
 draw_handler = None
 
-SELECTED_FACES = []  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace]]]
-EDIT_SECTORS: list[Object] = []
+SELECTED_FACES = (
+    []
+)  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace], Object]]
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
 
@@ -117,6 +118,10 @@ def get_texture_by_id(texture_id) -> tuple[int, Image]:
             if texture.amagate_data.id == texture_id:  # type: ignore
                 return (i, texture)  # type: ignore
     return (-1, None)  # type: ignore
+
+
+def get_sector_by_id(scene_data, sector_id):
+    return scene_data["SectorManage"]["sectors"][str(sector_id)]["obj"]
 
 
 # 确保NULL纹理存在
@@ -970,13 +975,18 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         row.prop(self, "filter_name", text="", icon="VIEWZOOM")
 
     def filter_items(self, context, data, propname):
+        scene_data = bpy.context.scene.amagate_data
+        img = scene_data.ensure_null_tex  # type: Image
+
         items = getattr(data, propname)
         if self.use_filter_invert:
             invisible = self.bitflag_filter_item
         else:
             invisible = 0
         flt_flags = [self.bitflag_filter_item] * len(items)
-        flt_neworder = []
+        # 天空纹理置顶 # FIXME 没有按照预期排序，不知道为什么
+        img_idx = items.find(img.name)
+        flt_neworder = [img_idx] + [i for i in range(len(items)) if i != img_idx]
 
         # 按名称过滤
         regex = None
@@ -987,7 +997,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
             if item.amagate_data.id == 0:
                 flt_flags[idx] = invisible
             elif regex and not regex.search(item.name):
-                flt_flags[idx] = 0
+                flt_flags[idx] = invisible
 
         return flt_flags, flt_neworder
 
@@ -1035,6 +1045,11 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         col.alignment = "RIGHT"
         i = "UGLYPACKAGE" if tex.packed_file else "BLANK1"
         col.label(text="", icon=i)
+
+
+############################
+############################ 属性回调
+############################
 
 
 ############################
@@ -1123,7 +1138,8 @@ class Texture_Select(bpy.types.PropertyGroup):
                 value
             ].amagate_data.id
 
-        data.region_redraw("UI")
+        # data.region_redraw("UI")
+        data.area_redraw("VIEW_3D")
 
         bpy.ops.ed.undo_push(message="Select Texture")
 

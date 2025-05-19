@@ -508,9 +508,6 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
             selected_sectors,
             active_sector,
         )
-        L3D_data.EDIT_SECTORS = [
-            obj for obj in context.objects_in_mode if obj.amagate_data.is_sector
-        ]
         #
         layout = self.layout
         scene_data = context.scene.amagate_data
@@ -917,15 +914,29 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         scene_data = context.scene.amagate_data
-        edit_sectors = L3D_data.EDIT_SECTORS
-        bmeshs_edit = [bmesh.from_edit_mesh(sec.data) for sec in edit_sectors]  # type: ignore
+        edit_sectors = [
+            obj for obj in context.objects_in_mode if obj.amagate_data.is_sector
+        ]
+        bmeshs_edit = [(bmesh.from_edit_mesh(sec.data), sec) for sec in edit_sectors]  # type: ignore
         selected_faces = [
-            (bm, [f for f in bm.faces if f.select]) for bm in bmeshs_edit
-        ]  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace]]]
+            (bm, [f for f in bm.faces if f.select], sec) for bm, sec in bmeshs_edit
+        ]  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace], Object]]
         for i in range(len(selected_faces) - 1, -1, -1):
             if not selected_faces[i][1]:
                 del selected_faces[i]
         L3D_data.SELECTED_FACES = selected_faces
+
+        # 面连接的扇区
+        connected_sector = ""
+        if len(selected_faces) == 1:
+            if len(selected_faces[0][1]) == 1:
+                layers = selected_faces[0][0].faces.layers.int.get("amagate_connected")
+                face = selected_faces[0][1][0]
+                sid = face[layers]  # type: ignore
+                if sid != 0:
+                    sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
+                    connected_sector = sec.name
+        layout.label(text=f"{pgettext('Connected Sector')}: {connected_sector}")
 
         # 面类型
         row = layout.row()
@@ -934,6 +945,145 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
         row_1.label(text=f"{pgettext('Face type')}:")
         row_1 = row.row()
         row_1.prop(scene_data, "face_type", text="")
+
+        # 面纹理
+        name = "Floor"
+        box = layout.box()
+        prop = scene_data.sector_public.textures[name]
+
+        attr_dict = {
+            "tex": {"attr_name": "amagate_tex_id", "value": None, "is_uniform": True},
+            "xpos": {
+                "attr_name": "amagate_tex_xpos",
+                "value": None,
+                "is_uniform": True,
+            },
+            "ypos": {
+                "attr_name": "amagate_tex_ypos",
+                "value": None,
+                "is_uniform": True,
+            },
+            "angle": {
+                "attr_name": "amagate_tex_angle",
+                "value": None,
+                "is_uniform": True,
+            },
+            "xzoom": {
+                "attr_name": "amagate_tex_xzoom",
+                "value": None,
+                "is_uniform": True,
+            },
+            "yzoom": {
+                "attr_name": "amagate_tex_yzoom",
+                "value": None,
+                "is_uniform": True,
+            },
+        }
+
+        if selected_faces:
+            item = selected_faces[0]
+            bm = item[0]
+            face = item[1][0]
+
+            for k in attr_dict.keys():
+                attr_list = attr_dict[k]
+                if k == "tex":
+                    layers = bm.faces.layers.int.get(attr_list["attr_name"])
+                else:
+                    layers = bm.faces.layers.float.get(attr_list["attr_name"])
+                attr_list["value"] = face[layers]  # type: ignore
+            #
+            for item in selected_faces:
+                bm = item[0]
+                for face in item[1]:
+                    for k in attr_dict.keys():
+                        attr_list = attr_dict[k]
+                        if not attr_list["is_uniform"]:
+                            continue
+
+                        if k == "tex":
+                            layers = bm.faces.layers.int.get(attr_list["attr_name"])
+                        else:
+                            layers = bm.faces.layers.float.get(attr_list["attr_name"])
+
+                        if face[layers] != attr_list["value"]:  # type: ignore
+                            attr_list["is_uniform"] = False
+
+        #
+        if attr_dict["tex"]["is_uniform"]:
+            tex_idx, tex = L3D_data.get_texture_by_id(attr_dict["tex"]["value"])
+            tex_name = "None" if not tex else tex.name
+        else:
+            tex_idx, tex = -1, None
+            tex_name = "*"
+
+        column = box.column()
+        #
+        row = column.row()
+
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Texture')}:")
+
+        col = row.column()
+        op = col.operator(
+            OP_L3D.OT_Texture_Select.bl_idname,
+            text=tex_name,
+            icon="DOWNARROW_HLT",
+        )
+        op.prop.target = prop.target  # type: ignore
+        op.prop.name = prop.name  # type: ignore
+        op.prop["_index"] = tex_idx  # type: ignore
+
+        if tex and tex.preview:
+            col = row.column()
+            op = col.operator(
+                OP_L3D.OT_Texture_Preview.bl_idname,
+                text="",
+                icon_value=tex.preview.icon_id,
+                emboss=False,
+            )
+            op.index = bpy.data.images.find(tex.name)  # type: ignore
+        elif not attr_dict["tex"]["is_uniform"]:
+            col = row.column()
+            col.label(icon_value=1)
+        #
+        row = column.row(align=True)
+        if 1:
+            x_text = "X" if attr_dict["xpos"]["is_uniform"] else "X *"
+            y_text = "Y" if attr_dict["ypos"]["is_uniform"] else "Y *"
+            row.prop(prop, "xpos", text=x_text)
+            row.prop(prop, "ypos", text=y_text)
+
+            row = column.row()
+            text = (
+                "Angle"
+                if attr_dict["angle"]["is_uniform"]
+                else f"{pgettext('Angle')} *"
+            )
+            row.prop(prop, "angle", text=text)
+
+            box2 = column.box()
+            row = box2.row()
+            col = row.column(align=True)
+            x_text = f"X {pgettext('Zoom')}"
+            if not attr_dict["xzoom"]["is_uniform"]:
+                x_text = f"{x_text} *"
+            y_text = f"Y {pgettext('Zoom')}"
+            if not attr_dict["yzoom"]["is_uniform"]:
+                y_text = f"{y_text} *"
+            col.prop(prop, "xzoom", text=x_text)
+            col.prop(prop, "yzoom", text=y_text)
+            col = row.column()
+            col.scale_y = 2
+            col.prop(
+                prop,
+                "zoom_constraint",
+                text="",
+                icon="LINKED" if prop.zoom_constraint else "UNLINKED",
+                emboss=False,
+            )
+        # 平面光
 
 
 ############################

@@ -19,7 +19,7 @@ from typing import Any, TYPE_CHECKING
 #
 import bpy
 
-# import bmesh
+import bmesh
 from bpy.app.translations import pgettext
 
 # from bpy.types import Context
@@ -125,29 +125,30 @@ class TextureProperty(bpy.types.PropertyGroup):
     def set_id(self, value):
         from . import L3D_data
 
+        context = bpy.context
+
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if L3D_data.ACTIVE_SECTOR.mode == "EDIT":
-                bpy.ops.object.mode_set(mode="OBJECT")
+            if "EDIT" in context.mode:
                 tex = L3D_data.get_texture_by_id(value)[1]
                 mat = L3D_data.ensure_material(tex)
-                for sec in L3D_data.SELECTED_SECTORS:
-                    sec_data = sec.amagate_data.get_sector_data()
-                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-                    faces = []
+                for item in L3D_data.SELECTED_FACES:
                     update = False
-                    for i, face in enumerate(mesh.polygons):
-                        if face.select:
-                            face_attr = mesh.attributes["amagate_tex_id"].data[i]  # type: ignore
-                            if face_attr.value != value:
-                                face_attr.value = value
-                                update = True
-                                faces.append(i)
+                    sec = item[2]
+                    sec_data = sec.amagate_data.get_sector_data()
+                    layers = item[0].faces.layers.int.get(f"amagate_tex_id")
+                    faces = []
+                    for face in item[1]:
+                        amagate_flag = item[0].faces.layers.int.get(f"amagate_flag")
+                        face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
+                        if face[layers] != value:  # type: ignore
+                            face[layers] = value  # type: ignore
+                            faces.append(face)
+                            update = True
                     if faces:
-                        sec_data.set_matslot(mat, faces)
-                    # if update:
-                    #     sec.update_tag()
-                bpy.ops.object.mode_set(mode="EDIT")
+                        sec_data.set_matslot(mat, faces, item[0])
+                    if update:
+                        sec.update_tag()
             # 修改预设纹理的情况
             else:
                 for sec in L3D_data.SELECTED_SECTORS:
@@ -177,7 +178,7 @@ class TextureProperty(bpy.types.PropertyGroup):
                     if face_attr.value != value:
                         face_attr.value = value
                         update = True
-                        faces.append(i)
+                        faces.append(mesh.polygons[i])
             if faces:
                 sec_data.set_matslot(L3D_data.ensure_material(tex), faces)
             # if update:
@@ -187,52 +188,52 @@ class TextureProperty(bpy.types.PropertyGroup):
     def get_pos(self, index=0):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        context = bpy.context
 
         attr = ("xpos", "ypos")[index]
         if self.target == "SectorPublic":
-            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if ACTIVE_SECTOR.mode == "OBJECT":
+            # 单独访问面的情况
+            if "EDIT" in context.mode:
+                selected_faces = L3D_data.SELECTED_FACES
+                if selected_faces:
+                    item = selected_faces[0]
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    face = item[1][0]
+                    return face[layers]  # type: ignore
+                else:
+                    return 0.0
+            else:
+                ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
                 return getattr(sec_data.textures[self.name], attr)
-            elif ACTIVE_SECTOR.mode == "EDIT":
-                ret = 0.0
-                bpy.ops.object.mode_set(mode="OBJECT")
-                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
-                for i, face in enumerate(mesh.polygons):
-                    if face.select:
-                        ret = mesh.attributes["amagate_tex_pos"].data[i].vector[index]  # type: ignore
-                        break
-                bpy.ops.object.mode_set(mode="EDIT")
-                return ret
         else:
             return self.get(attr, -1.0)
 
     def set_pos(self, value, index=0):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-        SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
+        context = bpy.context
 
         attr = ("xpos", "ypos")[index]
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if ACTIVE_SECTOR.mode == "EDIT":
-                bpy.ops.object.mode_set(mode="OBJECT")
-                for sec in SELECTED_SECTORS:
-                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            if "EDIT" in context.mode:
+                for item in L3D_data.SELECTED_FACES:
                     update = False
-                    for i, face in enumerate(mesh.polygons):
-                        if face.select:
-                            face_attr = mesh.attributes["amagate_tex_pos"].data[i]  # type: ignore
-                            if face_attr.vector[index] != value:
-                                face_attr.vector[index] = value
-                                update = True
-                    # if update:
-                    #     sec.update_tag()
-                bpy.ops.object.mode_set(mode="EDIT")
+                    sec = item[2]
+                    sec_data = sec.amagate_data.get_sector_data()
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    for face in item[1]:
+                        if face[layers] != value:  # type: ignore
+                            face[layers] = value  # type: ignore
+                            update = True
+                    if update:
+                        sec.update_tag()
+                data.area_redraw("VIEW_3D")
             # 修改预设纹理的情况
             else:
+                SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
                 for sec in SELECTED_SECTORS:
                     sec_data = sec.amagate_data.get_sector_data()
                     sec_data.textures[self.name].set_pos(value, index)
@@ -249,9 +250,9 @@ class TextureProperty(bpy.types.PropertyGroup):
             update = False
             for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
                 if d.value == face_flag:
-                    face_attr = mesh.attributes["amagate_tex_pos"].data[i]  # type: ignore
-                    if face_attr.vector[index] != value:
-                        face_attr.vector[index] = value
+                    face_attr = mesh.attributes[f"amagate_tex_{attr}"].data[i]  # type: ignore
+                    if face_attr.value != value:
+                        face_attr.value = value
                         update = True
             # if update:
             #     sec.update_tag()
@@ -260,31 +261,31 @@ class TextureProperty(bpy.types.PropertyGroup):
     def get_zoom(self, index):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        context = bpy.context
 
         attr = ("xzoom", "yzoom")[index]
         if self.target == "SectorPublic":
-            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if ACTIVE_SECTOR.mode == "OBJECT":
+            # 单独访问面的情况
+            if "EDIT" in context.mode:
+                selected_faces = L3D_data.SELECTED_FACES
+                if selected_faces:
+                    item = selected_faces[0]
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    face = item[1][0]
+                    return face[layers]  # type: ignore
+                else:
+                    return 0.0
+            else:
+                ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
                 return getattr(sec_data.textures[self.name], attr)
-            elif ACTIVE_SECTOR.mode == "EDIT":
-                ret = 0.0
-                bpy.ops.object.mode_set(mode="OBJECT")
-                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
-                for i, face in enumerate(mesh.polygons):
-                    if face.select:
-                        ret = mesh.attributes["amagate_tex_scale"].data[i].vector[index]  # type: ignore
-                        break
-                bpy.ops.object.mode_set(mode="EDIT")
-                return ret
         else:
             return self.get(attr, -1.0)
 
     def set_zoom(self, value, index, constraint=None):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-        SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
+        context = bpy.context
 
         attr = ("xzoom", "yzoom")[index]
         attr2 = ("xzoom", "yzoom")[1 - index]
@@ -301,22 +302,25 @@ class TextureProperty(bpy.types.PropertyGroup):
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if ACTIVE_SECTOR.mode == "EDIT":
-                bpy.ops.object.mode_set(mode="OBJECT")
-                for sec in SELECTED_SECTORS:
-                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            if "EDIT" in context.mode:
+                for item in L3D_data.SELECTED_FACES:
                     update = False
-                    for i, face in enumerate(mesh.polygons):
-                        if face.select:
-                            face_attr = mesh.attributes["amagate_tex_scale"].data[i]  # type: ignore
-                            if face_attr.vector[index] != value:
-                                face_attr.vector[index] = value
-                                update = True
-                    # if update:
-                    #     sec.update_tag()
-                bpy.ops.object.mode_set(mode="EDIT")
+                    sec = item[2]
+                    sec_data = sec.amagate_data.get_sector_data()
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    layers2 = item[0].faces.layers.float.get(f"amagate_tex_{attr2}")
+                    for face in item[1]:
+                        if face[layers] != value:  # type: ignore
+                            face[layers] = value  # type: ignore
+                            update = True
+                        if value2 is not None and face[layers2] != value2:  # type: ignore
+                            face[layers2] = value2  # type: ignore
+                    if update:
+                        sec.update_tag()
+                data.area_redraw("VIEW_3D")
             # 修改预设纹理的情况
             else:
+                SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
                 for sec in SELECTED_SECTORS:
                     sec_data = sec.amagate_data.get_sector_data()
                     sec_data.textures[self.name].set_zoom(
@@ -335,13 +339,15 @@ class TextureProperty(bpy.types.PropertyGroup):
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             face_flag = L3D_data.FACE_FLAG[self.name]
             update = False
-            vector = self.zoom
             for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
                 if d.value == face_flag:
-                    face_attr = mesh.attributes["amagate_tex_scale"].data[i]  # type: ignore
-                    if face_attr.vector != vector:
-                        face_attr.vector = vector
+                    face_attr_1 = mesh.attributes[f"amagate_tex_{attr}"].data[i]  # type: ignore
+                    if face_attr_1.value != self[attr]:
+                        face_attr_1.value = self[attr]
                         update = True
+                    face_attr_2 = mesh.attributes[f"amagate_tex_{attr2}"].data[i]  # type: ignore
+                    if face_attr_2.value != self[attr2]:
+                        face_attr_2.value = self[attr2]
             # if update:
             #     sec.update_tag()
 
@@ -349,52 +355,52 @@ class TextureProperty(bpy.types.PropertyGroup):
     def get_angle(self):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        context = bpy.context
 
         attr = "angle"
         if self.target == "SectorPublic":
-            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            if ACTIVE_SECTOR.mode == "OBJECT":
+            # 单独访问面的情况
+            if "EDIT" in context.mode:
+                selected_faces = L3D_data.SELECTED_FACES
+                if selected_faces:
+                    item = selected_faces[0]
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    face = item[1][0]
+                    return face[layers]  # type: ignore
+                else:
+                    return 0.0
+            else:
+                ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
                 return getattr(sec_data.textures[self.name], attr)
-            elif ACTIVE_SECTOR.mode == "EDIT":
-                ret = 0.0
-                bpy.ops.object.mode_set(mode="OBJECT")
-                mesh = ACTIVE_SECTOR.data  # type: bpy.types.Mesh # type: ignore
-                for i, face in enumerate(mesh.polygons):
-                    if face.select:
-                        ret = mesh.attributes["amagate_tex_rotate"].data[i].value  # type: ignore
-                        break
-                bpy.ops.object.mode_set(mode="EDIT")
-                return ret
         else:
             return self.get(attr, -1.0)
 
     def set_angle(self, value):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-        SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
+        context = bpy.context
 
         attr = "angle"
 
         if self.target == "SectorPublic":
             # 单独修改面的情况
-            if ACTIVE_SECTOR.mode == "EDIT":
-                bpy.ops.object.mode_set(mode="OBJECT")
-                for sec in SELECTED_SECTORS:
-                    mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            if "EDIT" in context.mode:
+                for item in L3D_data.SELECTED_FACES:
                     update = False
-                    for i, face in enumerate(mesh.polygons):
-                        if face.select:
-                            face_attr = mesh.attributes["amagate_tex_rotate"].data[i]  # type: ignore
-                            if face_attr.value != value:
-                                face_attr.value = value
-                                update = True
-                    # if update:
-                    #     sec.update_tag()
-                bpy.ops.object.mode_set(mode="EDIT")
+                    sec = item[2]
+                    sec_data = sec.amagate_data.get_sector_data()
+                    layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    for face in item[1]:
+                        if face[layers] != value:  # type: ignore
+                            face[layers] = value  # type: ignore
+                            update = True
+                    if update:
+                        sec.update_tag()
+                data.area_redraw("VIEW_3D")
             # 修改预设纹理的情况
             else:
+                SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
                 for sec in SELECTED_SECTORS:
                     sec_data = sec.amagate_data.get_sector_data()
                     sec_data.textures[self.name].set_angle(value)
@@ -411,7 +417,7 @@ class TextureProperty(bpy.types.PropertyGroup):
             update = False
             for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
                 if d.value == face_flag:
-                    face_attr = mesh.attributes["amagate_tex_rotate"].data[i]  # type: ignore
+                    face_attr = mesh.attributes[f"amagate_tex_{attr}"].data[i]  # type: ignore
                     if face_attr.value != value:
                         face_attr.value = value
                         update = True
@@ -739,7 +745,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             self[attr] = value
 
     ############################
-    def set_matslot(self, mat, faces=[]):
+    def set_matslot(self, mat, set_faces=[], bm: bmesh.types.BMesh = None):  # type: ignore
         """设置材质槽位"""
         obj = self.id_data  # type: Object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
@@ -748,8 +754,9 @@ class SectorProperty(bpy.types.PropertyGroup):
         if not slot:
             # 排除已使用的槽位
             slots = set(range(len(obj.material_slots)))
-            for face in mesh.polygons:
-                if face.index in faces:
+            faces = bm.faces if bm else mesh.polygons
+            for face in faces:
+                if face in set_faces:
                     continue
                 slots.discard(face.material_index)
                 if not slots:
@@ -768,8 +775,11 @@ class SectorProperty(bpy.types.PropertyGroup):
         if not slot.material:
             slot.material = mat
         slot_index = slot.slot_index
-        for i in faces:
-            mesh.polygons[i].material_index = slot_index
+
+        if bm:
+            bm.faces.ensure_lookup_table()
+        for face in set_faces:
+            face.material_index = slot_index
 
     ############################
     def get_id(self) -> int:
@@ -868,9 +878,11 @@ class SectorProperty(bpy.types.PropertyGroup):
             mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
             mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
             mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
-            mesh.attributes.new(name="amagate_tex_pos", type="FLOAT2", domain="FACE")
-            mesh.attributes.new(name="amagate_tex_rotate", type="FLOAT", domain="FACE")
-            mesh.attributes.new(name="amagate_tex_scale", type="FLOAT2", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_xpos", type="FLOAT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_ypos", type="FLOAT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_angle", type="FLOAT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_xzoom", type="FLOAT", domain="FACE")
+            mesh.attributes.new(name="amagate_tex_yzoom", type="FLOAT", domain="FACE")
 
             # 设置预设纹理
             for i in ("Floor", "Ceiling", "Wall"):
@@ -879,12 +891,12 @@ class SectorProperty(bpy.types.PropertyGroup):
                 prop = self.textures.add()
                 prop.target = "Sector"
                 prop.name = i
-                prop.id = def_prop.id
-                prop.xpos = def_prop.xpos
-                prop.ypos = def_prop.ypos
-                prop.xzoom = def_prop.xzoom
-                prop.yzoom = def_prop.yzoom
-                prop.angle = def_prop.angle
+                prop["id"] = def_prop.id
+                prop["xpos"] = def_prop.xpos
+                prop["ypos"] = def_prop.ypos
+                prop["xzoom"] = def_prop.xzoom
+                prop["yzoom"] = def_prop.yzoom
+                prop["angle"] = def_prop.angle
 
             for face in mesh.polygons:  # polygons 代表面
                 face_index = face.index  # 面的索引
@@ -907,12 +919,14 @@ class SectorProperty(bpy.types.PropertyGroup):
                 mesh.attributes["amagate_tex_id"].data[face_index].value = tex_id  # type: ignore
                 mat = None
                 tex = L3D_data.get_texture_by_id(tex_id)[1]
-                self.set_matslot(L3D_data.ensure_material(tex), [face_index])
+                self.set_matslot(L3D_data.ensure_material(tex), [face])
 
                 # 设置纹理参数
-                mesh.attributes["amagate_tex_pos"].data[face_index].vector = tex_prop.pos  # type: ignore
-                mesh.attributes["amagate_tex_rotate"].data[face_index].value = tex_prop.angle  # type: ignore
-                mesh.attributes["amagate_tex_scale"].data[face_index].vector = tex_prop.zoom  # type: ignore
+                mesh.attributes["amagate_tex_xpos"].data[face_index].value = tex_prop.xpos  # type: ignore
+                mesh.attributes["amagate_tex_ypos"].data[face_index].value = tex_prop.ypos  # type: ignore
+                mesh.attributes["amagate_tex_angle"].data[face_index].value = tex_prop.angle  # type: ignore
+                mesh.attributes["amagate_tex_xzoom"].data[face_index].value = tex_prop.xzoom  # type: ignore
+                mesh.attributes["amagate_tex_yzoom"].data[face_index].value = tex_prop.yzoom  # type: ignore
 
             # 指定大气
             self.atmo_id = scene_data.defaults.atmo_id

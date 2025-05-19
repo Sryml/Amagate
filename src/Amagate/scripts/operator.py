@@ -207,8 +207,9 @@ class OT_ExportNode(bpy.types.Operator):
 
     def execute(self, context):
         filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        # nodes_data = {}
         # 导出节点
-        nodes_data = {}
         for name in ("AG.Mat1", "AG.Mat-1", "AG.Cubemap"):
             mat = bpy.data.materials.get(name)
             if mat:

@@ -1515,8 +1515,9 @@ class OT_ExportMap(bpy.types.Operator):
                     f.write(struct.pack("<ddd", tex_vx[0], -tex_vx[2], tex_vx[1]))
                     tex_vy = mesh.attributes["amagate_tex_vy"].data[face_index].vector  # type: ignore
                     f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
-                    tex_pos = mesh.attributes["amagate_tex_pos"].data[face_index].vector  # type: ignore
-                    f.write(struct.pack("<ff", *tex_pos))
+                    tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
+                    tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
+                    f.write(struct.pack("<ff", tex_xpos, tex_ypos))
 
                     f.write(b"\x00" * 8)  # 0
 
