@@ -1594,8 +1594,8 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         #
         ret = {"FINISHED"}
         # 没有切割凹面，且不存在复杂凹面
-        # if not complex_list:
-        self.report({"INFO"}, "No need to separate")
+        if not complex_list:
+            self.report({"INFO"}, "No need to separate")
         if self.undo:
             bpy.ops.ed.undo_push(message="Separate Convex")
         return ret

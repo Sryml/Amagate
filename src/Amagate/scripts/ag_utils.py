@@ -423,18 +423,21 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
             [v, w_ext, _] for v, w_ext, _ in proj_normal_lst if w_ext == weight_max
         ]
 
-        # 如果符合条件的仍然超过1个，计算内部面权重进一步筛选
+        # 如果符合条件的仍然超过1个
         if len(proj_normal_lst) > 1:
-            for lst in proj_normal_lst:
-                v, w_ext, w_int = lst
-                if w_int is not None:
-                    continue
-                # 与内部面垂直-1分
-                w_int = sum(1 for v2 in v_int if abs(np.dot(v, v2)) < tolerance)
-                lst[2] = w_int
-            # 排序权重
-            proj_normal_lst.sort(key=lambda x: x[2])
-            # 选择权重最小的项
+            # 与z轴垂直的向量优先
+            z_axis = Vector((0, 0, 1))
+            proj_normal_lst.sort(key=lambda x: abs(x[0].dot(z_axis)))
+            # 计算内部面权重进一步筛选
+            # for lst in proj_normal_lst:
+            #     v, w_ext, w_int = lst
+            #     if w_int is not None:
+            #         continue
+            #     # 与内部面垂直-1分
+            #     w_int = sum(1 for v2 in v_int if abs(np.dot(v, v2)) < tolerance)
+            #     lst[2] = w_int
+            # # 排序权重, 选择权重最小的项
+            # proj_normal_lst.sort(key=lambda x: x[2])
 
         return proj_normal_lst[0]
 
