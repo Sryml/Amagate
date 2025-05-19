@@ -54,6 +54,7 @@
     ("Property", "Floor"): "地板",
     ("Property", "Ceiling"): "天花板",
     ("Property", "Wall"): "墙壁",
+    ("Property", "Custom"): "自定义",
     ("*", "Ambient Light"): "环境光",
     ("*", "External Light"): "外部光",
     ("*", "Flat Light"): "平面光",
@@ -85,7 +86,7 @@
     ("Operator", "Unpack All"): "全部解包",
     # 天空纹理面板
     ("Operator", "Open Panorama"): "打开全景图",
-    ("*", "Sky texture"): "天空纹理",
+    ("*", "Sky Texture"): "天空纹理",
     ("*","Casa"): "家园",
     ("*","Kashgar"): "喀什葛尔山脉",
     ("*","Tabriz"): "大不里士城堡",
@@ -148,6 +149,8 @@
     ("*", "Select at least one sector"): "至少选择一个扇区",
     ("Operator", "Poly Path"): "多线段路径",
     ("*", "Is Too Steep"): "是否陡峭",
+    ("*", "Face Properties"): "面属性",
+    ("*", "Face type"): "面类型",
     #
     # 工具面板
     ("Operator", "New Map"): "新建地图",

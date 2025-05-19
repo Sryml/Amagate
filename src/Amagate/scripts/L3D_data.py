@@ -20,7 +20,7 @@ from typing import Any, TYPE_CHECKING
 #
 import bpy
 
-# import bmesh
+import bmesh
 from bpy.app.translations import pgettext
 
 # from bpy.types import Context
@@ -68,10 +68,12 @@ S_COLL_OBJECTS = 0
 OPERATOR_POINTER = None
 draw_handler = None
 
+SELECTED_FACES = []  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace]]]
+EDIT_SECTORS: list[Object] = []
 SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
 
-FACE_FLAG = {"Floor": -1, "Ceiling": -2, "Wall": -3}
+FACE_FLAG = {"Floor": 0, "Ceiling": 1, "Wall": 2, "Custom": 3}
 
 COLLECTION_OP = (
     "Move to Collection",
@@ -1351,6 +1353,20 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 通用属性
     sector_public: PointerProperty(type=sector_data.SectorProperty)  # type: ignore
+    face_type: EnumProperty(
+        name="",
+        description="",
+        translation_context="Property",
+        items=[
+            ("Floor", "Floor", ""),
+            ("Ceiling", "Ceiling", ""),
+            ("Wall", "Wall", ""),
+            ("Custom", "Custom", ""),
+        ],
+        default="Floor",
+        get=lambda self: self.get_face_type(),
+        set=lambda self, value: self.set_face_type(value),
+    )  # type: ignore
 
     # 进度条
     progress_bar: PointerProperty(type=data.ProgressBarProperty)  # type: ignore
@@ -1496,6 +1512,33 @@ class SceneProperty(bpy.types.PropertyGroup):
         scene = self.id_data  # type: Scene
         scene.update_tag()
         data.area_redraw("VIEW_3D")
+
+    ############################
+
+    def get_face_type(self):
+        # 选择的面
+        selected_faces = SELECTED_FACES
+        if not selected_faces:
+            return -1
+
+        layers = selected_faces[0][0].faces.layers.int.get("amagate_flag")
+        face_type = selected_faces[0][1][0][layers]  # type: ignore
+        for item in selected_faces:
+            layers = item[0].faces.layers.int.get("amagate_flag")
+            for f in item[1]:
+                if f[layers] != face_type:  # type: ignore
+                    return -1
+
+        return face_type
+
+    def set_face_type(self, value):
+        identifier = self.bl_rna.properties["face_type"].enum_items[value].identifier  # type: ignore
+        # 选择的面
+        selected_faces = SELECTED_FACES
+        for item in selected_faces:
+            layers = item[0].faces.layers.int.get("amagate_flag")
+            for face in item[1]:
+                face[layers] = FACE_FLAG[identifier]  # type: ignore
 
     ############################
     def init(self):
