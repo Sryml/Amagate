@@ -52,6 +52,7 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 
 AG_COLL = "Amagate Auto Generated"
@@ -186,7 +187,7 @@ def ensure_render_camera() -> Object:
 
 
 # 确保集合
-def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
+def ensure_collection(name, hide_select=False) -> Collection:
     scene = bpy.context.scene
     scene_data = scene.amagate_data
     item = scene_data.ensure_coll.get(name)
@@ -201,7 +202,7 @@ def ensure_collection(name, hide_select=False) -> bpy.types.Collection:
         item.obj = coll
     elif item.obj.name not in scene.collection.children:
         scene.collection.children.link(item.obj)
-    return item.obj
+    return item.obj  # type: ignore
 
 
 # 确保材质

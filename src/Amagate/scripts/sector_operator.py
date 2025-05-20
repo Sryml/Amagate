@@ -498,11 +498,11 @@ class OT_Sector_Convert(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# 转换为虚拟扇区
-class OT_GhostSector_Convert(bpy.types.Operator):
-    bl_idname = "amagate.ghost_sector_convert"
-    bl_label = "Convert to Ghost Sector"
-    bl_description = "Convert selected objects to ghost sector"
+# 创建虚拟扇区
+class OT_GhostSector_Create(bpy.types.Operator):
+    bl_idname = "amagate.ghost_sector_create"
+    bl_label = "Create Ghost Sector"
+    bl_description = ""
     bl_options = {"UNDO"}
 
     @classmethod
@@ -510,45 +510,48 @@ class OT_GhostSector_Convert(bpy.types.Operator):
         return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
-        original_selection = (
-            context.selected_objects
-        )  # type: list[Object] # type: ignore
-        if not original_selection:
-            self.report({"INFO"}, "No objects selected")
-            return {"CANCELLED"}
+        if "EDIT" in context.mode:
+            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
-        # 非扇区的网格对象
-        mesh_objects = [
-            obj
-            for obj in original_selection
-            if obj.type == "MESH"
-            and not (obj.amagate_data.is_sector or obj.amagate_data.is_gho_sector)
-        ]  # type: list[Object] # type: ignore
-        if not mesh_objects:
-            self.report({"INFO"}, "No mesh objects selected")
-            return {"CANCELLED"}
+        bpy.ops.mesh.primitive_plane_add()
+        gsec = context.active_object
+        mesh = gsec.data  # type: bpy.types.Mesh # type: ignore
+        # 确保法线向下
+        if mesh.polygons[0].normal.dot(Vector((0, 0, 1))) > 0:
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            bmesh.ops.reverse_faces(bm, faces=bm.faces)  # type: ignore
+            bm.to_mesh(mesh)
+            bm.free()
 
-        for obj in mesh_objects:
-            # 设置视图属性
-            obj.color = (1.0, 0.3, 0, 1)
-            obj.hide_render = True
-            obj.visible_camera = False
-            obj.visible_shadow = False
-            obj.display.show_shadows = False
-            obj.display_type = "WIRE"
-            # 重命名
-            name = f"SectorGhost"
-            obj.rename(name, mode="SAME_ROOT")
-            obj.data.rename(name, mode="SAME_ROOT")
-            coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+        # 移动到当前视图焦点
+        rv3d = context.region_data
+        gsec.location = rv3d.view_location.to_tuple(0)
+
+        # 设置视图属性
+        gsec.color = (1.0, 0.3, 0, 1)
+        gsec.hide_render = True
+        gsec.visible_camera = False
+        gsec.visible_shadow = False
+        gsec.display.show_shadows = False
+        gsec.display_type = "WIRE"
+        # 重命名
+        name = f"SectorGhost"
+        gsec.rename(name, mode="SAME_ROOT")
+        gsec.data.rename(name, mode="SAME_ROOT")
+        coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+        # 链接到集合
+        if coll not in gsec.users_collection:
+            # 清除集合
+            gsec.users_collection[0].objects.unlink(gsec)
             # 链接到集合
-            if coll not in obj.users_collection:
-                # 清除集合
-                obj.users_collection[0].objects.unlink(obj)
-                # 链接到集合
-                data.link2coll(obj, coll)
-            #
-            obj.amagate_data.is_gho_sector = True
+            data.link2coll(gsec, coll)
+        #
+        gsec.amagate_data.set_ghost_sector_data()
+        gsec_data = gsec.amagate_data.get_ghost_sector_data()
+        # 添加修改器
+        modifier = gsec.modifiers.new("", type="SOLIDIFY")
+        modifier.thickness = gsec_data.height  # type: ignore
 
         return {"FINISHED"}
 
@@ -1655,6 +1658,97 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         if self.undo:
             bpy.ops.ed.undo_push(message="Separate Convex")
         return ret
+
+
+# 导出虚拟扇区
+class OT_GhostSectorExport(bpy.types.Operator):
+    bl_idname = "amagate.ghost_sector_export"
+    bl_label = "Export Ghost Sector"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
+
+    def execute(self, context: Context):
+        # 检查是否为无标题文件
+        if not bpy.data.filepath:
+            self.report({"WARNING"}, "Please save the file first")
+            return {"CANCELLED"}
+
+        coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+        gho_sectors = [
+            obj
+            for obj in coll.all_objects
+            if obj.amagate_data.is_gho_sector
+            and len(obj.data.polygons) == 1  # type: ignore
+            and abs((obj.matrix_world.to_quaternion() @ obj.data.polygons[0].normal).dot(Vector((0, 0, 1)))) > epsilon2  # type: ignore
+        ]
+        if not gho_sectors:
+            self.report(
+                {"INFO"},
+                "No export, ensure that the mesh of the Ghost sector has only one face with its normal parallel to the Z-axis",
+            )
+            return {"CANCELLED"}
+
+        sf_file = os.path.join(os.path.dirname(bpy.data.filepath), "AG_GhostSector.sf")
+        z_axis = Vector((0, 0, 1))
+        buff = StringIO()
+        count = 0
+        for gsec in gho_sectors:
+            depsgraph = context.evaluated_depsgraph_get()
+            evaluated_obj = gsec.evaluated_get(depsgraph)
+            mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
+            bm = bmesh.new()
+            bm.from_mesh(mesh)
+            #
+            bmesh.ops.recalc_face_normals(bm, faces=bm.faces)  # type: ignore
+            roof = next((f for f in bm.faces if f.normal.dot(z_axis) > epsilon2), None)
+            floor = next(
+                (f for f in bm.faces if f.normal.dot(-z_axis) > epsilon2), None
+            )
+            if not roof or not floor:
+                bm.free()
+                continue
+            #
+            matrix = gsec.matrix_world.copy()
+            #
+            buff.write("BeginGhostSector\n")
+            buff.write(f"  Name => {gsec.name}\n")
+            buff.write(f"  FloorHeight => {(matrix @ floor.verts[0].co).z:.2f}\n")
+            buff.write(f"  RoofHeight => {(matrix @ roof.verts[0].co).z:.2f}\n")
+            for v in roof.verts:
+                co = (matrix @ v.co).to_tuple(2)
+                buff.write(f"  Vertex => {co[0]} {-co[1]}\n")
+            buff.write("  Grupo => Grupo1\n")
+            buff.write("  Sonido => Sonido1\n")
+            buff.write("  Volumen => 1.0\n")
+            buff.write("  VolumenBase => 1.0\n")
+            buff.write("  DistanciaMinima => 1000\n")
+            buff.write("  DistanciaMaxima => 20000\n")
+            buff.write("  DistMaximaVertical => 20000\n")
+            buff.write("  Escala => 1.0\n")
+            buff.write("EndGhostSector\n\n")
+            #
+            count += 1
+            bm.free()
+        #
+        if count != 0:
+            with open(sf_file, "w", encoding="utf-8") as f:
+                f.write(f"NumGhostSectors => {count}\n\n")
+                f.write(buff.getvalue())
+
+            self.report(
+                {"INFO"}, f"{pgettext('The number of Ghost sector exports')}: {count}"
+            )
+            return {"FINISHED"}
+        else:
+            self.report(
+                {"INFO"},
+                "No export, ensure that the mesh of the Ghost sector has only one face with its normal parallel to the Z-axis",
+            )
+            return {"CANCELLED"}
 
 
 ############################

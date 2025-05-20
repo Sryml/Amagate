@@ -492,6 +492,11 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
     # TODO
 
 
+# 虚拟扇区属性
+class GhostSectorProperty(bpy.types.PropertyGroup):
+    height: FloatProperty(name="Height", default=2, min=0.01)  # type: ignore
+
+
 # 扇区属性
 class SectorProperty(bpy.types.PropertyGroup):
     target: StringProperty(name="Target", default="Sector")  # type: ignore
@@ -968,9 +973,11 @@ class SectorProperty(bpy.types.PropertyGroup):
 # 物体属性
 class ObjectProperty(bpy.types.PropertyGroup):
     SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
+    GhostSectorData: CollectionProperty(type=GhostSectorProperty)  # type: ignore
     is_sector: BoolProperty(default=False)  # type: ignore
     is_gho_sector: BoolProperty(default=False)  # type: ignore
 
+    ############################
     def get_sector_data(self) -> SectorProperty:
         if len(self.SectorData) == 0:
             return None  # type: ignore
@@ -980,6 +987,17 @@ class ObjectProperty(bpy.types.PropertyGroup):
         if not self.SectorData:
             self.SectorData.add()
             # return self.SectorData[0]
+
+    ############################
+    def get_ghost_sector_data(self) -> GhostSectorProperty:
+        if len(self.GhostSectorData) == 0:
+            return None  # type: ignore
+        return self.GhostSectorData[0]
+
+    def set_ghost_sector_data(self):
+        if not self.GhostSectorData:
+            self.GhostSectorData.add()
+            self.is_gho_sector = True
 
 
 ############################

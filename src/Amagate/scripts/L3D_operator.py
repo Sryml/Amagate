@@ -872,7 +872,7 @@ class OT_PolyPath(bpy.types.Operator):
 
     def execute(self, context: Context):
         if "EDIT" in context.mode:
-            bpy.ops.object.mode_set(mode="OBJECT")  # 编辑模式
+            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
 
         curve_data = bpy.data.curves.new(
             "PolyPath", type="CURVE"
@@ -1171,6 +1171,10 @@ class OT_ExportMap(bpy.types.Operator):
     more: BoolProperty(default=False)  # type: ignore
     prop: PointerProperty(type=ExportMap_Prop)  # type: ignore
     #
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def draw(self, context):
         layout = self.layout

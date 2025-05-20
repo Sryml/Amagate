@@ -535,6 +535,8 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
 
         # 多线段路径 Poly Path
         col.operator(OP_L3D.OT_PolyPath.bl_idname, icon="CURVE_PATH")
+        # 创建虚拟扇区
+        col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname)
 
         #
         box = layout.box()
@@ -544,15 +546,8 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         #     text=f"{pgettext('Selected Sector')}: {len(selected_sectors)} / {len(context.selected_objects)}"
         # )
 
-        # TODO 创建路径，创建并设置样条类型为多线段
-
-        row = col.row()
         # 转换为扇区
-        row.operator(
-            OP_SECTOR.OT_Sector_Convert.bl_idname, text="To Sector", icon="MESH_CUBE"
-        )
-        # 转换为虚拟扇区
-        row.operator(OP_SECTOR.OT_GhostSector_Convert.bl_idname, text="To Ghost Sector")
+        col.operator(OP_SECTOR.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
 
         # 分离为凸部分
         row = col.row(align=True)
@@ -1117,12 +1112,14 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         )
         op.target = "new"  # type: ignore
         op.execute_type = 0  # type: ignore
-
+        # 导出地图
         row = layout.row(align=True)
         row.enabled = scene_data.is_blade
         row.operator(OP_L3D.OT_ExportMap.bl_idname, icon="EXPORT")
         op = row.operator(OP_L3D.OT_ExportMap.bl_idname, text="", icon="DOWNARROW_HLT")
         op.more = True  # type: ignore
+        # 导出虚拟扇区
+        layout.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")
 
 
 ############################
