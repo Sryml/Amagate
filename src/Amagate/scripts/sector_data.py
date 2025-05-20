@@ -136,17 +136,20 @@ class TextureProperty(bpy.types.PropertyGroup):
                     update = False
                     sec = item[2]
                     sec_data = sec.amagate_data.get_sector_data()
-                    layers = item[0].faces.layers.int.get(f"amagate_tex_id")
+                    bm = item[0]
                     faces = []
-                    for face in item[1]:
-                        amagate_flag = item[0].faces.layers.int.get(f"amagate_flag")
+
+                    layers = bm.faces.layers.int.get(f"amagate_tex_id")
+                    selected_faces = ag_utils.expand_conn(item[1], bm)
+                    for face in selected_faces:
+                        amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                         face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             faces.append(face)
                             update = True
                     if faces:
-                        sec_data.set_matslot(mat, faces, item[0])
+                        sec_data.set_matslot(mat, faces, bm)
                     if update:
                         sec.update_tag()
             # 修改预设纹理的情况
@@ -223,8 +226,11 @@ class TextureProperty(bpy.types.PropertyGroup):
                     update = False
                     sec = item[2]
                     sec_data = sec.amagate_data.get_sector_data()
+                    bm = item[0]
+
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
-                    for face in item[1]:
+                    selected_faces = ag_utils.expand_conn(item[1], bm)
+                    for face in selected_faces:
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True
@@ -307,9 +313,12 @@ class TextureProperty(bpy.types.PropertyGroup):
                     update = False
                     sec = item[2]
                     sec_data = sec.amagate_data.get_sector_data()
+                    bm = item[0]
+
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
                     layers2 = item[0].faces.layers.float.get(f"amagate_tex_{attr2}")
-                    for face in item[1]:
+                    selected_faces = ag_utils.expand_conn(item[1], bm)
+                    for face in selected_faces:
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True
@@ -390,8 +399,11 @@ class TextureProperty(bpy.types.PropertyGroup):
                     update = False
                     sec = item[2]
                     sec_data = sec.amagate_data.get_sector_data()
+                    bm = item[0]
+
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
-                    for face in item[1]:
+                    selected_faces = ag_utils.expand_conn(item[1], bm)
+                    for face in selected_faces:
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True
@@ -725,11 +737,13 @@ class SectorProperty(bpy.types.PropertyGroup):
         attr = "steep"
         if self.target == "SectorPublic":
             sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            return int(getattr(sec_data, attr))
+            return int(
+                getattr(sec_data, attr)
+            )  # 并不是get回调返回的索引，而是索引对应的ID字符串
         else:
             return self.get(attr, 0)
 
-    def set_steep(self, value):
+    def set_steep(self, value: int):
         from . import L3D_data
 
         ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
@@ -740,7 +754,9 @@ class SectorProperty(bpy.types.PropertyGroup):
         if self.target == "SectorPublic":
             for sec in SELECTED_SECTORS:
                 sec_data = sec.amagate_data.get_sector_data()
-                setattr(sec_data, attr, str(value))
+                setattr(
+                    sec_data, attr, str(value)
+                )  # value是索引，需要转为对应的ID字符串
         else:
             self[attr] = value
 

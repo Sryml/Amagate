@@ -207,8 +207,8 @@ def simulate_keypress(keycode: int):
 
 
 # 获取相连的平展面
-def get_linked_flat(face):  # type: ignore
-    # type: (bmesh.types.BMFace) -> set[int]
+def get_linked_flat(face, bm=None, check_conn=False):  # type: ignore
+    # type: (bmesh.types.BMFace, bmesh.types.BMesh, bool) -> set[int]
     visited = set()  # 初始化已访问集合
     stack = [face]  # type: list[bmesh.types.BMFace]
     normal = face.normal.copy()
@@ -225,6 +225,18 @@ def get_linked_flat(face):  # type: ignore
                             f2.normal.dot(normal) > epsilon2
                         ):  # 使用阈值来判断法线是否相同
                             stack.append(f2)
+    #
+    if check_conn:
+        layers = bm.faces.layers.int.get("amagate_connected")
+        bm.faces.ensure_lookup_table()
+        for i in visited:
+            face = bm.faces[i]
+            if face[layers] != 0:  # type: ignore
+                break
+        # 如果没有发生break
+        else:
+            return {face.index}
+
     return visited
 
 
@@ -1113,6 +1125,26 @@ def steep_check(sec: Object):
         sec_data.steep_check = True
     else:
         sec_data.steep_check = False
+
+
+# 扩展连接面
+def expand_conn(faces, bm):
+    # type: (list[bmesh.types.BMFace], bmesh.types.BMesh) -> list[bmesh.types.BMFace]
+    selected_faces = []
+    stack = set(faces)
+    while stack:
+        face = stack.pop()
+
+        flat_idx = get_linked_flat(face, bm, check_conn=True)
+        if len(flat_idx) > 1:
+            flat_faces = [bm.faces[i] for i in flat_idx]
+            stack.difference_update(flat_faces)
+        else:
+            flat_faces = [face]
+
+        selected_faces.extend(flat_faces)
+
+    return selected_faces
 
 
 ############################

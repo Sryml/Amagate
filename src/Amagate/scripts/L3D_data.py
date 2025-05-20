@@ -1550,10 +1550,11 @@ class SceneProperty(bpy.types.PropertyGroup):
     def set_face_type(self, value):
         identifier = self.bl_rna.properties["face_type"].enum_items[value].identifier  # type: ignore
         # 选择的面
-        selected_faces = SELECTED_FACES
-        for item in selected_faces:
-            layers = item[0].faces.layers.int.get("amagate_flag")
-            for face in item[1]:
+        for item in SELECTED_FACES:
+            bm = item[0]
+            layers = bm.faces.layers.int.get("amagate_flag")
+            selected_faces = ag_utils.expand_conn(item[1], bm)
+            for face in selected_faces:
                 face[layers] = FACE_FLAG[identifier]  # type: ignore
 
     ############################
