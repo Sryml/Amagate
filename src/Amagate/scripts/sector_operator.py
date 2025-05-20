@@ -460,7 +460,8 @@ class OT_Sector_Convert(bpy.types.Operator):
         mesh_objects = [
             obj
             for obj in original_selection
-            if obj.type == "MESH" and (not obj.amagate_data.is_sector)
+            if obj.type == "MESH"
+            and not (obj.amagate_data.is_sector or obj.amagate_data.is_gho_sector)
         ]  # type: list[Object] # type: ignore
         if not mesh_objects:
             self.report({"INFO"}, "No mesh objects selected")
@@ -494,6 +495,61 @@ class OT_Sector_Convert(bpy.types.Operator):
                 sector_data = obj.amagate_data.get_sector_data()
                 sector_data.init()
         # data.area_redraw("VIEW_3D")
+        return {"FINISHED"}
+
+
+# 转换为虚拟扇区
+class OT_GhostSector_Convert(bpy.types.Operator):
+    bl_idname = "amagate.ghost_sector_convert"
+    bl_label = "Convert to Ghost Sector"
+    bl_description = "Convert selected objects to ghost sector"
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
+
+    def execute(self, context: Context):
+        original_selection = (
+            context.selected_objects
+        )  # type: list[Object] # type: ignore
+        if not original_selection:
+            self.report({"INFO"}, "No objects selected")
+            return {"CANCELLED"}
+
+        # 非扇区的网格对象
+        mesh_objects = [
+            obj
+            for obj in original_selection
+            if obj.type == "MESH"
+            and not (obj.amagate_data.is_sector or obj.amagate_data.is_gho_sector)
+        ]  # type: list[Object] # type: ignore
+        if not mesh_objects:
+            self.report({"INFO"}, "No mesh objects selected")
+            return {"CANCELLED"}
+
+        for obj in mesh_objects:
+            # 设置视图属性
+            obj.color = (1.0, 0.3, 0, 1)
+            obj.hide_render = True
+            obj.visible_camera = False
+            obj.visible_shadow = False
+            obj.display.show_shadows = False
+            obj.display_type = "WIRE"
+            # 重命名
+            name = f"SectorGhost"
+            obj.rename(name, mode="SAME_ROOT")
+            obj.data.rename(name, mode="SAME_ROOT")
+            coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+            # 链接到集合
+            if coll not in obj.users_collection:
+                # 清除集合
+                obj.users_collection[0].objects.unlink(obj)
+                # 链接到集合
+                data.link2coll(obj, coll)
+            #
+            obj.amagate_data.is_gho_sector = True
+
         return {"FINISHED"}
 
 

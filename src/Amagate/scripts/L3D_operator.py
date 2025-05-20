@@ -1004,7 +1004,7 @@ class OT_InitMap(bpy.types.Operator):
         scene_data.id = 1
         ## 创建集合
         L3D_data.ensure_collection(L3D_data.C_COLL, hide_select=True)
-        L3D_data.ensure_collection(L3D_data.GS_COLL)
+        L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
         L3D_data.ensure_collection(L3D_data.S_COLL)
         L3D_data.ensure_collection(L3D_data.E_COLL)
         L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)

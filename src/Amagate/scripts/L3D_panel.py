@@ -546,8 +546,13 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
 
         # TODO 创建路径，创建并设置样条类型为多线段
 
+        row = col.row()
         # 转换为扇区
-        col.operator(OP_SECTOR.OT_Sector_Convert.bl_idname, icon="MESH_CUBE")
+        row.operator(
+            OP_SECTOR.OT_Sector_Convert.bl_idname, text="To Sector", icon="MESH_CUBE"
+        )
+        # 转换为虚拟扇区
+        row.operator(OP_SECTOR.OT_GhostSector_Convert.bl_idname, text="To Ghost Sector")
 
         # 分离为凸部分
         row = col.row(align=True)
@@ -568,7 +573,9 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         # split = row.split(factor=0.5)
         # 连接扇区
         row_1 = row.row(align=True)
-        op = row_1.operator(OP_SECTOR.OT_Sector_Connect.bl_idname, icon="AREA_JOIN")
+        op = row_1.operator(
+            OP_SECTOR.OT_Sector_Connect.bl_idname, text="Connect", icon="AREA_JOIN"
+        )
         op.is_button = True  # type: ignore
         row_1.operator(
             OP_SECTOR.OT_Sector_Connect_More.bl_idname, text="", icon="DOWNARROW_HLT"

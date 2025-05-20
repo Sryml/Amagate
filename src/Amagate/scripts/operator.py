@@ -329,40 +329,6 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
         ].preferences  # type: data.AmagatePreferences # type: ignore
         file_format = pref.cubemap_out_format
 
-        # 保存设置
-        # settings = {
-        #     "scene.render.engine": scene.render.engine,
-        #     "cycles.device": cycles.device,
-        #     "cycles.use_adaptive_sampling": cycles.use_adaptive_sampling,
-        #     "cycles.adaptive_threshold": cycles.adaptive_threshold,
-        #     "cycles.samples": cycles.samples,
-        #     "cycles.adaptive_min_samples": cycles.adaptive_min_samples,
-        #     "cycles.time_limit": cycles.time_limit,
-        #     "cycles.use_denoising": cycles.use_denoising,
-        #     "cycles.denoiser": cycles.denoiser,
-        #     "cycles.denoising_input_passes": cycles.denoising_input_passes,
-        #     "cycles.denoising_prefilter": cycles.denoising_prefilter,
-        #     "scene.view_settings.view_transform": scene.view_settings.view_transform,
-        #     "scene.view_settings.look": scene.view_settings.look,
-        #     "scene.view_settings.exposure": scene.view_settings.exposure,
-        #     "scene.view_settings.gamma": scene.view_settings.gamma,
-        #     "scene.render.use_border": scene.render.use_border,
-        #     "scene.render.pixel_aspect_x": scene.render.pixel_aspect_x,
-        #     "scene.render.pixel_aspect_y": scene.render.pixel_aspect_y,
-        #     "scene.render.resolution_percentage": scene.render.resolution_percentage,
-        #     "scene.render.resolution_x": scene.render.resolution_x,
-        #     "scene.render.resolution_y": scene.render.resolution_y,
-        #     "scene.render.image_settings.color_management": scene.render.image_settings.color_management,
-        #     "scene.render.filepath": scene.render.filepath,
-        #     "scene.render.image_settings.file_format": scene.render.image_settings.file_format,
-        #     "scene.render.image_settings.quality": scene.render.image_settings.quality,
-        #     "scene.render.image_settings.color_mode": scene.render.image_settings.color_mode,
-        #     "scene.render.image_settings.compression": scene.render.image_settings.compression,
-        #     "scene.render.image_settings.color_depth": scene.render.image_settings.color_depth,
-        #     "scene.render.image_settings.exr_codec": scene.render.image_settings.exr_codec,
-        #     "scene.render.use_file_extension": scene.render.use_file_extension,
-        # }
-
         directory = self.directory.replace("\\", "/")
         if directory.endswith("/"):
             dir_name = directory.split("/")[-2]

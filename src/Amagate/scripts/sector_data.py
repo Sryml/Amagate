@@ -963,6 +963,7 @@ class SectorProperty(bpy.types.PropertyGroup):
 class ObjectProperty(bpy.types.PropertyGroup):
     SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
     is_sector: BoolProperty(default=False)  # type: ignore
+    is_gho_sector: BoolProperty(default=False)  # type: ignore
 
     def get_sector_data(self) -> SectorProperty:
         if len(self.SectorData) == 0:
