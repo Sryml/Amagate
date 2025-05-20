@@ -949,7 +949,7 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
         row = layout.row()
         row_1 = row.row()
         row_1.alignment = "LEFT"
-        row_1.label(text=f"{pgettext('Face type')}:")
+        row_1.label(text=f"{pgettext('Texture type')}:")
         row_1 = row.row()
         row_1.prop(scene_data, "face_type", text="")
 

@@ -140,9 +140,9 @@ class TextureProperty(bpy.types.PropertyGroup):
                     faces = []
 
                     layers = bm.faces.layers.int.get(f"amagate_tex_id")
+                    amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                     selected_faces = ag_utils.expand_conn(item[1], bm)
                     for face in selected_faces:
-                        amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                         face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
@@ -229,8 +229,10 @@ class TextureProperty(bpy.types.PropertyGroup):
                     bm = item[0]
 
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                     selected_faces = ag_utils.expand_conn(item[1], bm)
                     for face in selected_faces:
+                        face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True
@@ -317,8 +319,10 @@ class TextureProperty(bpy.types.PropertyGroup):
 
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
                     layers2 = item[0].faces.layers.float.get(f"amagate_tex_{attr2}")
+                    amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                     selected_faces = ag_utils.expand_conn(item[1], bm)
                     for face in selected_faces:
+                        face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True
@@ -402,8 +406,10 @@ class TextureProperty(bpy.types.PropertyGroup):
                     bm = item[0]
 
                     layers = item[0].faces.layers.float.get(f"amagate_tex_{attr}")
+                    amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
                     selected_faces = ag_utils.expand_conn(item[1], bm)
                     for face in selected_faces:
+                        face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
                         if face[layers] != value:  # type: ignore
                             face[layers] = value  # type: ignore
                             update = True

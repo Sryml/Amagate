@@ -155,7 +155,7 @@
     ("*", "Is Too Steep"): "是否陡峭",
     ("*", "Face Properties"): "面属性",
     ("*", "Connected Sector"): "连接的扇区",
-    ("*", "Face type"): "面类型",
+    ("*", "Texture type"): "纹理类型",
     #
     # 工具面板
     ("Operator", "New Map"): "新建地图",

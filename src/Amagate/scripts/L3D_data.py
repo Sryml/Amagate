@@ -1551,11 +1551,35 @@ class SceneProperty(bpy.types.PropertyGroup):
         identifier = self.bl_rna.properties["face_type"].enum_items[value].identifier  # type: ignore
         # 选择的面
         for item in SELECTED_FACES:
+            sec = item[2]
+            sec_data = sec.amagate_data.get_sector_data()
             bm = item[0]
+            if identifier != "Custom":
+                tex_prop = sec_data.textures[identifier]
+                tex_id = tex_prop.id
+                tex = get_texture_by_id(tex_id)[1]
+                attr_list = (
+                    (bm.faces.layers.int.get("amagate_tex_id"), tex_id),
+                    (bm.faces.layers.float.get("amagate_tex_xpos"), tex_prop.xpos),
+                    (bm.faces.layers.float.get("amagate_tex_ypos"), tex_prop.ypos),
+                    (bm.faces.layers.float.get("amagate_tex_xzoom"), tex_prop.xzoom),
+                    (bm.faces.layers.float.get("amagate_tex_yzoom"), tex_prop.yzoom),
+                    (bm.faces.layers.float.get("amagate_tex_angle"), tex_prop.angle),
+                )
+
             layers = bm.faces.layers.int.get("amagate_flag")
             selected_faces = ag_utils.expand_conn(item[1], bm)
             for face in selected_faces:
                 face[layers] = FACE_FLAG[identifier]  # type: ignore
+                #
+                if identifier != "Custom":
+                    for layers, value in attr_list:
+                        face[layers] = value  # type: ignore
+            #
+            if identifier != "Custom":
+                sec_data.set_matslot(ensure_material(tex), selected_faces, bm)
+                sec.update_tag()
+        data.area_redraw("VIEW_3D")
 
     ############################
     def init(self):
