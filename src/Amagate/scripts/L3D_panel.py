@@ -13,6 +13,7 @@ from bpy.app.translations import pgettext
 
 from . import data, L3D_data
 from . import L3D_operator as OP_L3D
+from . import L3D_ext_operator as OP_L3D_EXT
 from . import sector_operator as OP_SECTOR
 from . import ag_utils
 
@@ -1115,8 +1116,10 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         # 导出地图
         row = layout.row(align=True)
         row.enabled = scene_data.is_blade
-        row.operator(OP_L3D.OT_ExportMap.bl_idname, icon="EXPORT")
-        op = row.operator(OP_L3D.OT_ExportMap.bl_idname, text="", icon="DOWNARROW_HLT")
+        row.operator(OP_L3D_EXT.OT_ExportMap.bl_idname, icon="EXPORT")
+        op = row.operator(
+            OP_L3D_EXT.OT_ExportMap.bl_idname, text="", icon="DOWNARROW_HLT"
+        )
         op.more = True  # type: ignore
         # 导出虚拟扇区
         layout.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")

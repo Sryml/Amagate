@@ -240,6 +240,26 @@ def get_linked_flat(face, bm=None, check_conn=False):  # type: ignore
     return visited
 
 
+# 获取相连的平展面 (2d)
+def get_linked_flat_2d(face, limit_edge=None):  # type: ignore
+    # type: (bmesh.types.BMFace, list[bmesh.types.BMEdge]) -> list[bmesh.types.BMFace]
+    visited = []  # 初始化已访问集合
+    stack = [face]  # type: list[bmesh.types.BMFace]
+
+    while stack:
+        f = stack.pop()
+        if f not in visited:
+            visited.append(f)
+
+            for e in f.edges:
+                if e in limit_edge:
+                    continue
+                for f2 in e.link_faces:
+                    if f2 not in visited:  # 避免重复访问
+                        stack.append(f2)
+    return visited
+
+
 # 获取在同一直线的相连边
 def get_edges_along_line(edge, limit_face=None):  # type: ignore
     # type: (bmesh.types.BMEdge, bmesh.types.BMFace) -> list[int]
@@ -1135,7 +1155,7 @@ def expand_conn(faces, bm):
     while stack:
         face = stack.pop()
 
-        flat_idx = get_linked_flat(face, bm, check_conn=True)
+        flat_idx = get_linked_flat(face, bm=bm, check_conn=True)
         if len(flat_idx) > 1:
             flat_faces = [bm.faces[i] for i in flat_idx]
             stack.difference_update(flat_faces)
@@ -1145,6 +1165,9 @@ def expand_conn(faces, bm):
         selected_faces.extend(flat_faces)
 
     return selected_faces
+
+
+############################
 
 
 ############################

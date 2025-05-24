@@ -609,6 +609,13 @@ class OT_Sector_Connect(bpy.types.Operator):
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             sec_data.mesh_unique()
+            # 应用不均匀缩放
+            scale = sec.scale
+            if scale.x != scale.y or scale.x != scale.z:
+                ag_utils.select_active(context, sec)
+                bpy.ops.object.transform_apply(
+                    location=False, rotation=False, scale=True
+                )
 
         self.connect(context, selected_sectors)
 
@@ -651,23 +658,43 @@ class OT_Sector_Connect(bpy.types.Operator):
                 matrix_2 = sec_2.matrix_world
                 mesh_2 = sec_2.data  # type: bpy.types.Mesh # type: ignore
                 #
-                sec_bm_1 = bm_simplify.get(sec_idx_1)
-                if sec_bm_1 is None:
-                    bm = bmesh.new()
-                    bm.from_mesh(mesh_1)
-                    # 融并面及反细分边，删除连接面
-                    ag_utils.dissolve_unsubdivide(bm, del_connected=True)
-                    sec_bm_1 = bm_simplify.setdefault(sec_idx_1, bm)
-
-                sec_bm_2 = bm_simplify.get(sec_idx_2)
-                if sec_bm_2 is None:
-                    bm = bmesh.new()
-                    bm.from_mesh(mesh_2)
-                    # 融并面及反细分边，删除连接面
-                    ag_utils.dissolve_unsubdivide(bm, del_connected=True)
-                    sec_bm_2 = bm_simplify.setdefault(sec_idx_2, bm)
+                sec_bm_1 = bmesh.new()
+                sec_bm_1.from_mesh(mesh_1)
+                layer = sec_bm_1.faces.layers.int.get("amagate_connected")
+                for face in sec_bm_1.faces:
+                    if face[layer] != 0:  # type: ignore
+                        bmesh.ops.delete(sec_bm_1, geom=[face], context="FACES")
                 #
-                has_connect = False  # 是否有连接
+                sec_bm_2 = bmesh.new()
+                sec_bm_2.from_mesh(mesh_2)
+                layer = sec_bm_2.faces.layers.int.get("amagate_connected")
+                for face in sec_bm_2.faces:
+                    if face[layer] != 0:  # type: ignore
+                        bmesh.ops.delete(sec_bm_2, geom=[face], context="FACES")
+                #
+                # sec_bm_1 = bm_simplify.get(sec_idx_1)
+                # if sec_bm_1 is None:
+                #     bm = bmesh.new()
+                #     bm.from_mesh(mesh_1)
+                #     # 删除连接面
+                #     layer = bm.faces.layers.int.get("amagate_connected")
+                #     for face in bm.faces:
+                #         if face[layer] != 0:  # type: ignore
+                #             bmesh.ops.delete(bm, geom=[face], context="FACES")
+                #     sec_bm_1 = bm_simplify.setdefault(sec_idx_1, bm)
+
+                # sec_bm_2 = bm_simplify.get(sec_idx_2)
+                # if sec_bm_2 is None:
+                #     bm = bmesh.new()
+                #     bm.from_mesh(mesh_2)
+                #     # 删除连接面
+                #     layer = bm.faces.layers.int.get("amagate_connected")
+                #     for face in bm.faces:
+                #         if face[layer] != 0:  # type: ignore
+                #             bmesh.ops.delete(bm, geom=[face], context="FACES")
+                #     sec_bm_2 = bm_simplify.setdefault(sec_idx_2, bm)
+                #
+                has_coplane = False  # 是否找到共平面
                 for face_1 in sec_bm_1.faces:
                     normal_1 = matrix_1.to_quaternion() @ face_1.normal
                     for face_2 in sec_bm_2.faces:
@@ -682,39 +709,52 @@ class OT_Sector_Connect(bpy.types.Operator):
                         co2 = matrix_2 @ face_2.verts[0].co
                         dir = (co2 - co1).normalized()
                         # 如果顶点不是在同一平面，跳过
-                        if abs(dir.dot(normal_1)) > epsilon:
+                        dot = abs(dir.dot(normal_1))
+                        # ag_utils.debugprint("dot", dot)
+                        if dot > epsilon:
                             continue
+
+                        has_coplane = True
+                        # 获取平展面
+                        sec_bm_1.faces.ensure_lookup_table()
+                        sec_bm_2.faces.ensure_lookup_table()
+                        flat_face_1 = ag_utils.get_linked_flat(face_1)
+                        flat_face_2 = ag_utils.get_linked_flat(face_2)
 
                         sec_info = [
                             {
                                 "sec": sec_1,
-                                "bm_face": face_1,
+                                "bm": sec_bm_1,
+                                "bm_face": [sec_bm_1.faces[i] for i in flat_face_1],
                                 "flat_info": (),
                                 "is_sky": False,
                             },
                             {
                                 "sec": sec_2,
-                                "bm_face": face_2,
+                                "bm": sec_bm_2,
+                                "bm_face": [sec_bm_2.faces[i] for i in flat_face_2],
                                 "flat_info": (),
                                 "is_sky": False,
                             },
                         ]
-
+                        # ag_utils.debugprint("get_knife")
                         # 获取刀具
                         knife, knife_bm = self.get_knife(context, sec_info)
+                        # return
                         if knife is None:
                             continue
-
                         # 交集(切割)
                         for i, face in enumerate((face_1, face_2)):
                             normal = face.normal.copy()
                             dist = face.verts[0].co.dot(normal)
                             sec_info[i]["flat_info"] = (dist, normal)
                         self.intersect(context, sec_info, knife)
+                        # return
                         # 比较连接面
                         has_connect, connect_face_idx = self.compare_face(
                             context, sec_info, knife_bm
                         )
+                        # return
                         if has_connect:
                             if connect_face_idx[0] != -1:
                                 mesh_1.attributes["amagate_connected"].data[connect_face_idx[0]].value = sec_data_2.id  # type: ignore
@@ -728,17 +768,20 @@ class OT_Sector_Connect(bpy.types.Operator):
                         #
                         knife_bm.free()
 
-                        bmesh.ops.delete(sec_bm_1, geom=[face_1], context="FACES")
-                        bmesh.ops.delete(sec_bm_2, geom=[face_2], context="FACES")
+                        # bmesh.ops.delete(sec_bm_1, geom=[face_1], context="FACES")
+                        # bmesh.ops.delete(sec_bm_2, geom=[face_2], context="FACES")
 
                         break
 
-                    if has_connect:
+                    if has_coplane:
                         break
+
+                sec_bm_1.free()
+                sec_bm_2.free()
 
         # 清理
-        for bm in bm_simplify.values():
-            bm.free()
+        # for bm in bm_simplify.values():
+        #     bm.free()
 
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
@@ -746,22 +789,28 @@ class OT_Sector_Connect(bpy.types.Operator):
     def get_knife(self, context: Context, sec_info) -> tuple[Object, bmesh.types.BMesh]:
         """获取刀具"""
         sec_1 = sec_info[0]["sec"]  # type: Object
-        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_1 = sec_info[0]["bm_face"]  # type: list[bmesh.types.BMFace]
         sec_2 = sec_info[1]["sec"]  # type: Object
-        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_2 = sec_info[1]["bm_face"]  # type: list[bmesh.types.BMFace]
 
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
 
-        proj_normal = matrix_1.to_quaternion() @ face_1.normal
+        proj_normal = matrix_1.to_quaternion() @ flat_face_1[0].normal
 
         knife_bm = bmesh.new()
-        for v in face_1.verts:
-            knife_bm.verts.new(matrix_1 @ v.co)
-        knife_bm.faces.new(knife_bm.verts[: len(face_1.verts)])
-        for v in face_2.verts:
-            knife_bm.verts.new(matrix_2 @ v.co)
-        knife_bm.faces.new(knife_bm.verts[len(face_1.verts) :])
+        verts_map = {}
+        for f in flat_face_1:
+            for v in f.verts:
+                if v.index not in verts_map:
+                    verts_map[v.index] = knife_bm.verts.new(matrix_1 @ v.co)
+            knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+        verts_map = {}
+        for f in flat_face_2:
+            for v in f.verts:
+                if v.index not in verts_map:
+                    verts_map[v.index] = knife_bm.verts.new(matrix_2 @ v.co)
+            knife_bm.faces.new([verts_map[v.index] for v in f.verts])
         #
         knife_mesh = bpy.data.meshes.new("AG.knife")
         knife_bm.to_mesh(knife_mesh)
@@ -779,12 +828,13 @@ class OT_Sector_Connect(bpy.types.Operator):
         bm_edit = bmesh.from_edit_mesh(knife_mesh)
         bm_edit.faces.ensure_lookup_table()
 
-        bm_face_1, bm_face_2 = bm_edit.faces
+        bm_face_1, bm_face_2 = bm_edit.faces[0], bm_edit.faces[-1]
 
         bm_face_1.select_set(True)
         bmesh.update_edit_mesh(
             knife_mesh, loop_triangles=False, destructive=False
         )  # 更新网格
+        bpy.ops.mesh.select_linked()  # 选择关联项
         bpy.ops.mesh.extrude_region_move(
             TRANSFORM_OT_translate={"value": proj_normal * 0.1}
         )  # 往投影法向挤出并移动10厘米
@@ -792,6 +842,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
         bm_face_2.select_set(True)
         bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
+        bpy.ops.mesh.select_linked()  # 选择关联项
         bpy.ops.transform.translate(value=proj_normal * 0.05)  # 往投影法向移动5厘米
         bpy.ops.mesh.extrude_region_move(
             TRANSFORM_OT_translate={"value": -proj_normal * 0.1}
@@ -806,13 +857,12 @@ class OT_Sector_Connect(bpy.types.Operator):
         bm_face_1.select_set(True)
         bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
         bpy.ops.mesh.select_linked()  # 选择关联项
-
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.mesh.intersect_boolean(
                 operation="INTERSECT", solver="EXACT"
             )  # 布尔交集，准确模式
         # 如果没有交集
-        if len(bm_edit.verts) == 0:
+        if len(bm_edit.faces) == 0:
             bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
             bpy.data.meshes.remove(knife_mesh)  # 删除网格
             return None, None  # type: ignore
@@ -829,7 +879,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 f.select_set(True)
                 break
         bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
-        bpy.ops.mesh.faces_select_linked_flat(sharpness=0.005)  # 选中相连的平展面
+        bpy.ops.mesh.faces_select_linked_flat(sharpness=0.002)  # 选中相连的平展面
 
         bpy.ops.mesh.select_all(action="INVERT")  # 反选
         bpy.ops.mesh.delete(type="FACE")  # 删除面
@@ -839,8 +889,12 @@ class OT_Sector_Connect(bpy.types.Operator):
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.mesh.dissolve_degenerate()
             bpy.ops.mesh.dissolve_degenerate()
-        # 融并面
-        # bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
+        # 再次判断是否有刀具
+        if len(bm_edit.faces) == 0:
+            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
+            bpy.data.meshes.remove(knife_mesh)  # 删除网格
+            # ag_utils.debugprint("no knife")
+            return None, None  # type: ignore
         bmesh.ops.dissolve_faces(
             bm_edit, faces=list(bm_edit.faces), use_verts=False
         )  # 融并面
@@ -869,22 +923,26 @@ class OT_Sector_Connect(bpy.types.Operator):
         knife: Object,
     ):
         sec_1 = sec_info[0]["sec"]  # type: Object
-        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_1 = sec_info[0]["bm_face"]  # type: list[bmesh.types.BMFace]
         sec_2 = sec_info[1]["sec"]  # type: Object
-        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_2 = sec_info[1]["bm_face"]  # type: list[bmesh.types.BMFace]
 
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
         mesh_1 = sec_1.data  # type: bpy.types.Mesh # type: ignore
         mesh_2 = sec_2.data  # type: bpy.types.Mesh # type: ignore
         #
-        proj_normal = matrix_1.to_quaternion() @ face_1.normal
+        # proj_normal = matrix_1.to_quaternion() @ flat_face_1.normal
         knife_mesh = knife.data  # type: bpy.types.Mesh # type: ignore
         knife_pool = [knife]
         #
         knife_verts_set = {v.co.to_tuple(3) for v in knife_mesh.vertices}
-        verts_set_1 = {(matrix_1 @ v.co).to_tuple(3) for v in face_1.verts}
-        verts_set_2 = {(matrix_2 @ v.co).to_tuple(3) for v in face_2.verts}
+        verts_set_1 = {
+            (matrix_1 @ v.co).to_tuple(3) for f in flat_face_1 for v in f.verts
+        }
+        verts_set_2 = {
+            (matrix_2 @ v.co).to_tuple(3) for f in flat_face_2 for v in f.verts
+        }
         #
         cut_1 = cut_2 = True
         if verts_set_1 == knife_verts_set:
@@ -949,7 +1007,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 continue
 
             sec = sec_info[index]["sec"]  # type: Object
-            bm_face = sec_info[index]["bm_face"]
+            faces = sec_info[index]["bm_face"]
             matrix = sec.matrix_world
             quat = matrix.to_quaternion()
             flat_info = sec_info[index]["flat_info"]  # type: tuple[float, Vector]
@@ -957,10 +1015,9 @@ class OT_Sector_Connect(bpy.types.Operator):
             bm_edit = join_knife(knife_pool.pop(), sec, flat_info)
 
             # 如果存在天空纹理，跳过
-            layer = bm_edit.faces.layers.int.get("amagate_tex_id")
-            faces = ag_utils.get_linked_flat(bm_face)
-            for i in faces:
-                if bm_edit.faces[i][layer] == -1:  # type: ignore
+            layer = sec_info[index]["bm"].faces.layers.int.get("amagate_tex_id")
+            for f in faces:
+                if f[layer] == -1:  # type: ignore
                     sec_info[index]["is_sky"] = True
                     bmesh.ops.delete(bm_edit, geom=[bm_edit.faces[-1]], context="FACES")
                     bmesh.update_edit_mesh(mesh)  # 更新网格
@@ -995,8 +1052,8 @@ class OT_Sector_Connect(bpy.types.Operator):
                 ag_utils.debugprint(f"knife face not found in {sec.name}")
                 bpy.ops.mesh.delete(type="FACE")
                 continue
-
             bpy.ops.mesh.select_all(action="INVERT")  # 反选
+            # return
             # 交集(切割)，剪切模式
             bpy.ops.mesh.intersect(mode="SELECT_UNSELECT", separate_mode="CUT")
 
@@ -1032,18 +1089,18 @@ class OT_Sector_Connect(bpy.types.Operator):
         # type: (Context, list , bmesh.types.BMesh) -> tuple[bool, list[int]]
         """比较连接面"""
         sec_1 = sec_info[0]["sec"]  # type: Object
-        face_1 = sec_info[0]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_1 = sec_info[0]["bm_face"]  # type: list[bmesh.types.BMFace]
         sec_2 = sec_info[1]["sec"]  # type: Object
-        face_2 = sec_info[1]["bm_face"]  # type: bmesh.types.BMFace
+        flat_face_2 = sec_info[1]["bm_face"]  # type: list[bmesh.types.BMFace]
 
         matrix_1 = sec_1.matrix_world
         matrix_2 = sec_2.matrix_world
 
-        proj_normal = matrix_1.to_quaternion() @ face_1.normal
+        proj_normal = matrix_1.to_quaternion() @ flat_face_1[0].normal
         #
-        ag_utils.select_active(context, sec_1)  # 单选并设为活动
-        sec_2.select_set(True)
-        bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+        # ag_utils.select_active(context, sec_1)  # 单选并设为活动
+        # sec_2.select_set(True)
+        # bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
         sec_lst = (sec_1, sec_2)
 
         connect_face_idx = [-1, -1]
@@ -1059,7 +1116,12 @@ class OT_Sector_Connect(bpy.types.Operator):
             sec = sec_lst[index]
             sec_matrix = sec.matrix_world
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            ag_utils.select_active(context, sec)  # 单选并设为活动
+            bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+            bpy.ops.mesh.select_mode(type="FACE")  # 面模式
+            #
             bm_edit = bmesh.from_edit_mesh(mesh)
+            layer = bm_edit.faces.layers.int.get("amagate_connected")
             dist = sec_info[index]["flat_info"][0]  # type: float
             normal = sec_info[index]["flat_info"][1]  # type:  Vector
             for f in bm_edit.faces:
@@ -1072,19 +1134,21 @@ class OT_Sector_Connect(bpy.types.Operator):
 
                 bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
                 f.select_set(True)  # 选择面
-                bmesh.update_edit_mesh(
-                    mesh, loop_triangles=False, destructive=False
-                )  # 更新网格
+                bm_edit.select_flush_mode()  # 刷新选择
                 bpy.ops.mesh.faces_select_linked_flat(
-                    sharpness=0.005
+                    sharpness=0.002
                 )  # 选中相连的平展面
+                # 排除连接面
                 select_num = 0
                 for f in bm_edit.faces:
                     if f.select:
-                        select_num += 1
-                    if select_num > 1:
-                        bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
-                        break
+                        if f[layer] != 0:  # type: ignore
+                            f.select_set(False)
+                        else:
+                            select_num += 1
+                bm_edit.select_flush_mode()  # 刷新选择
+                if select_num > 1:
+                    bpy.ops.mesh.vert_connect_concave()  # 拆分凹面
                 connect_faces = [f for f in bm_edit.faces if f.select]
 
                 bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
@@ -1102,12 +1166,30 @@ class OT_Sector_Connect(bpy.types.Operator):
                             hit = True
                         f.select_set(True)
                 if hit:
-                    bmesh.update_edit_mesh(
-                        mesh, loop_triangles=False, destructive=False
-                    )  # 更新网格
+                    bm_edit.select_flush_mode()  # 刷新选择
                     bpy.ops.mesh.dissolve_faces(use_verts=True)  # 融并面
-                    selected_faces = [f for f in bm_edit.faces if f.select]
-                    connect_face = selected_faces[0]
+                    connect_face = next(f for f in bm_edit.faces if f.select)
+                    #
+                    bpy.ops.mesh.faces_select_linked_flat(
+                        sharpness=0.002
+                    )  # 选中相连的平展面
+                    connect_face[layer] = -1  # 作为标记 # type: ignore
+                    connect_face.select_set(False)
+                    for f in bm_edit.faces:
+                        if f.select:
+                            if f[layer] != 0:  # type: ignore
+                                f.select_set(False)
+                    bm_edit.select_flush_mode()  # 刷新选择
+                    # break
+                    # 有限融并
+                    bpy.ops.mesh.dissolve_limited(
+                        angle_limit=0.002, use_dissolve_boundaries=False
+                    )
+                    ag_utils.unsubdivide(bm_edit)  # 反细分边
+                    bmesh.update_edit_mesh(
+                        mesh, loop_triangles=False, destructive=True
+                    )  # 更新网格
+                    connect_face = next(f for f in bm_edit.faces if f[layer] == -1)  # type: ignore
 
                     for v in connect_face.verts:
                         bm_cmp.verts.new(sec_matrix @ v.co)
@@ -1205,7 +1287,10 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                     selected_sectors.remove(sec)
 
             if len(selected_sectors) < 2:
-                self.report({"WARNING"}, "Select at least two non-2d-sphere sectors")
+                self.report(
+                    {"WARNING"},
+                    "Select at least two non-2d-sphere sectors, and the vertex matching portion should be a hole (without faces)",
+                )
                 return {"CANCELLED"}
 
             # 如果没有活跃对象或者活跃对象未选中
