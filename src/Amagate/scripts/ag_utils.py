@@ -207,8 +207,8 @@ def simulate_keypress(keycode: int):
 
 
 # 获取相连的平展面
-def get_linked_flat(face, bm=None, check_conn=False):  # type: ignore
-    # type: (bmesh.types.BMFace, bmesh.types.BMesh, bool) -> set[int]
+def get_linked_flat(face, bm=None, check_conn=False, limit_edge=[]):  # type: ignore
+    # type: (bmesh.types.BMFace, bmesh.types.BMesh, bool, list[bmesh.types.BMEdge]) -> set[int]
     visited = set()  # 初始化已访问集合
     stack = [face]  # type: list[bmesh.types.BMFace]
     normal = face.normal.copy()
@@ -219,6 +219,8 @@ def get_linked_flat(face, bm=None, check_conn=False):  # type: ignore
             visited.add(f.index)
 
             for e in f.edges:
+                if e in limit_edge:
+                    continue
                 for f2 in e.link_faces:
                     if f2.index not in visited:  # 避免重复访问
                         if (
@@ -241,7 +243,7 @@ def get_linked_flat(face, bm=None, check_conn=False):  # type: ignore
 
 
 # 获取相连的平展面 (2d)
-def get_linked_flat_2d(face, limit_edge=None):  # type: ignore
+def get_linked_flat_2d(face, limit_edge=[]):  # type: ignore
     # type: (bmesh.types.BMFace, list[bmesh.types.BMEdge]) -> list[bmesh.types.BMFace]
     visited = []  # 初始化已访问集合
     stack = [face]  # type: list[bmesh.types.BMFace]
@@ -287,19 +289,19 @@ def get_edges_along_line(edge, limit_face=None):  # type: ignore
 
 # 获取共线的子顶点
 def get_sub_verts_along_line(vert, dir):
-    # type: (bmesh.types.BMVert, Vector) -> tuple[list[int], bmesh.types.BMVert]
+    # type: (bmesh.types.BMVert, Vector) -> tuple[list[bmesh.types.BMVert], bmesh.types.BMVert]
     visited = []
     endpoint = None  # type: bmesh.types.BMVert # type: ignore
     stack = [vert]  # type: list[bmesh.types.BMVert]
 
     while stack:
         v = stack.pop()
-        if v.index not in visited:
-            visited.append(v.index)
+        if v not in visited:
+            visited.append(v)
 
             for e in v.link_edges:
                 v2 = e.other_vert(v)  # type: bmesh.types.BMVert
-                if v2.index in visited:  # 避免重复访问
+                if v2 in visited:  # 避免重复访问
                     continue
 
                 link_num = len(v2.link_edges)
@@ -1044,7 +1046,7 @@ def select_active(context: Context, obj: Object):
 def unsubdivide(bm: bmesh.types.BMesh):
     verts_lst = []  # type: list[tuple[list[bmesh.types.BMVert], bmesh.types.BMVert]]
     visited = set()
-    bm.verts.ensure_lookup_table()
+    # bm.verts.ensure_lookup_table()
     for v in bm.verts:
         if v in visited:
             continue
@@ -1054,8 +1056,8 @@ def unsubdivide(bm: bmesh.types.BMesh):
             dir2 = (v.link_edges[1].other_vert(v).co - v.co).normalized()
             # 如果该顶点只连接两条边且共线，则为子顶点
             if dir1.dot(dir2) < -epsilon2:
-                verts_index, endpoint = get_sub_verts_along_line(v, dir1)
-                verts = [bm.verts[i] for i in verts_index]
+                verts, endpoint = get_sub_verts_along_line(v, dir1)
+                # verts = [bm.verts[i] for i in verts_index]
                 verts_lst.append((verts, endpoint))
                 visited.update(verts)
 

@@ -119,10 +119,11 @@ def bisect_plane(bm, plane_no, plane_co):
         clear_outer=False,
     )
     # 获取外部面
+    cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
     cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
     edge = cut_edges[0]
     face1, face2 = edge.link_faces
-    co = next(v.co for v in face1.verts if v not in edge.verts)
+    co = next(v.co for v in face1.verts if v not in cut_verts)
     dir = (co - edge.verts[0].co).normalized()
     if plane_no.dot(dir) > 0:
         outer_face = face1
@@ -219,19 +220,20 @@ def hole_split(bm, hole_dict):
                         polluted_hole.add(conn_sid_2)
                 if clean_hole or polluted_hole:
                     tangent_data.append(
-                        [edge, tangent, dist, clean_hole, polluted_hole]
+                        [edge.verts[0].co, tangent, dist, clean_hole, polluted_hole]
                     )
             # if tangent_data:
             flag = [8003, 1]
-            # 污染数量最少的排前面
-            tangent_data.sort(key=lambda x: len(x[4]))
-            # 清理数量最多的排前面
-            tangent_data.sort(key=lambda x: -len(x[3]))
             # 切割平面
             inner_cut = False
             while tangent_data:
-                edge, tangent, dist, clean_hole, polluted_hole = tangent_data[0]
-                _, outer_bm = bisect_plane(bm, tangent, edge.verts[0].co)
+                # 污染数量最少的排前面
+                tangent_data.sort(key=lambda x: len(x[4]))
+                # 清理数量最多的排前面
+                tangent_data.sort(key=lambda x: -len(x[3]))
+                #
+                plane_co, tangent, dist, clean_hole, polluted_hole = tangent_data[0]
+                _, outer_bm = bisect_plane(bm, tangent, plane_co)
                 if inner_cut:
                     stack.append((outer_bm, 1))
                 else:
@@ -251,6 +253,11 @@ def hole_split(bm, hole_dict):
         else:
             flag = [8001] * count + [8003, 1]
         # 最终的块只剩下一个洞
+        # bm_mesh = bpy.data.meshes.new(f"AG.split")
+        # bm.to_mesh(bm_mesh)
+        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+        # data.link2coll(bm_obj, bpy.context.scene.collection)
+        #
         hole = next(f for f in bm.faces if f[layer] != 0)  # type: ignore
         hole_data = hole_dict[hole[layer]]  # type: ignore
         tangent_idx = []
