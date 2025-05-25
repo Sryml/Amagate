@@ -328,6 +328,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
         if context.active_object not in selected_objects:
             selected_objects.append(context.active_object)
         L3D_data.geometry_modify_post(selected_objects, check_connect=False)
+        L3D_data.update_scene_edit_mode()
 
     # 收集可见的凸扇区
     sectors_dict = scene_data["SectorManage"]["sectors"]
@@ -496,24 +497,23 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 connect_num += 1
                 connect_data = ()
                 normal = matrix_world.to_quaternion() @ face.normal
-                group_face_idx = ag_utils.get_linked_flat(face)
-                conn_face_visited.update(group_face_idx)
+                group_faces = ag_utils.get_linked_flat(face)
+                conn_face_visited.update(group_faces)
 
-                if len(group_face_idx) == 1:
+                if len(group_faces) == 1:
                     face_type = 7002  # 整个面是连接的
                     verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
                     connect_data = (connected_sid,)
                 else:
                     conn_face_num = 0
                     hole_dict = {}  # type: Any
-                    for i in group_face_idx:
-                        conn_sid = mesh.attributes["amagate_connected"].data[i].value  # type: ignore
+                    for face_conn in group_faces:
+                        conn_sid = face_conn[sec_bm_layer]  # type: ignore
                         if conn_sid == 0:
                             continue
                         if conn_sid in hole_dict:
                             continue
 
-                        face_conn = sec_bm.faces[i]
                         verts_sub_idx = [v.index for v in face_conn.verts]
                         verts_sub_idx = [sec_vertex_indices[i] for i in verts_sub_idx]
                         hole_dict[conn_sid] = {
@@ -552,15 +552,14 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         bm_plane = bmesh.new()
                         layer = bm_plane.faces.layers.int.new("amagate_connected")
                         verts_map = {}
-                        for i in group_face_idx:
-                            for v in sec_bm.faces[i].verts:
+                        for face in group_faces:
+                            for v in face.verts:
                                 if v.index not in verts_map:
                                     verts_map[v.index] = bm_plane.verts.new(
                                         matrix_world @ v.co
                                     )
                         visited_conn_sid = []
-                        for i in group_face_idx:
-                            face = sec_bm.faces[i]
+                        for face in group_faces:
                             f_new = bm_plane.faces.new(
                                 [verts_map[v.index] for v in face.verts]
                             )
@@ -574,9 +573,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     bm_convex = sec_bm.copy()
                     bmesh.ops.delete(
                         bm_convex,
-                        geom=[
-                            f for f in bm_convex.faces if f.index not in group_face_idx
-                        ],
+                        geom=[f for f in bm_convex.faces if f not in group_faces],
                         context="FACES",
                     )  # 删除非组面
                     bmesh.ops.dissolve_faces(

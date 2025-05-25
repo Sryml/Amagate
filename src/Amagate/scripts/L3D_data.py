@@ -286,6 +286,13 @@ def ensure_node():
     scene_data.sec_node = NodeTree
 
 
+def update_scene_edit_mode():
+    context = bpy.context
+    scene_data = context.scene.amagate_data
+    scene_data.is_edit_mode = context.mode != "OBJECT"
+    context.scene.update_tag()
+
+
 ############################
 ############################ 回调函数
 ############################

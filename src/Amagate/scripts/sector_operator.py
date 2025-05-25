@@ -496,6 +496,7 @@ class OT_Sector_Convert(bpy.types.Operator):
                 sector_data = obj.amagate_data.get_sector_data()
                 sector_data.init()
         # data.area_redraw("VIEW_3D")
+        L3D_data.update_scene_edit_mode()
         return {"FINISHED"}
 
 
@@ -554,6 +555,7 @@ class OT_GhostSector_Create(bpy.types.Operator):
         modifier = gsec.modifiers.new("", type="SOLIDIFY")
         modifier.thickness = gsec_data.height  # type: ignore
 
+        L3D_data.update_scene_edit_mode()
         return {"FINISHED"}
 
 
@@ -581,12 +583,14 @@ class OT_Sector_Connect(bpy.types.Operator):
             )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.update_scene_edit_mode()
 
-        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
         # if len(selected_sectors) < 2:
         #     self.report({"WARNING"}, "Select at least two sectors")
         #     return {"CANCELLED"}
@@ -705,10 +709,10 @@ class OT_Sector_Connect(bpy.types.Operator):
                         sec_bm_2.faces.ensure_lookup_table()
 
                         flat_face_1 = ag_utils.get_linked_flat(face_1)
-                        flat_face_1 = [sec_bm_1.faces[i] for i in flat_face_1 if sec_bm_1.faces[i][conn_layer_1] == 0 and sec_bm_1.faces[i][tex_id_layer_1] != -1]  # type: ignore
+                        flat_face_1 = [f for f in flat_face_1 if f[conn_layer_1] == 0 and f[tex_id_layer_1] != -1]  # type: ignore
 
                         flat_face_2 = ag_utils.get_linked_flat(face_2)
-                        flat_face_2 = [sec_bm_2.faces[i] for i in flat_face_2 if sec_bm_2.faces[i][conn_layer_2] == 0 and sec_bm_2.faces[i][tex_id_layer_2] != -1]  # type: ignore
+                        flat_face_2 = [f for f in flat_face_2 if f[conn_layer_2] == 0 and f[tex_id_layer_2] != -1]  # type: ignore
 
                         sec_info = [
                             {
@@ -1168,12 +1172,13 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                 )
             self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
+            selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+
             # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
             if "EDIT" in context.mode:
                 bpy.ops.object.mode_set(mode="OBJECT")
                 L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
-
-            selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+                L3D_data.update_scene_edit_mode()
 
             # 排除拓扑类型是二维球面的扇区
             for i in range(len(selected_sectors) - 1, -1, -1):
@@ -1273,12 +1278,14 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
                                 continue
                             if {v.index for v in e.verts}.issubset(verts_idx_2):
                                 e.select_set(True)
-                        bmesh.update_edit_mesh(
-                            mesh_1, loop_triangles=False, destructive=False
-                        )  # 更新网格
-                        bmesh.update_edit_mesh(
-                            mesh_2, loop_triangles=False, destructive=False
-                        )  # 更新网格
+                        bm_edit_1.select_flush_mode()
+                        bm_edit_2.select_flush_mode()
+                        # bmesh.update_edit_mesh(
+                        #     mesh_1, loop_triangles=False, destructive=False
+                        # )  # 更新网格
+                        # bmesh.update_edit_mesh(
+                        #     mesh_2, loop_triangles=False, destructive=False
+                        # )  # 更新网格
                         bpy.ops.mesh.edge_face_add()  # 从顶点创建边/面
 
                         # 设置属性
@@ -1326,12 +1333,16 @@ class OT_Sector_Disconnect(bpy.types.Operator):
             )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if "EDIT" in context.mode:
+            edit_mode = True
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
-
-        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+            L3D_data.update_scene_edit_mode()
+        else:
+            edit_mode = False
 
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
@@ -1351,7 +1362,7 @@ class OT_Sector_Disconnect(bpy.types.Operator):
         #     self.report({"WARNING"}, "No connection found")
         #     return {"CANCELLED"}
 
-        ag_utils.disconnect(self, context, selected_sectors)
+        ag_utils.disconnect(self, context, selected_sectors, edit_mode=edit_mode)
 
         if Connectionless:
             self.report(
@@ -1556,7 +1567,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
             )
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
-        selected_sectors = L3D_data.SELECTED_SECTORS
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
         if len(selected_sectors) == 0:
             self.report({"WARNING"}, "Select at least one sector")
             return {"CANCELLED"}
@@ -1565,6 +1576,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.update_scene_edit_mode()
 
         # knife_project = []
         separate_list = []
