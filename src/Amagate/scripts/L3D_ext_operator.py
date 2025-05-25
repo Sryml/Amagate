@@ -486,7 +486,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             for face_index, face in enumerate(sec_bm.faces):
                 if connect_num == sec_data.connect_num:
                     break
-                if face_index in conn_face_visited:
+                if face in conn_face_visited:
                     continue
 
                 connected_sid = mesh.attributes["amagate_connected"].data[face_index].value  # type: ignore
@@ -494,7 +494,6 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     continue
 
                 # 如果是连接面且连接目标在导出列表中
-                connect_num += 1
                 connect_data = ()
                 normal = matrix_world.to_quaternion() @ face.normal
                 group_faces = ag_utils.get_linked_flat(face)
@@ -504,16 +503,18 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     face_type = 7002  # 整个面是连接的
                     verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
                     connect_data = (connected_sid,)
+                    connect_num += 1
                 else:
                     conn_face_num = 0
                     hole_dict = {}  # type: Any
-                    for face_conn in group_faces:
-                        conn_sid = face_conn[sec_bm_layer]  # type: ignore
-                        if conn_sid == 0:
+                    for face in group_faces:
+                        conn_sid = face[sec_bm_layer]  # type: ignore
+                        if conn_sid == 0 or global_sector_map.get(conn_sid) is None:
                             continue
                         if conn_sid in hole_dict:
                             continue
 
+                        face_conn = face
                         verts_sub_idx = [v.index for v in face_conn.verts]
                         verts_sub_idx = [sec_vertex_indices[i] for i in verts_sub_idx]
                         hole_dict[conn_sid] = {
@@ -524,6 +525,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         #
                         conn_face_num += 1
                     #
+                    connect_num += conn_face_num
                     if conn_face_num == 1:
                         face_type = 7003  # 平面中的单连接
                         #
@@ -564,16 +566,22 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                                 [verts_map[v.index] for v in face.verts]
                             )
                             conn_sid = face[sec_bm_layer]  # type: ignore
-                            if conn_sid not in visited_conn_sid:
+                            if (
+                                conn_sid not in visited_conn_sid
+                                and conn_sid in global_sector_map
+                            ):
                                 f_new[layer] = conn_sid  # type: ignore
                                 visited_conn_sid.append(conn_sid)
                         bm_plane = ag_utils.ensure_lookup_table(bm_plane)
                         connect_data = hole_split(bm_plane, hole_dict)
                     # 获取凸壳顶点
+                    group_faces_idx = [f.index for f in group_faces]
                     bm_convex = sec_bm.copy()
                     bmesh.ops.delete(
                         bm_convex,
-                        geom=[f for f in bm_convex.faces if f not in group_faces],
+                        geom=[
+                            f for f in bm_convex.faces if f.index not in group_faces_idx
+                        ],
                         context="FACES",
                     )  # 删除非组面
                     bmesh.ops.dissolve_faces(
@@ -595,7 +603,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             # 再找出普通面和天空面
             connect_data = ()  # 空的连接信息
             for face_index, face in enumerate(sec_bm.faces):
-                if face_index in conn_face_visited:
+                if face in conn_face_visited:
                     continue
 
                 normal = matrix_world.to_quaternion() @ face.normal

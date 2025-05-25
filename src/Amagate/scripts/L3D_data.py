@@ -449,13 +449,20 @@ def check_sector_separate():
         if sec_data.id in sec_ids_2:
             ag_utils.check_connect(sec)
 
+    # 只选择分离出的扇区
+    bpy.ops.object.select_all(action="DESELECT")
+    for sec in sep_sectors:
+        sec.select_set(True)
+    context.view_layer.objects.active = sep_sectors[0]  # 设为活动对象
+    update_scene_edit_mode()
+
     # 恢复选择
-    ag_utils.select_active(context, edit_objects[0])  # 单选并设为活动
-    for obj in edit_objects:
-        obj.select_set(True)
-    bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
-    for obj in selected_objects:
-        obj.select_set(True)
+    # ag_utils.select_active(context, edit_objects[0])  # 单选并设为活动
+    # for obj in edit_objects:
+    #     obj.select_set(True)
+    # bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
+    # for obj in selected_objects:
+    #     obj.select_set(True)
 
     bpy.ops.ed.undo_push(message="Sector Check")
 
@@ -475,6 +482,7 @@ def check_sector_duplicate():
     ag_utils.disconnect(None, context, dup_sectors, dis_target=False)
 
     # XXX 待优化。取消用户的操作选项
+    context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.app.timers.register(
         lambda: bpy.ops.object.mode_set(mode="OBJECT") and None, first_interval=0.1

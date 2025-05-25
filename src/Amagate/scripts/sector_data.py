@@ -880,7 +880,10 @@ class SectorProperty(bpy.types.PropertyGroup):
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"
         obj.rename(name, mode="ALWAYS")
-        obj.data.rename(name, mode="ALWAYS")
+        if not post_copy:
+            obj.data.rename(name, mode="ALWAYS")
+        elif obj.data.users == 1:
+            obj.data.rename(name, mode="ALWAYS")
         coll = L3D_data.ensure_collection(L3D_data.S_COLL)
         if coll not in obj.users_collection:
             # 清除集合
