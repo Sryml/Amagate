@@ -798,7 +798,7 @@ def disconnect(
                     e.seam = True
         edges = {e for f in faces for e in f.edges}
         bmesh.ops.dissolve_limit(
-            sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+            sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM", "MATERIAL"}
         )  # NORMAL
 
         # 断开目标
@@ -834,7 +834,10 @@ def disconnect(
                                 e.seam = True
                     edges = {e for f in faces for e in f.edges}
                     bmesh.ops.dissolve_limit(
-                        sec_bm_2, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+                        sec_bm_2,
+                        angle_limit=0.002,
+                        edges=list(edges),
+                        delimit={"SEAM", "MATERIAL"},
                     )  # NORMAL
 
                     unsubdivide(sec_bm_2)  # 反细分边
@@ -951,6 +954,7 @@ def check_connect(sec, check_id=None):
                 bm_cmp.faces.ensure_lookup_table()
                 verts_set_1 = {v.co.to_tuple(3) for v in bm_cmp.faces[0].verts}
                 verts_set_2 = {v.co.to_tuple(3) for v in bm_cmp.faces[1].verts}
+                bm_cmp.free()
 
                 # 如果连接面不匹配，断开连接
                 if verts_set_1 != verts_set_2:
@@ -999,7 +1003,7 @@ def check_connect(sec, check_id=None):
                 e.seam = True
     edges = {e for f in faces for e in f.edges}
     bmesh.ops.dissolve_limit(
-        sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+        sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM", "MATERIAL"}
     )  # NORMAL
     if dis_face_num != 0:
         unsubdivide(sec_bm)  # 反细分边
@@ -1030,7 +1034,7 @@ def check_connect(sec, check_id=None):
                     e.seam = True
         edges = {e for f in faces for e in f.edges}
         bmesh.ops.dissolve_limit(
-            sec_bm_2, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+            sec_bm_2, angle_limit=0.002, edges=list(edges), delimit={"SEAM", "MATERIAL"}
         )  # NORMAL
 
         unsubdivide(sec_bm_2)  # 反细分边

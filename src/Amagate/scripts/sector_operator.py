@@ -762,19 +762,43 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         proj_normal = matrix_1.to_quaternion() @ flat_face_1[0].normal
 
+        #
         knife_bm = bmesh.new()
+        mark_layer = knife_bm.faces.layers.int.new("mark")
         verts_map = {}
         for f in flat_face_1:
             for v in f.verts:
                 if v.index not in verts_map:
                     verts_map[v.index] = knife_bm.verts.new(matrix_1 @ v.co)
-            knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+            new_f = knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+            new_f[mark_layer] = 1
+        # 往投影法向挤出10厘米
+        result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_bm.faces)  # type: ignore
+        matrix = Matrix.Translation(proj_normal * 0.1)
+        bmesh.ops.transform(
+            knife_bm,
+            matrix=matrix,
+            verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
+        )
+        #
         verts_map = {}
+        knife_faces = []  # type: list[bmesh.types.BMFace]
         for f in flat_face_2:
             for v in f.verts:
                 if v.index not in verts_map:
                     verts_map[v.index] = knife_bm.verts.new(matrix_2 @ v.co)
-            knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+            new_f = knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+            knife_faces.append(new_f)
+        # 往投影法向移动5厘米, 再往反方向挤出10厘米
+        matrix = Matrix.Translation(proj_normal * 0.05)
+        bmesh.ops.transform(knife_bm, matrix=matrix, verts=[v for f in knife_faces for v in f.verts])  # type: ignore
+        result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_faces)  # type: ignore
+        matrix = Matrix.Translation(-proj_normal * 0.1)
+        bmesh.ops.transform(
+            knife_bm,
+            matrix=matrix,
+            verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
+        )
         #
         knife_mesh = bpy.data.meshes.new("AG.knife")
         knife_bm.to_mesh(knife_mesh)
@@ -787,40 +811,21 @@ class OT_Sector_Connect(bpy.types.Operator):
         #
         ag_utils.select_active(context, knife)  # 单选并设为活动
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
-        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
+        bpy.ops.mesh.select_mode(type="FACE")  # 切换面模式
 
         bm_edit = bmesh.from_edit_mesh(knife_mesh)
-        bm_edit.faces.ensure_lookup_table()
-        # XXX 有可能面的索引是错误的，因为新的bmesh只在转换为mesh后才有索引
-        bm_face_1, bm_face_2 = bm_edit.faces[0], bm_edit.faces[-1]
-
-        bm_face_1.select_set(True)
-        bmesh.update_edit_mesh(
-            knife_mesh, loop_triangles=False, destructive=False
-        )  # 更新网格
-        bpy.ops.mesh.select_linked()  # 选择关联项
-        bpy.ops.mesh.extrude_region_move(
-            TRANSFORM_OT_translate={"value": proj_normal * 0.1}
-        )  # 往投影法向挤出并移动10厘米
-
-        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        bm_face_2.select_set(True)
-        bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
-        bpy.ops.mesh.select_linked()  # 选择关联项
-        bpy.ops.transform.translate(value=proj_normal * 0.05)  # 往投影法向移动5厘米
-        bpy.ops.mesh.extrude_region_move(
-            TRANSFORM_OT_translate={"value": -proj_normal * 0.1}
-        )  # 往反方向挤出并移动10厘米
+        # bm_edit.faces.ensure_lookup_table()
+        mark_layer = bm_edit.faces.layers.int.get("mark")
 
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
         bpy.ops.mesh.normals_make_consistent(inside=False)  # 重新计算法向（外侧）
-
         # 开始布尔交集
         bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        bm_edit.faces.ensure_lookup_table()
-        bm_face_1.select_set(True)
-        bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
-        bpy.ops.mesh.select_linked()  # 选择关联项
+        for face in bm_edit.faces:
+            if face[mark_layer] == 1:  # type: ignore
+                face.select_set(True)
+        bm_edit.select_flush_mode()  # 刷新选择
+        # return None, None  # type: ignore
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.mesh.intersect_boolean(
                 operation="INTERSECT", solver="EXACT"
@@ -834,7 +839,6 @@ class OT_Sector_Connect(bpy.types.Operator):
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
         bpy.ops.mesh.normals_make_consistent(inside=True)  # 重新计算法向（内侧）
         # 选择与投影法向相同的面
-        bpy.ops.mesh.select_mode(type="FACE")  # 切换面模式
         bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
         for f in bm_edit.faces:
             dot = f.normal.dot(proj_normal)
@@ -842,7 +846,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             if dot > 0.999:
                 f.select_set(True)
                 break
-        bmesh.update_edit_mesh(knife_mesh, loop_triangles=False, destructive=False)
+        bm_edit.select_flush_mode()  # 刷新选择
         bpy.ops.mesh.faces_select_linked_flat(sharpness=0.002)  # 选中相连的平展面
 
         bpy.ops.mesh.select_all(action="INVERT")  # 反选
@@ -964,7 +968,10 @@ class OT_Sector_Connect(bpy.types.Operator):
                     faces = [f for f in faces if f[conn_layer] == 0]  # type: ignore
                     edges = {e for f in faces for e in f.edges}
                     bmesh.ops.dissolve_limit(
-                        sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+                        sec_bm,
+                        angle_limit=0.002,
+                        edges=list(edges),
+                        delimit={"SEAM", "MATERIAL"},
                     )  # NORMAL
                     sec_bm.to_mesh(mesh)
                     #
@@ -1095,7 +1102,10 @@ class OT_Sector_Connect(bpy.types.Operator):
             faces = [f for f in faces if f[conn_layer] == 0]  # type: ignore
             edges = {e for f in faces for e in f.edges}
             bmesh.ops.dissolve_limit(
-                sec_bm, angle_limit=0.002, edges=list(edges), delimit={"SEAM"}
+                sec_bm,
+                angle_limit=0.002,
+                edges=list(edges),
+                delimit={"SEAM", "MATERIAL"},
             )  # NORMAL
             sec_bm.to_mesh(mesh)
         #

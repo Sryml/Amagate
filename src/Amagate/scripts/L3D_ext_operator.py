@@ -302,6 +302,7 @@ def hole_split(bm, hole_dict):
                 *tangent_idx,
             )
         )
+        bm.free()
     #
     holes_data = [
         (v["index"], v["tangent"], v["verts_idx"], k) for k, v in hole_dict.items()
