@@ -95,6 +95,13 @@ DUPLICATE_OP = (
 
 TRANSFORM_OP = ("TRANSFORM_OT_translate", "TRANSFORM_OT_resize", "TRANSFORM_OT_rotate")
 
+SELECT_OP = (
+    "VIEW3D_OT_select",
+    "VIEW3D_OT_select_box",
+    "OUTLINER_OT_item_activate",
+    "OUTLINER_OT_select_box",
+)
+
 ############################
 
 
@@ -523,6 +530,24 @@ def check_sector_transform(bl_idname):
     bpy.ops.ed.undo_push(message="Sector Check")
 
 
+# 扇区选择检查
+def check_sector_select():
+    context = bpy.context
+    scene_data = context.scene.amagate_data
+    selected_sectors, active_sector = ag_utils.get_selected_sectors()
+    # 显示活动扇区的外部光
+    if active_sector:
+        externals = scene_data.externals
+        if len(externals) > 1:
+            sec_data = active_sector.amagate_data.get_sector_data()
+            idx, item = get_external_by_id(scene_data, sec_data.external_id)
+            if item:
+                item.obj.hide_viewport = False
+                for item_2 in externals:
+                    if item_2 != item:
+                        item_2.obj.hide_viewport = True
+
+
 def geometry_modify_post(
     selected_sectors: list[Object] = [], undo=True, check_connect=True
 ):
@@ -626,6 +651,9 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         # 扇区变换的回调
         elif bl_idname in TRANSFORM_OP:
             check_sector_transform(bl_idname)
+        # 选择物体的回调
+        elif bl_idname in SELECT_OP:
+            check_sector_select()
         # 编辑模式删除的回调，有点复杂，因为不知道用户是单独删除面还是包括顶点
         # elif bl_idname == "MESH_OT_delete":
         #     ...
@@ -723,8 +751,9 @@ def draw_callback_3d():
     height = region.height
 
     texts = []
+
     # 由于该回调在N面板之后，所以不能在这里缓存选中扇区数据
-    selected_sectors = ag_utils.get_selected_sectors()[0]
+    selected_sectors, active_sector = ag_utils.get_selected_sectors()
     sector_num = len(selected_sectors)
 
     # 二维球面
@@ -1099,8 +1128,8 @@ class Atmo_Select(bpy.types.PropertyGroup):
         scene_data = bpy.context.scene.amagate_data
         if self.target == "SectorPublic":
             for sec in SELECTED_SECTORS:
-                sector_data = sec.amagate_data.get_sector_data()  # type: ignore
-                sector_data.atmo_id = scene_data.atmospheres[value].id
+                sec_data = sec.amagate_data.get_sector_data()  # type: ignore
+                sec_data.atmo_id = scene_data.atmospheres[value].id
         elif self.target == "Scene":
             scene_data.defaults.atmo_id = scene_data.atmospheres[value].id
         # region_redraw("UI")
@@ -1127,8 +1156,8 @@ class External_Select(bpy.types.PropertyGroup):
         scene_data = bpy.context.scene.amagate_data
         if self.target == "SectorPublic":
             for sec in SELECTED_SECTORS:
-                sector_data = sec.amagate_data.get_sector_data()  # type: ignore
-                sector_data.external_id = scene_data.externals[value].id
+                sec_data = sec.amagate_data.get_sector_data()  # type: ignore
+                sec_data.external_id = scene_data.externals[value].id
         elif self.target == "Scene":
             scene_data.defaults.external_id = scene_data.externals[value].id
         data.region_redraw("UI")
@@ -1359,13 +1388,15 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     is_blade: BoolProperty(name="", default=False, description="If checked, it means this is a Blade scene")  # type: ignore
     id: IntProperty(name="ID", default=0)  # type: ignore
-
+    # 大气
     atmospheres: CollectionProperty(type=AtmosphereProperty)  # type: ignore
     active_atmosphere: IntProperty(name="Atmosphere", default=0)  # type: ignore
 
     # 外部光
     externals: CollectionProperty(type=ExternalLightProperty)  # type: ignore
     active_external: IntProperty(name="External Light", default=0)  # type: ignore
+    # 平面光设置
+    flat_light: BoolProperty(get=lambda self: sector_data.get_flat_light(), set=lambda self, value: sector_data.set_flat_light(value))  # type: ignore
 
     active_texture: IntProperty(name="Texture", default=0, set=lambda self, value: self.set_active_texture(value), get=lambda self: self.get_active_texture())  # type: ignore
 
@@ -1616,8 +1647,10 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.atmo_id = 1
         defaults.external_id = 1
         defaults.ambient_color = (0.5, 0.5, 0.5)
+        defaults.flat_light.target = "Scene"
 
         self.sector_public.target = "SectorPublic"
+        self.sector_public.flat_light.target = "SectorPublic"
         ############################
         for i in ("Floor", "Ceiling", "Wall"):
             prop = defaults.textures.add()

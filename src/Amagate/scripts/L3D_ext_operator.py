@@ -592,6 +592,29 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             sec_data = sec.amagate_data.get_sector_data()
             matrix_world = sec.matrix_world
             sec_mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            #
+            sec_vertex_indices = sector_vertex_indices[sec_data.id]
+            depsgraph = bpy.context.evaluated_depsgraph_get()
+            evaluated_obj = sec.evaluated_get(depsgraph)
+            mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
+            sec_bm = bmesh.new()
+            sec_bm.from_mesh(mesh)
+            sec_bm.faces.ensure_lookup_table()
+            sec_bm.verts.ensure_lookup_table()
+            flat_light_layer = sec_bm.faces.layers.int.get("amagate_flat_light")
+            conn_layer = sec_bm.faces.layers.int.get("amagate_connected")
+            tex_id_layer = sec_bm.faces.layers.int.get("amagate_tex_id")
+            tex_vx_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vx")
+            tex_vy_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vy")
+            xpos_layer = sec_bm.faces.layers.float.get("amagate_tex_xpos")
+            ypos_layer = sec_bm.faces.layers.float.get("amagate_tex_ypos")
+            layer_list = [
+                tex_id_layer,
+                tex_vx_layer,
+                tex_vy_layer,
+                xpos_layer,
+                ypos_layer,
+            ]
 
             # 聚光灯
             if sec_data.spot_light:
@@ -633,47 +656,29 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             f.write(bytes.fromhex("CD" * 8))
             f.write(struct.pack("<I", 0))
 
-            # TODO 平面光
-            f.write(struct.pack("<BBB", 0, 0, 0))
-            f.write(struct.pack("<f", 0.0))
+            # 平面光
+            face = next((f for f in sec_bm.faces if f[flat_light_layer] == 1), None)  # type: ignore
+            if face:
+                vector = matrix_world.to_quaternion() @ -face.normal
+                vector = vector[0], -vector[2], vector[1]
+            else:
+                vector = (0, 0, 0)
+            color = sec_data.flat_light.color
+            f.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
+            f.write(struct.pack("<f", color.v * v_factor))
             f.write(ambient_light_p)
             f.write(struct.pack("<ddd", 0, 0, 0))  # # 未知用途 默认0
             f.write(bytes.fromhex("CD" * 8))
             f.write(struct.pack("<I", 0))
             ## 平面光向量
-            f.write(struct.pack("<ddd", 0, 0, 0))
+            f.write(struct.pack("<ddd", *vector))
 
             # 面数据
-            sec_vertex_indices = sector_vertex_indices[sec_data.id]
-            depsgraph = bpy.context.evaluated_depsgraph_get()
-            evaluated_obj = sec.evaluated_get(depsgraph)
-            mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
-            sec_bm = bmesh.new()
-            sec_bm.from_mesh(mesh)
-            sec_bm.faces.ensure_lookup_table()
-            sec_bm.verts.ensure_lookup_table()
-            conn_layer = sec_bm.faces.layers.int.get("amagate_connected")
-            tex_id_layer = sec_bm.faces.layers.int.get("amagate_tex_id")
-            tex_vx_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vx")
-            tex_vy_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vy")
-            xpos_layer = sec_bm.faces.layers.float.get("amagate_tex_xpos")
-            ypos_layer = sec_bm.faces.layers.float.get("amagate_tex_ypos")
-            layer_list = [
-                tex_id_layer,
-                tex_vx_layer,
-                tex_vy_layer,
-                xpos_layer,
-                ypos_layer,
-            ]
-            # global_face_count += len(mesh.polygons)
-            # f.write(struct.pack("<I", len(mesh.polygons)))
-            # 排序面，地板优先
             faces_sorted = []
             z_axis = Vector((0, 0, 1))
 
             conn_face_visited = set()
             # connect_num = 0
-            # 处理面数据
             for face_index, face in enumerate(sec_bm.faces):
                 # if connect_num == sec_data.connect_num:
                 #     break
@@ -834,7 +839,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             # faces_sorted.sort(key=lambda x: x[2].to_tuple(3)) # 按法向排列
             faces_sorted.sort(
                 key=lambda x: round(x[2].dot(-z_axis), 3)
-            )  # 然后地板面排前面，避免滑坡问题
+            )  # 地板面排前面，避免滑坡问题
 
             # 如果不会被引擎设为滑坡且为自动模式
             if not sec_data.steep_check and sec_data.steep == "0":

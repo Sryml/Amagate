@@ -457,9 +457,9 @@ class AMAGATE_PT_Scene_Default(L3D_Panel, bpy.types.Panel):
         row.label(text=f"{pgettext('Flat Light')}:")
         split.prop(scene_data.defaults.flat_light, "color", text="")
 
-        column.separator(type="SPACE")
-        row = column.row()
-        row.prop(scene_data.defaults.flat_light, "vector", text="")
+        # column.separator(type="SPACE")
+        # row = column.row()
+        # row.prop(scene_data.defaults.flat_light, "vector", text="")
 
 
 ############################
@@ -813,31 +813,39 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         box = layout.box()
         column = box.column(align=True)
         # 外部光
-        # idx, item = data.get_external_by_id(scene_data, scene_data.defaults.external_id)
+        is_uniform = True
+        external_id = active_sec_data.external_id
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.external_id != external_id:
+                is_uniform = False
+                break
 
-        # row = column.row()
-        # split = row.split(factor=0.7)
-        # row = split.row()
+        idx, item = L3D_data.get_external_by_id(scene_data, sec_data.external_id)
 
-        # col = row.column()
-        # col.alignment = "LEFT"
-        # col.label(text=f"{pgettext('External Light')}:")
+        row = column.row()
+        split = row.split(factor=0.7)
+        row = split.row()
 
-        # col = row.column()
-        # name = "None" if not item else item.item_name
-        # op = col.operator(
-        #     OP.OT_External_Select.bl_idname,
-        #     text=name,
-        #     icon="DOWNARROW_HLT",
-        # )  # COLLAPSEMENU
-        # op.prop.target = "Scene"  # type: ignore
-        # op.prop["_index"] = idx  # type: ignore
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('External Light')}:")
 
-        # if item:
-        #     row = split.row()
-        #     row.prop(item, "color_readonly", text="")
+        col = row.column()
+        name = "None" if not item else item.item_name
+        op = col.operator(
+            OP_L3D.OT_External_Select.bl_idname,
+            text=name if is_uniform else "*",
+            icon="DOWNARROW_HLT",
+        )  # COLLAPSEMENU
+        op.prop.target = "SectorPublic"  # type: ignore
+        op.prop["_index"] = idx if is_uniform else -1  # type: ignore
 
-        # column.separator(factor=2,type="LINE")
+        if item:
+            row = split.row()
+            row.prop(item, "color_readonly", text="")
+
+        column.separator(factor=2, type="LINE")
 
         # 环境光
         is_uniform = True
@@ -863,16 +871,25 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         column.separator(factor=2, type="LINE")
 
         # 平面光
-        # row = column.row()
-        # split = row.split(factor=0.5)
-        # row = split.row()
-        # row.alignment = "LEFT"
-        # row.label(text=f"{pgettext('Flat Light')}:")
-        # split.prop(scene_data.defaults.flat_light, "color", text="")
+        is_uniform = True
+        flat_color = active_sec_data.flat_light.color
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if sec_data.flat_light.color != flat_color:
+                is_uniform = False
+                break
 
-        # column.separator(type="SPACE")
-        # row = column.row()
-        # row.prop(scene_data.defaults.flat_light, "vector", text="")
+        row = column.row()
+        split = row.split(factor=0.5)
+        row = split.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Flat Light')}:")
+        if not is_uniform:
+            col = row.column()
+            col.alignment = "RIGHT"
+            col.label(text="*")
+        split.prop(scene_data.sector_public.flat_light, "color", text="")
 
         layout.separator()
 
@@ -949,6 +966,14 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
                         sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
                         connected_sector = sec.name
             layout.label(text=f"{pgettext('Connected Sector')}: {connected_sector}")
+
+            layout.separator(factor=1, type="LINE")
+
+            # 平面光
+            row = layout.row()
+            if len(selected_faces) != 1 or len(selected_faces[0][1]) != 1:
+                row.enabled = False
+            row.prop(scene_data, "flat_light", text="Flat Light")
 
             # 面类型
             row = layout.row()

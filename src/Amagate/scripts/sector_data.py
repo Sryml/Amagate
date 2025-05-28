@@ -448,6 +448,7 @@ class TextureProperty(bpy.types.PropertyGroup):
 
 # 平面光属性
 class FlatLightProperty(bpy.types.PropertyGroup):
+    target: StringProperty(default="Sector")  # type: ignore
     color: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
@@ -455,6 +456,8 @@ class FlatLightProperty(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         default=(0.784, 0.784, 0.784),
+        get=lambda self: self.get_color(),
+        set=lambda self, value: self.set_color(value),
     )  # type: ignore
     vector: FloatVectorProperty(
         name="Direction",
@@ -464,6 +467,69 @@ class FlatLightProperty(bpy.types.PropertyGroup):
         min=-1.0,
         max=1.0,
     )  # type: ignore
+
+    def get_color(self):
+        from . import L3D_data
+
+        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+
+        attr = "color"
+        if self.target == "SectorPublic":
+            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+            return getattr(sec_data.flat_light, attr)
+        else:
+            return self.get(attr, (0.784, 0.784, 0.784))
+
+    def set_color(self, value):
+        from . import L3D_data
+
+        SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
+
+        attr = "color"
+
+        if self.target == "SectorPublic":
+            for sec in SELECTED_SECTORS:
+                sec_data = sec.amagate_data.get_sector_data()
+                setattr(sec_data.flat_light, attr, value)
+            data.area_redraw("VIEW_3D")
+        else:
+            self[attr] = value
+
+            if self.target == "Sector":
+                self.id_data.update_tag(refresh={"OBJECT"})
+
+
+def get_flat_light():
+    from . import L3D_data
+
+    if L3D_data.SELECTED_FACES:
+        item = L3D_data.SELECTED_FACES[0]
+        bm = item[0]
+        layer = bm.faces.layers.int.get("amagate_flat_light")
+        face = item[1][0]
+        return face[layer]  # type: ignore
+    return 0
+
+
+def set_flat_light(value):
+    from . import L3D_data
+
+    item = L3D_data.SELECTED_FACES[0]
+    bm = item[0]
+    sec = item[2]
+    layer = bm.faces.layers.int.get("amagate_flat_light")
+    face = item[1][0]
+
+    flat_faces = ag_utils.get_linked_flat(face)
+    for f in flat_faces:
+        f[layer] = value  # type: ignore
+    # 如果是启用平面光，则其它面设置为0
+    if value:
+        for f in bm.faces:
+            if f not in flat_faces:
+                f[layer] = 0  # type: ignore
+    sec.update_tag()
+    data.area_redraw("VIEW_3D")
 
 
 class SectorFocoLightProperty(bpy.types.PropertyGroup):
@@ -485,7 +551,7 @@ class SectorFocoLightProperty(bpy.types.PropertyGroup):
     strength: FloatProperty(
         name="Strength",
         description="Strength of the light",  # 光照强度
-        default=1.0,
+        default=2.0,
     )  # type: ignore
     precision: FloatProperty(
         name="Precision",
@@ -683,7 +749,6 @@ class SectorProperty(bpy.types.PropertyGroup):
     def set_ambient_color(self, value):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
         SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
 
         attr = "ambient_color"
@@ -910,6 +975,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             # 添加网格属性
             mesh.attributes.new(name="amagate_connected", type="INT", domain="FACE")
             mesh.attributes.new(name="amagate_flag", type="INT", domain="FACE")
+            mesh.attributes.new(name="amagate_flat_light", type="INT", domain="FACE")
             mesh.attributes.new(name="amagate_tex_id", type="INT", domain="FACE")
             mesh.attributes.new(name="amagate_tex_xpos", type="FLOAT", domain="FACE")
             mesh.attributes.new(name="amagate_tex_ypos", type="FLOAT", domain="FACE")
@@ -966,12 +1032,14 @@ class SectorProperty(bpy.types.PropertyGroup):
             # 指定外部光
             self.external_id = scene_data.defaults.external_id
             # 设置环境光
-            self.ambient_color = scene_data.defaults.ambient_color
+            self.ambient_color = scene_data.defaults.ambient_color.copy()
+            # 设置平面光
+            self.flat_light.color = scene_data.defaults.flat_light.color.copy()
         # 复制的情况，仅需刷新数据
         else:
             self.atmo_id = self.atmo_id
             self.external_id = self.external_id
-            self.ambient_color = self.ambient_color
+            # self.ambient_color = self.ambient_color
 
         obj.amagate_data.is_sector = True
 
