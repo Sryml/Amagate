@@ -529,13 +529,17 @@ def geometry_modify_post(
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
     if selected_sectors:
-        ag_utils.dissolve_limit_sectors(selected_sectors)
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             # if sec_data is None:
             #     continue
             sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
             sec_data.is_convex = ag_utils.is_convex(sec)
+
+        ag_utils.dissolve_limit_sectors(selected_sectors)
+
+        for sec in selected_sectors:
+            sec_data = sec.amagate_data.get_sector_data()
             if sec_data.connect_num != 0 and check_connect:
                 ag_utils.check_connect(sec)
             ag_utils.steep_check(sec)

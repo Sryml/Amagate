@@ -1046,7 +1046,7 @@ def split_editor(context: Context):
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.view3d.toggle_xray()  # 透视模式
 
-    # 找到新创建的区域
+    # 渲染区域
     render_area = next(
         a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
     )
@@ -1079,7 +1079,28 @@ def split_editor(context: Context):
     region = next(r for r in render_area.regions if r.type == "WINDOW")
     rv3d = region.data
     rv3d.view_perspective = "CAMERA"
-    rv3d.view_camera_zoom = 9
+    rv3d.view_camera_zoom = 27  # 9
+
+    # 前视图
+    with context.temp_override(area=render_area):
+        bpy.ops.screen.area_split(direction="HORIZONTAL", factor=0.5)
+    front_area = next(
+        a
+        for a in context.screen.areas
+        if a not in (area, render_area) and a.type == "VIEW_3D"
+    )
+    front_area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
+    front_area.spaces[0].overlay.show_floor = True  # type: ignore
+    front_area.spaces[0].overlay.show_axis_x = True  # type: ignore
+    front_area.spaces[0].overlay.show_axis_y = True  # type: ignore
+    # region = next(r for r in front_area.regions if r.type == "WINDOW")
+    # rv3d = region.data
+    # rv3d.view_rotation = Euler((math.pi / 2, 0.0, 0.0)).to_quaternion()
+    # rv3d.view_perspective = "ORTHO" # 正交
+    bpy.app.timers.register(set_view(front_area, "FRONT"), first_interval=0.08)
+    # with context.temp_override(area=front_area):
+    #     bpy.ops.view3d.view_persportho()
+    #     bpy.ops.view3d.view_axis(type="FRONT")  # 前视图
 
     # 激活面板
     with context.temp_override(area=area, space_data=area.spaces[0]):
@@ -1089,6 +1110,16 @@ def split_editor(context: Context):
     bpy.app.timers.register(
         data.active_panel_category(region, "Amagate"), first_interval=0.05
     )
+
+
+def set_view(area, view_type):
+    def warp():
+        region = next(r for r in area.regions if r.type == "WINDOW")
+        with bpy.context.temp_override(area=area, region=region):
+            bpy.ops.view3d.view_persportho()
+            bpy.ops.view3d.view_axis(type=view_type)  # 前视图
+
+    return warp
 
 
 # 合并地图

@@ -1235,7 +1235,10 @@ def expand_conn(faces, bm):
 def dissolve_limit_sectors(sectors):
     # type: (list[Object]) -> None
     for sec in sectors:
-        # sec_data = sec.amagate_data.get_sector_data()
+        sec_data = sec.amagate_data.get_sector_data()
+        # 如果不是凸扇区，跳过
+        if not sec_data.is_convex:
+            continue
         # if sec_data.connect_num == 0:
         #     continue
 
