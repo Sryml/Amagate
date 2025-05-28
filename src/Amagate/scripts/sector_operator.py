@@ -588,7 +588,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
-            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors)
             L3D_data.update_scene_edit_mode()
 
         # if len(selected_sectors) < 2:
@@ -1187,7 +1187,7 @@ class OT_Sector_Connect_VM(bpy.types.Operator):
             # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
             if "EDIT" in context.mode:
                 bpy.ops.object.mode_set(mode="OBJECT")
-                L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+                L3D_data.geometry_modify_post(selected_sectors)
                 L3D_data.update_scene_edit_mode()
 
             # 排除拓扑类型是二维球面的扇区
@@ -1344,19 +1344,18 @@ class OT_Sector_Disconnect(bpy.types.Operator):
         self.is_button = False  # 重置，因为从F3执行时会使用缓存值
 
         selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+        if len(selected_sectors) == 0:
+            self.report({"WARNING"}, "Select at least one sector")
+            return {"CANCELLED"}
 
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if "EDIT" in context.mode:
             edit_mode = True
             bpy.ops.object.mode_set(mode="OBJECT")
-            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors)
             L3D_data.update_scene_edit_mode()
         else:
             edit_mode = False
-
-        if len(selected_sectors) == 0:
-            self.report({"WARNING"}, "Select at least one sector")
-            return {"CANCELLED"}
 
         Connectionless = []
         # # 排除无连接扇区
@@ -1585,7 +1584,7 @@ class OT_Sector_SeparateConvex(bpy.types.Operator):
         # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
         if "EDIT" in context.mode:
             bpy.ops.object.mode_set(mode="OBJECT")
-            L3D_data.geometry_modify_post(selected_sectors, check_connect=False)
+            L3D_data.geometry_modify_post(selected_sectors)
             L3D_data.update_scene_edit_mode()
 
         # knife_project = []

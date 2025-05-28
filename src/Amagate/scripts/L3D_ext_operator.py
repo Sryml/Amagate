@@ -108,7 +108,14 @@ def bisect_plane(bm, plane_no, plane_co):
     # type: (bmesh.types.BMesh, Vector, Vector) -> tuple[bmesh.types.BMesh, bmesh.types.BMesh]
     # amagate_hole
     # ag_utils.debugprint(f"plane_no: {plane_no}, plane_co: {plane_co}")
-    bm_layer = bm.faces.layers.int.get("amagate_connected")
+    layers_1 = [
+        bm.faces.layers.int.get("amagate_connected"),
+        bm.faces.layers.int.get("amagate_tex_id"),
+        bm.faces.layers.float_vector.get("amagate_tex_vx"),
+        bm.faces.layers.float_vector.get("amagate_tex_vy"),
+        bm.faces.layers.float.get("amagate_tex_xpos"),
+        bm.faces.layers.float.get("amagate_tex_ypos"),
+    ]
     result = bmesh.ops.bisect_plane(
         bm,
         geom=list(bm.verts) + list(bm.edges) + list(bm.faces),  # type: ignore
@@ -123,8 +130,8 @@ def bisect_plane(bm, plane_no, plane_co):
     cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
     edge = cut_edges[0]
     face1, face2 = edge.link_faces
-    co = next(v.co for v in face1.verts if v not in cut_verts)
-    dir = (co - edge.verts[0].co).normalized()
+    co = next((v.co for v in face1.verts if v not in cut_verts), None)
+    dir = (co - edge.verts[0].co).normalized()  # type: ignore
     if plane_no.dot(dir) > 0:
         outer_face = face1
     else:
@@ -133,61 +140,67 @@ def bisect_plane(bm, plane_no, plane_co):
 
     # 创建外部网格
     outer_bm = bmesh.new()
-    layer = outer_bm.faces.layers.int.new("amagate_connected")
+    layers_2 = [
+        outer_bm.faces.layers.int.new("amagate_connected"),
+        outer_bm.faces.layers.int.new("amagate_tex_id"),
+        outer_bm.faces.layers.float_vector.new("amagate_tex_vx"),
+        outer_bm.faces.layers.float_vector.new("amagate_tex_vy"),
+        outer_bm.faces.layers.float.new("amagate_tex_xpos"),
+        outer_bm.faces.layers.float.new("amagate_tex_ypos"),
+    ]
     verts_map = {}
     exist_edges = []
     for f in outer_faces:
         for v in f.verts:
             if v.index not in verts_map:
                 verts_map[v.index] = outer_bm.verts.new(v.co)
-    # for f in outer_faces:
-    #     for e in f.edges:
-    #         if e.index not in exist_edges:
-    #             edge = outer_bm.edges.new([verts_map[v.index] for v in e.verts])
-    #             exist_edges.append(e.index)
-    # 复制属性
-    # edge[layer] = e[bm_layer] # type: ignore
     for f in outer_faces:
         new_face = outer_bm.faces.new([verts_map[v.index] for v in f.verts])
         # 复制属性
-        new_face[layer] = f[bm_layer]  # type: ignore
-
-    outer_bm = ag_utils.ensure_lookup_table(outer_bm)
+        for idx, layer in enumerate(layers_1):
+            new_face[layers_2[idx]] = f[layer]  # type: ignore
 
     # 删除原始网格中的外部网格
     bmesh.ops.delete(bm, geom=outer_faces, context="FACES")
-
-    return bm, outer_bm
-
-
-#
-def hole_split(bm, hole_dict):
-    # type: (bmesh.types.BMesh, dict[Any, Any]) -> Any
-    cut_data = []
-    cut_data_buff = []
     #
-    stack = [(bm, 0)]
-    while stack:
-        bm, count = stack.pop()
-        #
-        # bm_mesh = bpy.data.meshes.new(f"AG.split")
-        # bm.to_mesh(bm_mesh)
-        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
-        # data.link2coll(bm_obj, bpy.context.scene.collection)
-        #
-        bm.verts.ensure_lookup_table()
-        layer = bm.faces.layers.int.get("amagate_connected")
-        hole = next(f for f in bm.faces if f[layer] != 0)  # type: ignore
-        normal = hole.normal.copy()
-        # conn_sid = hole[layer]  # type: ignore
+    inner_bm = ag_utils.ensure_lookup_table(bm)
+    outer_bm = ag_utils.ensure_lookup_table(outer_bm)
 
-        verts_sort = {v: i for i, v in enumerate(hole.verts)}
-        last_pair = {0, len(hole.verts) - 1}
-        tangent_data = []
-        other_holes = [f for f in bm.faces if f != hole and f[layer] != 0]  # type: ignore
+    return inner_bm, outer_bm
+
+
+# 平展面分割
+def flat_split(bm, hole_dict):
+    # type: (bmesh.types.BMesh, dict[Any, Any]) -> Any
+    # cut_data_list = []
+    cut_data_buffer = []
+    #
+    stack = [(bm, [], -1)]
+    while stack:
+        bm, block_mark, cut_data_idx = stack.pop()
+        bm.faces.ensure_lookup_table()
+        conn_layer = bm.faces.layers.int.get("amagate_connected")
+        layer_list = [
+            bm.faces.layers.int.get("amagate_tex_id"),
+            bm.faces.layers.float_vector.get("amagate_tex_vx"),
+            bm.faces.layers.float_vector.get("amagate_tex_vy"),
+            bm.faces.layers.float.get("amagate_tex_xpos"),
+            bm.faces.layers.float.get("amagate_tex_ypos"),
+        ]
+
+        hole = next((f for f in bm.faces if f[conn_layer] != 0), None)  # type: ignore
+        if hole:
+            other_holes = [f for f in bm.faces if f != hole and f[conn_layer] != 0]  # type: ignore
+        else:
+            other_holes = []
         #
         if other_holes:
-            count += 1
+            verts_sort = {v: i for i, v in enumerate(hole.verts)}
+            last_pair = {0, len(hole.verts) - 1}
+            tangent_data = []
+            normal = hole.normal.copy()
+
+            # count += 1
             for edge in hole.edges:
                 if edge.is_boundary:
                     continue
@@ -207,7 +220,7 @@ def hole_split(bm, hole_dict):
                 polluted_hole = set()  # 污染的洞
                 #
                 for hole_2 in other_holes:
-                    conn_sid_2 = hole_2[layer]  # type: ignore
+                    conn_sid_2 = hole_2[conn_layer]  # type: ignore
                     #
                     dot_lst = [
                         (v.co - v1.co).normalized().dot(tangent) for v in hole_2.verts
@@ -222,26 +235,42 @@ def hole_split(bm, hole_dict):
                     tangent_data.append(
                         [edge.verts[0].co, tangent, dist, clean_hole, polluted_hole]
                     )
-            # if tangent_data:
-            flag = [8003, 1]
+            ####
             # 切割平面
             inner_cut = False
             while tangent_data:
+                bm.faces.ensure_lookup_table()
+                # 判断纹理一致性
+                face = bm.faces[0]
+                for layer in layer_list:
+                    if layer.name[-6:] in ("tex_vx", "tex_vy"):
+                        val_1 = face[layer].to_tuple(5)  # type: ignore
+                        is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+                    else:
+                        val_1 = face[layer]  # type: ignore
+                        is_tex_uniform = next((0 for f in bm.faces if f[layer] != val_1), 1)  # type: ignore
+                    if not is_tex_uniform:
+                        break
                 # 污染数量最少的排前面
                 tangent_data.sort(key=lambda x: len(x[4]))
                 # 清理数量最多的排前面
                 tangent_data.sort(key=lambda x: -len(x[3]))
                 #
                 plane_co, tangent, dist, clean_hole, polluted_hole = tangent_data[0]
-                _, outer_bm = bisect_plane(bm, tangent, plane_co)
-                if inner_cut:
-                    stack.append((outer_bm, 1))
-                else:
-                    stack.append((outer_bm, count))
-                # cut_data.append(((tangent[0], -tangent[2], tangent[1]), dist))
-                cut_data_buff.append(
+                bm, outer_bm = bisect_plane(bm, tangent, plane_co)
+                cut_data_buffer.append(
                     struct.pack("<dddd", tangent[0], -tangent[2], tangent[1], dist)
                 )
+                if inner_cut:
+                    stack.append(
+                        (outer_bm, [8001 if is_tex_uniform else 8002], cut_data_idx)
+                    )
+                else:
+                    block_mark.append(8001 if is_tex_uniform else 8002)
+                    stack.append((outer_bm, block_mark, cut_data_idx))
+                if not is_tex_uniform:
+                    cut_data_idx = len(cut_data_buffer) - 1
+                # cut_data.append(((tangent[0], -tangent[2], tangent[1]), dist))
                 #
                 for i in range(len(tangent_data) - 1, 0, -1):
                     tangent_data[i][3].difference_update(clean_hole)
@@ -250,28 +279,49 @@ def hole_split(bm, hole_dict):
                         tangent_data.pop(i)
                 tangent_data.pop(0)
                 inner_cut = True
-        else:
-            flag = [8001] * count + [8003, 1]
-        # 最终的块只剩下一个洞
-        # bm_mesh = bpy.data.meshes.new(f"AG.split")
-        # bm.to_mesh(bm_mesh)
-        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
-        # data.link2coll(bm_obj, bpy.context.scene.collection)
+                # 更新bm属性
+                conn_layer = bm.faces.layers.int.get("amagate_connected")
+                layer_list = [
+                    bm.faces.layers.int.get("amagate_tex_id"),
+                    bm.faces.layers.float_vector.get("amagate_tex_vx"),
+                    bm.faces.layers.float_vector.get("amagate_tex_vy"),
+                    bm.faces.layers.float.get("amagate_tex_xpos"),
+                    bm.faces.layers.float.get("amagate_tex_ypos"),
+                ]
+            block_mark = []
+        ####
+        bm.faces.ensure_lookup_table()
+        face = bm.faces[0]
+        for layer in layer_list:
+            if layer.name[-6:] in ("tex_vx", "tex_vy"):
+                val_1 = face[layer].to_tuple(5)  # type: ignore
+                is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+            else:
+                val_1 = face[layer]  # type: ignore
+                is_tex_uniform = next((0 for f in bm.faces if f[layer] != val_1), 1)  # type: ignore
+            if not is_tex_uniform:
+                break
         #
-        hole = next(f for f in bm.faces if f[layer] != 0)  # type: ignore
-        hole_data = hole_dict[hole[layer]]  # type: ignore
-        tangent_idx = []
-        # if not hole_data:
-        #     hole_data = {"index": hole_index, "tangent": []}
-        #     hole_dict[hole[layer]] = hole_data  # type: ignore
-        #     hole_index += 1
-        if len(bm.faces) != 1:
-            verts_sort = {v: i for i, v in enumerate(hole.verts)}
-            last_pair = {0, len(hole.verts) - 1}
-            normal = hole.normal.copy()
-            for edge in hole.edges:
+        if not is_tex_uniform:
+            # ag_utils.debugprint(layer.name)
+            faces_dict = {}
+            for f in bm.faces:
+                if layer.name[-6:] in ("tex_vx", "tex_vy"):
+                    faces_dict.setdefault(f[layer].to_tuple(5), []).append(f)  # type: ignore
+                else:
+                    faces_dict.setdefault(f[layer], []).append(f)  # type: ignore
+            faces_list = [(k, list(v)) for k, v in faces_dict.items()]
+            #
+            faces_list.sort(key=lambda x: len(x[1]))
+            val_1 = faces_list[0][0]
+            face = faces_list[0][1][0]
+            verts_sort = {v: i for i, v in enumerate(face.verts)}
+            last_pair = {0, len(face.verts) - 1}
+            normal = face.normal.copy()
+            for edge in face.edges:
                 if edge.is_boundary:
                     continue
+                #
                 v1, v2 = edge.verts
                 v1_idx, v2_idx = verts_sort[v1], verts_sort[v2]
                 if {v1_idx, v2_idx} == last_pair:
@@ -283,26 +333,126 @@ def hole_split(bm, hole_dict):
                 cross = (v2.co - v1.co).cross(normal)  # type: Vector
                 tangent = Vector(cross.normalized().to_tuple(5))
                 dist = round((-v1.co).dot(tangent) * 1000, 1)
+                # ag_utils.debugprint(f"tangent: {tangent}")
+                #
+                for face2 in bm.faces:
+                    if layer.name[-6:] in ("tex_vx", "tex_vy"):
+                        val_2 = face2[layer].to_tuple(5)  # type: ignore
+                    else:
+                        val_2 = face2[layer]  # type: ignore
+                    if val_2 == val_1:
+                        continue
+                    is_polluted = next(
+                        (
+                            1
+                            for v in face2.verts
+                            if (v.co - v1.co).normalized().dot(tangent) > epsilon
+                        ),
+                        0,
+                    )
+                    if is_polluted:
+                        inner_bm, outer_bm = bisect_plane(bm, tangent, v1.co)
+                        cut_data_buffer.append(
+                            struct.pack(
+                                "<dddd", tangent[0], -tangent[2], tangent[1], dist
+                            )
+                        )
+                        block_mark.append(8002)
+                        stack.append((outer_bm, block_mark, cut_data_idx))
+                        stack.append((inner_bm, [], len(cut_data_buffer) - 1))
 
-                t = tangent[0], -tangent[2], tangent[1], dist
-                if t not in hole_data["tangent"]:
-                    hole_data["tangent"].append(t)
-                    tangent_idx.append(len(hole_data["tangent"]) - 1)
+                        break
+                # 如果没有发生break
                 else:
-                    index = hole_data["tangent"].index(t)
-                    if index not in tangent_idx:
-                        tangent_idx.append(index)
-        # cut_data.append((flag, hole_data["index"], tangent_idx))
-        cut_data_buff.append(
-            struct.pack(
-                f"<{'I'*len(flag)}II{'I'*len(tangent_idx)}",
-                *flag,
-                hole_data["index"],
-                len(tangent_idx),
-                *tangent_idx,
+                    continue
+                break
+        else:
+            # 最终的块只剩下一个洞或1个纹纹理
+            # bm_mesh = bpy.data.meshes.new(f"AG.split")
+            # bm.to_mesh(bm_mesh)
+            # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+            # data.link2coll(bm_obj, bpy.context.scene.collection)
+            #
+            bm.faces.ensure_lookup_table()
+            if cut_data_idx != -1 or (not stack):
+                face = bm.faces[0]
+                tex_id = face[layer_list[0]]  # type: ignore
+                img = L3D_data.get_texture_by_id(tex_id)[1]
+                # tex_data = (img.name, face[layer_list[1]], face[layer_list[2]], face[layer_list[3]], face[layer_list[4]])  # type: ignore
+                tex_vx = face[layer_list[1]]
+                tex_vy = face[layer_list[2]]
+                tex_vx = tex_vx[0], -tex_vx[2], tex_vx[1]
+                tex_vy = tex_vy[0], -tex_vy[2], tex_vy[1]
+                name = img.name.encode("utf-8")
+                tex_buffer = b"".join(
+                    (
+                        struct.pack("<I", len(name)),
+                        name,
+                        struct.pack(
+                            "<ddddddff",
+                            *tex_vx,
+                            *tex_vy,
+                            face[layer_list[3]],
+                            face[layer_list[4]],
+                        ),
+                    )
+                )
+                if cut_data_idx != -1:
+                    buffer = b"".join(
+                        (
+                            cut_data_buffer[cut_data_idx],
+                            struct.pack("<II", 3, 0),
+                            tex_buffer,
+                            b"\x00" * 8,
+                        )
+                    )
+                    cut_data_buffer[cut_data_idx] = buffer
+            hole = next((f for f in bm.faces if f[conn_layer] != 0), None)  # type: ignore
+            hole_fmt = ""
+            hole_v = []
+            if hole:
+                hole_data = hole_dict[hole[conn_layer]]  # type: ignore
+                tangent_idx = []
+                if len(bm.faces) != 1:
+                    verts_sort = {v: i for i, v in enumerate(hole.verts)}
+                    last_pair = {0, len(hole.verts) - 1}
+                    normal = hole.normal.copy()
+                    for edge in hole.edges:
+                        if edge.is_boundary:
+                            continue
+                        v1, v2 = edge.verts
+                        v1_idx, v2_idx = verts_sort[v1], verts_sort[v2]
+                        if {v1_idx, v2_idx} == last_pair:
+                            if v1_idx == 0:
+                                v1, v2 = v2, v1
+                        elif v2_idx < v1_idx:
+                            v1, v2 = v2, v1
+                        # 计算切线
+                        cross = (v2.co - v1.co).cross(normal)  # type: Vector
+                        tangent = Vector(cross.normalized().to_tuple(5))
+                        dist = round((-v1.co).dot(tangent) * 1000, 1)
+
+                        t = tangent[0], -tangent[2], tangent[1], dist
+                        if t not in hole_data["tangent"]:
+                            hole_data["tangent"].append(t)
+                            tangent_idx.append(len(hole_data["tangent"]) - 1)
+                        else:
+                            index = hole_data["tangent"].index(t)
+                            if index not in tangent_idx:
+                                tangent_idx.append(index)
+                hole_fmt = f"II{'I'*len(tangent_idx)}"
+                hole_v = (hole_data["index"], len(tangent_idx), *tangent_idx)
+                # cut_data.append((flag, hole_data["index"], tangent_idx))
+            cut_data_buffer.append(
+                struct.pack(
+                    f"<{'I'*len(block_mark)}II{hole_fmt}",
+                    *block_mark,
+                    8003,
+                    1 if hole else 0,
+                    *hole_v,
+                )
             )
-        )
-        bm.free()
+            bm.free()
     #
     holes_data = [
         (v["index"], v["tangent"], v["verts_idx"], k) for k, v in hole_dict.items()
@@ -311,7 +461,35 @@ def hole_split(bm, hole_dict):
 
     # print("\n".join(map(str, hole_dict.items())))
     # print("\n".join(map(str, cut_data)))
-    return holes_data, cut_data_buff
+    return holes_data, cut_data_buffer, tex_buffer
+
+
+def copy_flat(matrix_world, global_sector_map, group_faces, layer_list, conn_layer):
+    # type: (Matrix, dict[int, int], list[bmesh.types.BMFace], list[bmesh.types.BMLayerItem],bmesh.types.BMLayerItem[int]|None) -> bmesh.types.BMesh
+    bm_flat = bmesh.new()
+    conn_layer_2 = bm_flat.faces.layers.int.new("amagate_connected")
+    layer_list_2 = [
+        bm_flat.faces.layers.int.new("amagate_tex_id"),
+        bm_flat.faces.layers.float_vector.new("amagate_tex_vx"),
+        bm_flat.faces.layers.float_vector.new("amagate_tex_vy"),
+        bm_flat.faces.layers.float.new("amagate_tex_xpos"),
+        bm_flat.faces.layers.float.new("amagate_tex_ypos"),
+    ]
+    verts_map = {}
+    for face in group_faces:
+        for v in face.verts:
+            if v.index not in verts_map:
+                verts_map[v.index] = bm_flat.verts.new(matrix_world @ v.co)
+    for face in group_faces:
+        f_new = bm_flat.faces.new([verts_map[v.index] for v in face.verts])
+        for idx, layer in enumerate(layer_list):
+            f_new[layer_list_2[idx]] = face[layer]  # type: ignore
+
+        conn_sid = face[conn_layer]  # type: ignore
+        if conn_sid in global_sector_map:
+            f_new[conn_layer_2] = conn_sid  # type: ignore
+    bm_flat = ag_utils.ensure_lookup_table(bm_flat)
+    return bm_flat
 
 
 #
@@ -324,11 +502,11 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
 
     # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
     if "EDIT" in context.mode:
+        objects_in_mode = context.objects_in_mode
         bpy.ops.object.mode_set(mode="OBJECT")
-        selected_objects = context.selected_objects.copy()
-        if context.active_object not in selected_objects:
-            selected_objects.append(context.active_object)
-        L3D_data.geometry_modify_post(selected_objects, check_connect=False)
+        sectors_in_mode = [obj for obj in objects_in_mode if obj.amagate_data.is_sector]
+        if sectors_in_mode:
+            L3D_data.geometry_modify_post(sectors_in_mode)
         L3D_data.update_scene_edit_mode()
 
     # 收集可见的凸扇区
@@ -474,7 +652,19 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             sec_bm.from_mesh(mesh)
             sec_bm.faces.ensure_lookup_table()
             sec_bm.verts.ensure_lookup_table()
-            sec_bm_layer = sec_bm.faces.layers.int.get("amagate_connected")
+            conn_layer = sec_bm.faces.layers.int.get("amagate_connected")
+            tex_id_layer = sec_bm.faces.layers.int.get("amagate_tex_id")
+            tex_vx_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vx")
+            tex_vy_layer = sec_bm.faces.layers.float_vector.get("amagate_tex_vy")
+            xpos_layer = sec_bm.faces.layers.float.get("amagate_tex_xpos")
+            ypos_layer = sec_bm.faces.layers.float.get("amagate_tex_ypos")
+            layer_list = [
+                tex_id_layer,
+                tex_vx_layer,
+                tex_vy_layer,
+                xpos_layer,
+                ypos_layer,
+            ]
             # global_face_count += len(mesh.polygons)
             # f.write(struct.pack("<I", len(mesh.polygons)))
             # 排序面，地板优先
@@ -482,34 +672,42 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             z_axis = Vector((0, 0, 1))
 
             conn_face_visited = set()
-            connect_num = 0
-            # 先找出连接面
+            # connect_num = 0
+            # 处理面数据
             for face_index, face in enumerate(sec_bm.faces):
-                if connect_num == sec_data.connect_num:
-                    break
+                # if connect_num == sec_data.connect_num:
+                #     break
                 if face in conn_face_visited:
                     continue
 
-                connected_sid = mesh.attributes["amagate_connected"].data[face_index].value  # type: ignore
-                if connected_sid == 0 or global_sector_map.get(connected_sid) is None:
-                    continue
+                # connected_sid = mesh.attributes["amagate_connected"].data[face_index].value  # type: ignore
+                # if connected_sid == 0 or global_sector_map.get(connected_sid) is None:
+                #     continue
 
-                # 如果是连接面且连接目标在导出列表中
                 connect_data = ()
                 normal = matrix_world.to_quaternion() @ face.normal
                 group_faces = ag_utils.get_linked_flat(face)
                 conn_face_visited.update(group_faces)
-
+                # 如果该平面只有一个面
                 if len(group_faces) == 1:
-                    face_type = 7002  # 整个面是连接的
+                    conne_sid = face[conn_layer]  # type: ignore
+                    # 如果没有连接或者连接的扇区不在导出列表中
+                    if conne_sid == 0 or global_sector_map.get(conne_sid) is None:
+                        if face[tex_id_layer] == -1:  # type: ignore
+                            face_type = 7005  # 天空面
+                        else:
+                            face_type = 7001  # 普通面
+                    else:
+                        face_type = 7002  # 整个面是连接的
+                        connect_data = (conne_sid,)
                     verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
-                    connect_data = (connected_sid,)
-                    connect_num += 1
+                    # connect_num += 1
+                # 如果该平面有多个面
                 else:
                     conn_face_num = 0
                     hole_dict = {}  # type: Any
                     for face in group_faces:
-                        conn_sid = face[sec_bm_layer]  # type: ignore
+                        conn_sid = face[conn_layer]  # type: ignore
                         if conn_sid == 0 or global_sector_map.get(conn_sid) is None:
                             continue
                         if conn_sid in hole_dict:
@@ -526,8 +724,37 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         #
                         conn_face_num += 1
                     #
-                    connect_num += conn_face_num
-                    if conn_face_num == 1:
+                    # connect_num += conn_face_num
+                    # 如果没有连接，判断是否存在不同的纹理属性
+                    if conn_face_num == 0:
+                        # 判断纹理一致性
+                        face = sec_bm.faces[0]
+                        for layer in layer_list:
+                            if layer.name[-6:] in ("tex_vx", "tex_vy"):
+                                val_1 = face[layer].to_tuple(5)  # type: ignore
+                                is_tex_uniform = next((0 for f in sec_bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+                            else:
+                                val_1 = face[layer]  # type: ignore
+                                is_tex_uniform = next((0 for f in sec_bm.faces if f[layer] != val_1), 1)  # type: ignore
+                            if not is_tex_uniform:
+                                face_type = 7004  # 平面中的多纹理
+                                # 复制平面
+                                bm_flat = copy_flat(
+                                    matrix_world,
+                                    global_sector_map,
+                                    group_faces,
+                                    layer_list,
+                                    conn_layer,
+                                )
+                                connect_data = flat_split(bm_flat, hole_dict)
+                                break
+                        # 没有发生break，纹理是一致的
+                        else:
+                            if face[tex_id_layer] == -1:  # type: ignore
+                                face_type = 7005  # 天空面
+                            else:
+                                face_type = 7001  # 普通面
+                    elif conn_face_num == 1:
                         face_type = 7003  # 平面中的单连接
                         #
                         # 按照顶点顺序计算切线
@@ -548,33 +775,18 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         # 转换为全局顶点索引
                         verts_sub_idx = [sec_vertex_indices[i] for i in verts_sub_idx]
 
-                        connect_data = (face_conn[sec_bm_layer], verts_sub_idx, tangent_data)  # type: ignore
+                        connect_data = (face_conn[conn_layer], verts_sub_idx, tangent_data)  # type: ignore
                     else:
                         face_type = 7004  # 平面中的多连接
                         # 复制平面
-                        bm_plane = bmesh.new()
-                        layer = bm_plane.faces.layers.int.new("amagate_connected")
-                        verts_map = {}
-                        for face in group_faces:
-                            for v in face.verts:
-                                if v.index not in verts_map:
-                                    verts_map[v.index] = bm_plane.verts.new(
-                                        matrix_world @ v.co
-                                    )
-                        visited_conn_sid = []
-                        for face in group_faces:
-                            f_new = bm_plane.faces.new(
-                                [verts_map[v.index] for v in face.verts]
-                            )
-                            conn_sid = face[sec_bm_layer]  # type: ignore
-                            if (
-                                conn_sid not in visited_conn_sid
-                                and conn_sid in global_sector_map
-                            ):
-                                f_new[layer] = conn_sid  # type: ignore
-                                visited_conn_sid.append(conn_sid)
-                        bm_plane = ag_utils.ensure_lookup_table(bm_plane)
-                        connect_data = hole_split(bm_plane, hole_dict)
+                        bm_flat = copy_flat(
+                            matrix_world,
+                            global_sector_map,
+                            group_faces,
+                            layer_list,
+                            conn_layer,
+                        )
+                        connect_data = flat_split(bm_flat, hole_dict)
                     # 获取凸壳顶点
                     group_faces_idx = [f.index for f in group_faces]
                     bm_convex = sec_bm.copy()
@@ -601,21 +813,20 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     (face_index, verts_idx, normal, face_type, connect_data)
                 )
 
-            # 再找出普通面和天空面
-            connect_data = ()  # 空的连接信息
-            for face_index, face in enumerate(sec_bm.faces):
-                if face in conn_face_visited:
-                    continue
+            # connect_data = ()  # 空的连接信息
+            # for face_index, face in enumerate(sec_bm.faces):
+            #     if face in conn_face_visited:
+            #         continue
 
-                normal = matrix_world.to_quaternion() @ face.normal
-                if mesh.attributes["amagate_tex_id"].data[face_index].value == -1:  # type: ignore
-                    face_type = 7005  # 天空面
-                else:
-                    face_type = 7001  # 普通面
-                verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
-                faces_sorted.append(
-                    (face_index, verts_idx, normal, face_type, connect_data)
-                )
+            #     normal = matrix_world.to_quaternion() @ face.normal
+            #     if mesh.attributes["amagate_tex_id"].data[face_index].value == -1:  # type: ignore
+            #         face_type = 7005  # 天空面
+            #     else:
+            #         face_type = 7001  # 普通面
+            #     verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
+            #     faces_sorted.append(
+            #         (face_index, verts_idx, normal, face_type, connect_data)
+            #     )
 
             sec_bm.free()
             # ag_utils.debugprint(f"{sec.name}: {[i[0] for i in faces_sorted]}")
@@ -666,16 +877,20 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 f.write(struct.pack("<I", 3))
                 f.write(struct.pack("<I", 0))
 
-                buffer = L3D_data.get_texture_by_id(mesh.attributes["amagate_tex_id"].data[face_index].value)[1].name.encode("utf-8")  # type: ignore
-                f.write(struct.pack("<I", len(buffer)))
-                f.write(buffer)
-                tex_vx = mesh.attributes["amagate_tex_vx"].data[face_index].vector  # type: ignore
-                f.write(struct.pack("<ddd", tex_vx[0], -tex_vx[2], tex_vx[1]))
-                tex_vy = mesh.attributes["amagate_tex_vy"].data[face_index].vector  # type: ignore
-                f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
-                tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
-                tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
-                f.write(struct.pack("<ff", tex_xpos, tex_ypos))
+                if face_type == 7004:
+                    tex_buffer = connect_data[2]
+                    f.write(tex_buffer)
+                else:
+                    buffer = L3D_data.get_texture_by_id(mesh.attributes["amagate_tex_id"].data[face_index].value)[1].name.encode("utf-8")  # type: ignore
+                    f.write(struct.pack("<I", len(buffer)))
+                    f.write(buffer)
+                    tex_vx = mesh.attributes["amagate_tex_vx"].data[face_index].vector  # type: ignore
+                    f.write(struct.pack("<ddd", tex_vx[0], -tex_vx[2], tex_vx[1]))
+                    tex_vy = mesh.attributes["amagate_tex_vy"].data[face_index].vector  # type: ignore
+                    f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
+                    tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
+                    tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
+                    f.write(struct.pack("<ff", tex_xpos, tex_ypos))
 
                 f.write(b"\x00" * 8)  # 0
                 #
@@ -699,7 +914,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         f.write(struct.pack("<d", dist))
                 #
                 elif face_type == 7004:
-                    holes_data, cut_data_buff = connect_data
+                    holes_data, cut_data_buff, _ = connect_data
                     f.write(struct.pack("<I", len(holes_data)))
 
                     for _, tangent_data, verts_sub_idx, conn_sid in holes_data:

@@ -1231,6 +1231,66 @@ def expand_conn(faces, bm):
     return selected_faces
 
 
+# 有限融并扇区
+def dissolve_limit_sectors(sectors):
+    # type: (list[Object]) -> None
+    for sec in sectors:
+        # sec_data = sec.amagate_data.get_sector_data()
+        # if sec_data.connect_num == 0:
+        #     continue
+
+        mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        conn_layer = bm.faces.layers.int.get("amagate_connected")
+        tex_id_layer = bm.faces.layers.int.get("amagate_tex_id")
+        flag_layer = bm.faces.layers.int.get("amagate_flag")
+        # has_dissolve = False
+
+        conn_dict = {}
+        for face in bm.faces:
+            conn_sid = face[conn_layer]  # type: ignore
+            if conn_sid != 0:  # type: ignore
+                conn_dict.setdefault(conn_sid, []).append(face)
+        for conn_sid, faces in conn_dict.items():
+            if len(faces) > 1:
+                bmesh.ops.dissolve_faces(bm, faces=faces, use_verts=False)
+
+        # 确保天空纹理与普通纹理不在同一平展面
+        visited = set()
+        for f in bm.faces:
+            if f in visited:
+                continue
+            flat_faces = get_linked_flat(f)
+            visited.update(flat_faces)
+            face = next((f for f in flat_faces if f[tex_id_layer] != -1), None)  # type: ignore
+            if face:
+                for f in flat_faces:
+                    if f[tex_id_layer] == -1:  # type: ignore
+                        f[tex_id_layer] = face[tex_id_layer]  # type: ignore
+                        f[flag_layer] = face[flag_layer]  # type: ignore
+                        f.material_index = face.material_index
+
+        # 有限融并扇区
+        # 重置缝合边标记
+        for e in bm.edges:
+            e.seam = False
+        for f in bm.faces:
+            if f[conn_layer] != 0:  # type: ignore
+                for e in f.edges:
+                    e.seam = True
+        bmesh.ops.dissolve_limit(
+            bm,
+            angle_limit=0.002,
+            edges=list(bm.edges),
+            delimit={"SEAM", "MATERIAL", "SHARP"},
+        )  # NORMAL
+
+        unsubdivide(bm)
+        bm.to_mesh(mesh)  # type: ignore
+        bm.free()
+
+
 ############################
 
 

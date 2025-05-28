@@ -529,10 +529,11 @@ def geometry_modify_post(
     if not selected_sectors:
         selected_sectors = ag_utils.get_selected_sectors()[0]
     if selected_sectors:
+        ag_utils.dissolve_limit_sectors(selected_sectors)
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
-            if sec_data is None:
-                continue
+            # if sec_data is None:
+            #     continue
             sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
             sec_data.is_convex = ag_utils.is_convex(sec)
             if sec_data.connect_num != 0 and check_connect:
@@ -621,6 +622,9 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         # 扇区变换的回调
         elif bl_idname in TRANSFORM_OP:
             check_sector_transform(bl_idname)
+        # 编辑模式删除的回调，有点复杂，因为不知道用户是单独删除面还是包括顶点
+        # elif bl_idname == "MESH_OT_delete":
+        #     ...
     # 无操作回调，例如在属性面板修改
     # else:
     #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":
@@ -1583,14 +1587,15 @@ class SceneProperty(bpy.types.PropertyGroup):
                     (bm.faces.layers.float.get("amagate_tex_angle"), tex_prop.angle),
                 )
 
-            layers = bm.faces.layers.int.get("amagate_flag")
-            selected_faces = ag_utils.expand_conn(item[1], bm)
+            flag_layer = bm.faces.layers.int.get("amagate_flag")
+            # selected_faces = ag_utils.expand_conn(item[1], bm)
+            selected_faces = item[1]
             for face in selected_faces:
-                face[layers] = FACE_FLAG[identifier]  # type: ignore
+                face[flag_layer] = FACE_FLAG[identifier]  # type: ignore
                 #
                 if identifier != "Custom":
-                    for layers, value in attr_list:
-                        face[layers] = value  # type: ignore
+                    for layer, value in attr_list:
+                        face[layer] = value  # type: ignore
             #
             if identifier != "Custom":
                 sec_data.set_matslot(ensure_material(tex), selected_faces, bm)
