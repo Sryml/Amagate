@@ -1753,6 +1753,55 @@ class OT_GhostSectorExport(bpy.types.Operator):
             return {"CANCELLED"}
 
 
+# 设为默认扇区
+class OT_SectorSetDefault(bpy.types.Operator):
+    bl_idname = "amagate.sector_set_default"
+    bl_label = "Set as Default"
+    bl_description = ""
+    # bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
+    is_button: BoolProperty(default=False)  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
+
+    def execute(self, context: Context):
+        # 如果是从F3执行，获取当前选中的扇区
+        if not self.is_button:
+            L3D_data.SELECTED_SECTORS, L3D_data.ACTIVE_SECTOR = (
+                ag_utils.get_selected_sectors()
+            )
+        self.is_button = False  # 重置，因为从F3执行时会使用缓存值
+
+        active_sector = L3D_data.ACTIVE_SECTOR
+        if not active_sector:
+            self.report({"WARNING"}, "Select at least one sector")
+            return {"CANCELLED"}
+        #
+        sec_data = active_sector.amagate_data.get_sector_data()
+        scene_data = context.scene.amagate_data
+        defaults = scene_data.defaults
+        #
+        defaults.atmo_id = sec_data.atmo_id
+        defaults.external_id = sec_data.external_id
+        defaults.ambient_color = sec_data.ambient_color.copy()
+        defaults.flat_light.color = sec_data.flat_light.color.copy()
+        for i in ("Floor", "Ceiling", "Wall"):
+            tex_prop = sec_data.textures.get(i)
+            def_prop = defaults.textures.get(i)
+            #
+            def_prop.id = tex_prop.id
+            def_prop.xpos = tex_prop.xpos
+            def_prop.ypos = tex_prop.ypos
+            def_prop.xzoom = tex_prop.xzoom
+            def_prop.yzoom = tex_prop.yzoom
+            def_prop.angle = tex_prop.angle
+
+        return {"FINISHED"}
+
+
 ############################
 ############################
 ############################

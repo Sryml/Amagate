@@ -128,6 +128,7 @@
     ("Operator", "Vertex Matching"): "顶点匹配",
     ("Operator", "Connect Sectors (Vertex Matching)"): "连接扇区 (顶点匹配)",
     ("Operator", "Disconnect"): "断开连接",
+    ("Operator", "Set as Default"): "设为默认",
     ("*", "Disconnect selected sectors"): "断开选中扇区的连接",
     ("*", "No connection found"): "未找到连接",
     # ("*", "Auto Separate Convex"): "自动分离凸部分",

@@ -337,7 +337,7 @@ class AMAGATE_PT_Scene_Default(L3D_Panel, bpy.types.Panel):
 
         if atmo:
             row = split.row()
-            row.enabled = False
+            # row.enabled = False
             row.prop(atmo, "color", text="")
 
         layout.separator()
@@ -435,7 +435,7 @@ class AMAGATE_PT_Scene_Default(L3D_Panel, bpy.types.Panel):
 
         if item:
             row = split.row()
-            row.prop(item, "color_readonly", text="")
+            row.prop(item, "color", text="")
 
         column.separator(factor=2, type="LINE")
 
@@ -583,8 +583,15 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         #     icon_only=True,
         #     toggle=True,
         # )
+        # 断开连接
         row_2 = row.row(align=True)
         op = row_2.operator(OP_SECTOR.OT_Sector_Disconnect.bl_idname, icon="X")
+        op.is_button = True  # type: ignore
+
+        col.separator(type="LINE")
+
+        # 设为默认扇区
+        op = col.operator(OP_SECTOR.OT_SectorSetDefault.bl_idname)
         op.is_button = True  # type: ignore
 
 
@@ -681,7 +688,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         if atmo:
             row = split.row()
-            row.enabled = False
+            # row.enabled = False
             row.prop(atmo, "color", text="")
         elif not is_uniform:
             row = split.row()
@@ -843,7 +850,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         if item:
             row = split.row()
-            row.prop(item, "color_readonly", text="")
+            row.prop(item, "color", text="")
 
         column.separator(factor=2, type="LINE")
 

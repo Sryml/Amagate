@@ -991,7 +991,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
-        split = row.split(factor=0.6)
+        split = row.split(factor=0.5)
         row = split.row()
 
         i = (
@@ -1009,13 +1009,13 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         else:
             col.label(text=light.item_name)
 
-        if enabled:
-            split = split.split(factor=0.5)
-            row = split.row()
-            row.alignment = "RIGHT"
-            row.operator(
-                "amagate.scene_external_set", text="", icon="LIGHT_SUN", emboss=False
-            ).id = light.id  # type: ignore
+        # if enabled:
+        split = split.split(factor=0.4)
+        row = split.row()
+        row.alignment = "RIGHT"
+        row.operator(
+            "amagate.scene_external_set", text="", icon="LIGHT_SUN", emboss=False
+        ).id = light.id  # type: ignore
 
         row = split.row()
         color = "color" if enabled else "color_readonly"
@@ -1647,8 +1647,8 @@ class SceneProperty(bpy.types.PropertyGroup):
         defaults.atmo_id = 1
         defaults.external_id = 1
         defaults.ambient_color = (0.5, 0.5, 0.5)
-        defaults.flat_light.target = "Scene"
 
+        defaults.flat_light.target = "Scene"
         self.sector_public.target = "SectorPublic"
         self.sector_public.flat_light.target = "SectorPublic"
         ############################

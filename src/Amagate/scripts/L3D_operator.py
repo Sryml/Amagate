@@ -980,7 +980,16 @@ class OT_InitMap(bpy.types.Operator):
         #     filepath = os.path.join(data.ADDON_PATH, "textures", i)
         #     OT_Texture_Add.load_image(filepath).builtin = True
         ## 创建默认数据
+        # 内部大气
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
+        idx, atmo = L3D_data.get_atmo_by_id(scene_data, 1)
+        atmo.item_name = "int"
+        atmo["_color"] = (0.0, 0.0, 0.0, 0.018)
+        # 外部大气
+        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
+        idx, atmo = L3D_data.get_atmo_by_id(scene_data, 2)
+        atmo.item_name = "ext"
+        atmo["_color"] = (0.39, 0.45, 0.56, 0.015)
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
         ## 创建节点
         L3D_data.ensure_node()
