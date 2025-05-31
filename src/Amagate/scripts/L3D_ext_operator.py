@@ -392,8 +392,8 @@ def flat_split(bm, hole_dict):
                             "<ddddddff",
                             *tex_vx,
                             *tex_vy,
-                            face[layer_list[3]],
-                            face[layer_list[4]],
+                            face[layer_list[3]] * 50,
+                            face[layer_list[4]] * 50,
                         ),
                     )
                 )
@@ -576,6 +576,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
         f.seek(stream_pos)
 
         # 写入扇区数据
+        # XXX 该明度系数只是近似效果，具体算法未知
         v_factor = 0.86264  # 明度系数
         ambient_light_p = bytes.fromhex("0000803C")  # 0.015625 环境光精度
         ext_light_p = bytes.fromhex("0000003D")  # 0.03125 外部灯光精度
@@ -728,19 +729,16 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                         }
                         #
                         conn_face_num += 1
-                    #
-                    # connect_num += conn_face_num
-                    # 如果没有连接，判断是否存在不同的纹理属性
-                    if conn_face_num == 0:
-                        # 判断纹理一致性
-                        face = sec_bm.faces[0]
+                    # 连接数量是0或1，判断纹理一致性
+                    if conn_face_num < 2:
+                        face = group_faces[0]
                         for layer in layer_list:
                             if layer.name[-6:] in ("tex_vx", "tex_vy"):
                                 val_1 = face[layer].to_tuple(5)  # type: ignore
-                                is_tex_uniform = next((0 for f in sec_bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+                                is_tex_uniform = next((0 for f in group_faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
                             else:
                                 val_1 = face[layer]  # type: ignore
-                                is_tex_uniform = next((0 for f in sec_bm.faces if f[layer] != val_1), 1)  # type: ignore
+                                is_tex_uniform = next((0 for f in group_faces if f[layer] != val_1), 1)  # type: ignore
                             if not is_tex_uniform:
                                 face_type = 7004  # 平面中的多纹理
                                 # 复制平面
@@ -755,32 +753,41 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                                 break
                         # 没有发生break，纹理是一致的
                         else:
-                            if face[tex_id_layer] == -1:  # type: ignore
+                            # 如果连接数量是1, 7003类型
+                            if conn_face_num == 1:
+                                face_type = 7003  # 平面中的单连接
+                                #
+                                # 按照顶点顺序计算切线
+                                tangent_data = []  # 切线数据
+                                verts_sub_idx = [v.index for v in face_conn.verts]
+                                verts_sub_idx_num = len(verts_sub_idx)
+                                for i in range(verts_sub_idx_num):
+                                    j = (i + 1) % verts_sub_idx_num
+
+                                    co1 = (
+                                        matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
+                                    )
+                                    co2 = (
+                                        matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
+                                    )
+                                    cross = (co2 - co1).cross(normal)  # type: Vector
+                                    cross.normalize()
+                                    dist = (-co1).dot(cross) * 1000
+
+                                    tangent_data.append((dist, cross))
+
+                                # 转换为全局顶点索引
+                                verts_sub_idx = [
+                                    sec_vertex_indices[i] for i in verts_sub_idx
+                                ]
+
+                                connect_data = (face_conn[conn_layer], verts_sub_idx, tangent_data)  # type: ignore
+                            # 如果连接数量是0
+                            elif face[tex_id_layer] == -1:  # type: ignore
                                 face_type = 7005  # 天空面
                             else:
                                 face_type = 7001  # 普通面
-                    elif conn_face_num == 1:
-                        face_type = 7003  # 平面中的单连接
-                        #
-                        # 按照顶点顺序计算切线
-                        tangent_data = []  # 切线数据
-                        verts_sub_idx = [v.index for v in face_conn.verts]
-                        verts_sub_idx_num = len(verts_sub_idx)
-                        for i in range(verts_sub_idx_num):
-                            j = (i + 1) % verts_sub_idx_num
-
-                            co1 = matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
-                            co2 = matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
-                            cross = (co2 - co1).cross(normal)  # type: Vector
-                            cross.normalize()
-                            dist = (-co1).dot(cross) * 1000
-
-                            tangent_data.append((dist, cross))
-
-                        # 转换为全局顶点索引
-                        verts_sub_idx = [sec_vertex_indices[i] for i in verts_sub_idx]
-
-                        connect_data = (face_conn[conn_layer], verts_sub_idx, tangent_data)  # type: ignore
+                    # 连接数量大于1，直接为7004类型
                     else:
                         face_type = 7004  # 平面中的多连接
                         # 复制平面
@@ -895,7 +902,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
                     tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
                     tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
-                    f.write(struct.pack("<ff", tex_xpos, tex_ypos))
+                    f.write(struct.pack("<ff", tex_xpos * 50, tex_ypos * 50))
 
                 f.write(b"\x00" * 8)  # 0
                 #
@@ -1085,12 +1092,12 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 os.path.join(scripts_dir, f),
                 os.path.join(os.path.dirname(bw_file), f),
             )
-        # ag_utils.debugprint("Export Map (with Run Script)")
+        # ag_utils.debugprint("Compile to bw (with Run Script)")
 
-    # self.report({'WARNING'}, "Export Map Failed")
+    # self.report({'WARNING'}, "Compile to bw Failed")
     this.report(
         {"INFO"},
-        f"{pgettext('Export Map')} - {pgettext('Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {len(sector_ids)} {pgettext('Sectors')}",
+        f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {len(sector_ids)} {pgettext('Sectors')}",
     )
     return {"FINISHED"}
 
@@ -1100,7 +1107,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
 ############################
 class OT_ExportMapWithRunScript(bpy.types.Operator):
     bl_idname = "amagate.exportmap2"
-    bl_label = "Export Map (with Run Script)"
+    bl_label = "Compile to bw (with Run Script)"
     bl_description = ""
     bl_options = {"INTERNAL"}
 
@@ -1110,8 +1117,8 @@ class OT_ExportMapWithRunScript(bpy.types.Operator):
 
 class OT_ExportMap(bpy.types.Operator):
     bl_idname = "amagate.exportmap"
-    bl_label = "Export Map"
-    bl_description = "Export Blade Map"
+    bl_label = "Compile to bw"
+    bl_description = "Compile to Blade World"
     bl_options = {"INTERNAL"}
 
     more: BoolProperty(default=False)  # type: ignore

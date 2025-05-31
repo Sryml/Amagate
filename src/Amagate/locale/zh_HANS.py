@@ -158,12 +158,13 @@
     # 工具面板
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",
-    ("Operator", "Export Map"): "导出地图",
+    ("Operator", "Compile to bw"): "编译为bw",
     ("Operator", "Export Ghost Sector"): "导出虚拟扇区",
     ("*", "No export, ensure that the mesh of the Ghost sector has only one face with its normal parallel to the Z-axis"): "无导出，请确保虚拟扇区的网格只有一个面，且法线与 Z 轴平行",
     ("*", "The number of Ghost sector exports"): "虚拟扇区导出数量",
-    ("Operator", "Export Map (with Run Script)"): "导出地图 (带运行脚本)",
-    ("*", "Export Map"): "导出地图",
+    ("Operator", "Compile to bw (with Run Script)"): "编译为bw (带运行脚本)",
+    ("*", "Compile to bw"): "编译为bw",
+    ("*", "Compile Success"): "编译成功",
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
     # 坐标转换

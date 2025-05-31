@@ -1042,7 +1042,10 @@ def split_editor(context: Context):
         area.spaces[0].shading.type = "MATERIAL"  # type: ignore
         area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
         # area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
-        area.spaces[0].shading.render_pass = "DIFFUSE_COLOR"  # 渲染通道 # type: ignore
+        area.spaces[0].shading.render_pass = (  # type: ignore
+            "EMISSION"  # "DIFFUSE_COLOR"  # 渲染通道
+        )
+        area.spaces[0].shading.studiolight_intensity = 0.2  # 灯光强度 # type: ignore
         with contextlib.redirect_stdout(StringIO()):
             bpy.ops.view3d.toggle_xray()  # 透视模式
 
