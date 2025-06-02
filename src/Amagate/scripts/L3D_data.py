@@ -128,7 +128,7 @@ def get_texture_by_id(texture_id) -> tuple[int, Image]:
     return (-1, None)  # type: ignore
 
 
-def get_sector_by_id(scene_data, sector_id):
+def get_sector_by_id(scene_data, sector_id) -> Object:
     return scene_data["SectorManage"]["sectors"][str(sector_id)]["obj"]
 
 
@@ -400,6 +400,9 @@ def check_sector_join():
     if active_object in selected_sectors:
         selected_sectors.remove(active_object)
     remove_ids = [sec.amagate_data.get_sector_data().id for sec in selected_sectors]
+
+    for sec in selected_sectors:
+        ag_utils.delete_bulb(sec)
 
     if selected_sectors:
         ag_utils.disconnect(None, context, selected_sectors)
@@ -1266,36 +1269,35 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
         size=3,
         min=0.0,
         max=1.0,
-        default=(0.784, 0.784, 0.784),
-        get=lambda self: self.get("_color", (0.784, 0.784, 0.784)),
+        # default=(0.784, 0.784, 0.784),
+        get=lambda self: self.get("_color", (0.784, 0.784, 0.392)),
         set=lambda self, value: self.set_dict("_color", value),
         update=lambda self, context: self.update_obj(context),
     )  # type: ignore
     color_readonly: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
-        get=lambda self: self.get("_color", (0.784, 0.784, 0.784)),
+        get=lambda self: self.get("_color", (0.784, 0.784, 0.392)),
         set=lambda self, value: None,
     )  # type: ignore
     vector: FloatVectorProperty(
         name="Direction",
         subtype="XYZ",
-        default=(0.0, 0.0, -1.0),  # 默认向量值
+        # default=(0.0, 0.0, -1.0),  # 默认向量值
         size=3,  # 必须是 3 维向量
         min=-1.0,
         max=1.0,
-        get=lambda self: self.get("_vector", (0.0, 0.0, -1.0)),
+        get=lambda self: self.get("_vector", (-1, 0, -1)),
         set=lambda self, value: self.set_dict("_vector", value),
         update=lambda self, context: self.update_obj(context),
     )  # type: ignore
     vector2: FloatVectorProperty(
         name="Direction",
         subtype="DIRECTION",
-        default=(0.0, 0.0, -1.0),  # 默认向量值
         size=3,  # 必须是 3 维向量
         min=-1.0,
         max=1.0,
-        get=lambda self: self.get("_vector", (0.0, 0.0, -1.0)),
+        get=lambda self: self.get("_vector", (-1, 0, -1)),
         set=lambda self, value: self.set_dict("_vector", value),
         update=lambda self, context: self.update_obj(context),
     )  # type: ignore
@@ -1348,10 +1350,10 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
     def update_obj(self, context=None):
         self.ensure_obj()
         self.data.color = self.color  # 设置颜色
+        self.data.energy = self.color.v * 1.7  # 设置强度
         rotation_euler = self.vector.to_track_quat("-Z", "Z").to_euler()
         self.obj.rotation_euler = rotation_euler  # 设置方向
         # self.sync_users(rotation_euler)
-        # light_data.energy = self.energy  # 设置能量
 
 
 # 环境光属性
@@ -1421,6 +1423,9 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 操作属性
     operator_props: PointerProperty(type=OperatorProperty)  # type: ignore
+
+    # 扇区灯泡操作
+    bulb_operator: PointerProperty(type=sector_data.BulbOperatorProp)  # type: ignore
 
     # 通用属性
     sector_public: PointerProperty(type=sector_data.SectorProperty)  # type: ignore
@@ -1505,6 +1510,9 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 编辑模式标识
     is_edit_mode: BoolProperty(name="Edit Mode", default=False)  # type: ignore
+
+    # 灯光链接管理器
+    light_link_manager: CollectionProperty(type=data.ObjectCollection)  # type: ignore
 
     ############################
 

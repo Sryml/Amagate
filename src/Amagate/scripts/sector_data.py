@@ -54,6 +54,48 @@ if TYPE_CHECKING:
 
 
 ############################
+############################ 模板列表
+############################
+
+
+class AMAGATE_UI_UL_SectorBulb(bpy.types.UIList):
+    def draw_item(
+        self,
+        context: Context,
+        layout: bpy.types.UILayout,
+        data_,
+        item,
+        icon,
+        active_data,
+        active_prop,
+    ):
+        from . import L3D_data
+
+        selected_sectors = L3D_data.SELECTED_SECTORS
+        if len(selected_sectors) != 1:
+            return
+
+        scene_data = context.scene.amagate_data
+        light = item.light_obj
+        if not light:
+            return
+        light_data = light.data
+
+        row = layout.row()
+        split = row.split(factor=0.2)
+        row2 = split.row()
+        op = row2.operator(
+            "amagate.sector_bulb_set", text="", icon="LIGHT_DATA", emboss=False
+        )
+        op.key = item.name  # type: ignore
+        row2.alignment = "RIGHT"
+        row2.label(text="-")
+        row2 = split.row()
+        row2.prop(item, "strength", text="", emboss=False)
+        row2.prop(light_data, "color", text="")
+
+
+############################
 ############################ Collection Props
 ############################
 # 布尔收集器
@@ -532,33 +574,149 @@ def set_flat_light(value):
     data.area_redraw("VIEW_3D")
 
 
-class SectorFocoLightProperty(bpy.types.PropertyGroup):
+# 灯泡属性
+class BulbLightProperty(bpy.types.PropertyGroup):
     name: StringProperty(name="Name", default="")  # type: ignore
-    color: FloatVectorProperty(
-        name="Color",
-        subtype="COLOR",
-        size=3,
-        min=0.0,
-        max=1.0,
-        default=(0, 0, 0),  # 0.784, 0.784, 0.392
-    )  # type: ignore
-    pos: FloatVectorProperty(
-        name="Position",
-        subtype="XYZ",
-        default=(0.0, 0.0, 0.0),
-        size=3,
-    )  # type: ignore
+    # color: FloatVectorProperty(
+    #     name="Color",
+    #     subtype="COLOR",
+    #     size=3,
+    #     min=0.0,
+    #     max=1.0,
+    #     default=(0, 0, 0),  # 0.784, 0.784, 0.392
+    # )  # type: ignore
+    # pos: FloatVectorProperty(
+    #     name="Position",
+    #     subtype="XYZ",
+    #     default=(0.0, 0.0, 0.0),
+    #     size=3,
+    # )  # type: ignore
     strength: FloatProperty(
         name="Strength",
         description="Strength of the light",  # 光照强度
         default=2.0,
+        min=0.0,
+        step=50,
+        update=lambda self, context: self.update_strength(context),
     )  # type: ignore
     precision: FloatProperty(
         name="Precision",
         description="Precision of the light",  # 精度
         default=0.03125,
+        min=0.001,
+        max=1.0,
+        step=1,
+        precision=5,
+        update=lambda self, context: self.update_precision(context),
     )  # type: ignore
-    # TODO
+    vector: FloatVectorProperty(
+        name="Direction",
+        description="Direction",  # 光照方向
+        subtype="XYZ",
+        size=3,
+        min=-1.0,
+        max=1.0,
+        precision=3,
+        default=(-1, 0, -1),
+        get=lambda self: self.get("vector", (-0.707, 0.0, -0.707)),
+        set=lambda self, value: self.set_vector(value),
+        update=lambda self, context: self.update_location(context),
+    )  # type: ignore
+    distance: FloatProperty(
+        step=10,
+        min=0.0,
+        get=lambda self: self.get_distance(),
+        set=lambda self, value: self.set_distance(value),
+        update=lambda self, context: self.update_location(context),
+    )  # type: ignore
+    light_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+
+    ############################
+    def set_id(self):
+        scene_data = bpy.context.scene.amagate_data
+        id_manager = scene_data.bulb_operator.id_manager
+        id_ = 1
+        while id_manager.get(f"{id_}"):
+            id_ += 1
+        id_manager.add().value = id_
+        self.name = f"{id_}"
+
+    def set_vector(self, value):
+        self["vector"] = value
+
+        sec = self.id_data  # type: Object
+        sec_data = sec.amagate_data.get_sector_data()
+        light = self.light_obj  # type: Object
+        center = sec_data.center
+        light.matrix_world.translation = (
+            center + (-Vector(value)).normalized() * self.distance
+        )
+
+    def get_distance(self):
+        sec = self.id_data  # type: Object
+        sec_data = sec.amagate_data.get_sector_data()
+        light = self.light_obj  # type: Object
+        center = sec_data.center
+        return (light.matrix_world.translation - center).length
+
+    def set_distance(self, value):
+        sec = self.id_data  # type: Object
+        sec_data = sec.amagate_data.get_sector_data()
+        light = self.light_obj  # type: Object
+        center = sec_data.center
+        light.matrix_world.translation = center + (-self.vector) * value
+
+    def update_location(self, context: Context):
+        scene_data = context.scene.amagate_data
+        sec = self.id_data  # type: Object
+        sec_data = sec.amagate_data.get_sector_data()
+        center = sec_data.center
+        light = self.light_obj  # type: Object
+        light_data = light.data  # type: bpy.types.Light # type: ignore
+
+        origin = light.matrix_local.translation
+
+        # direction=(light.matrix_world.translation - center).normalized()
+        matrix = self.vector.to_track_quat("-Z", "Z").to_matrix().to_4x4()
+        matrix.translation = light.matrix_world.translation
+        light.matrix_world = matrix
+        # light.rotation_euler = rotation_euler
+
+        result = [sec.ray_cast(origin, d)[0] for d in ((1, 0, 0), (-1, 0, 0))]
+        if all(result):
+            if light_data.type == "SUN":
+                light.light_linking.receiver_collection = None
+                light.light_linking.blocker_collection = None
+                #
+                light_link_manager = scene_data.light_link_manager
+                if self.name in light_link_manager:
+                    light_link_manager.remove(light_link_manager.find(self.name))
+                light_data.type = "POINT"
+                light_data.energy = self.strength * 50  # type: ignore
+                light.hide_viewport = False
+        else:
+            if light_data.type == "POINT":
+                #     light.light_linking.receiver_collection = None
+                #     light.light_linking.blocker_collection = None
+                light_data.type = "SUN"
+                light_data.energy = self.strength / 600  # type: ignore
+                light.hide_viewport = True
+
+    def update_strength(self, context):
+        light_data = self.light_obj.data
+        if light_data.type == "SUN":
+            light_data.energy = self.strength / 600
+        else:
+            light_data.energy = self.strength * 50
+
+    def update_precision(self, context):
+        light_data = self.light_obj.data
+        light_data.shadow_maximum_resolution = self.precision
+
+
+class BulbOperatorProp(bpy.types.PropertyGroup):
+    active: IntProperty(name="Bulb", default=0)  # type: ignore
+    id_manager: CollectionProperty(type=data.IntegerCollection)  # type: ignore
 
 
 # 虚拟扇区属性
@@ -574,6 +732,13 @@ class SectorProperty(bpy.types.PropertyGroup):
     is_convex: BoolProperty(default=False)  # type: ignore
     is_2d_sphere: BoolProperty(default=False)  # type: ignore
     connect_num: IntProperty(default=0)  # type: ignore
+    # 几何中心
+    center: FloatVectorProperty(
+        name="Center",
+        subtype="XYZ",
+        size=3,
+        default=(0.0, 0.0, 0.0),
+    )  # type: ignore
 
     # 大气
     atmo_id: IntProperty(name="Atmosphere", description="", default=0, get=lambda self: self.get_atmo_id(), set=lambda self, value: self.set_atmo_id(value))  # type: ignore
@@ -598,7 +763,7 @@ class SectorProperty(bpy.types.PropertyGroup):
     external_obj: PointerProperty(type=bpy.types.Object)  # type: ignore
     flat_light: PointerProperty(type=FlatLightProperty)  # type: ignore # 平面光
 
-    spot_light: CollectionProperty(type=SectorFocoLightProperty)  # type: ignore # 聚光灯
+    bulb_light: CollectionProperty(type=BulbLightProperty)  # type: ignore # 灯泡
 
     comment: StringProperty(name="Comment", description="", default="")  # type: ignore
     group: IntProperty(
@@ -622,6 +787,10 @@ class SectorProperty(bpy.types.PropertyGroup):
         get=lambda self: self.get_steep(),
         set=lambda self, value: self.set_steep(value),
     )  # type: ignore
+
+    # 灯泡灯光链接集合
+    bulb_light_link: PointerProperty(type=bpy.types.Collection)  # type: ignore
+    bulb_shadow_link: PointerProperty(type=bpy.types.Collection)  # type: ignore
 
     ############################
     def get_atmo_id(self):
@@ -932,7 +1101,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         # 添加到扇区管理字典
         scene_data["SectorManage"]["sectors"][str(id_)] = {
             "obj": obj,
-            "light_objs": [],
+            # "light_objs": [],
             "atmo_id": 0,
             "external_id": 0,
         }
@@ -1040,6 +1209,9 @@ class SectorProperty(bpy.types.PropertyGroup):
             self.atmo_id = self.atmo_id
             self.external_id = self.external_id
             # self.ambient_color = self.ambient_color
+            self.bulb_light.clear()
+            self.bulb_light_link = None
+            self.bulb_shadow_link = None
 
         obj.amagate_data.is_sector = True
 

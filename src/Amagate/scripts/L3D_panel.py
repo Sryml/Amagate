@@ -900,6 +900,36 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         layout.separator()
 
+        # 灯泡
+        box = layout.box()
+        column = box.column(align=True)
+
+        enabled = len(selected_sectors) == 1
+        num = len(active_sec_data.bulb_light) if enabled else ""
+        column.label(text=f"{pgettext('Bulbs')}: {num}")
+
+        row = column.row(align=True)
+
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_SectorBulb",
+            "",
+            active_sec_data,
+            "bulb_light",
+            scene_data.bulb_operator,
+            "active",
+            rows=3,
+            maxrows=3,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column(align=True)
+        col.enabled = enabled
+        col.operator(OP_SECTOR.OT_Bulb_Add.bl_idname, text="", icon="ADD")
+        col.operator(OP_SECTOR.OT_Bulb_Del.bl_idname, text="", icon="X")
+
+        layout.separator()
+
         # 组
         box = layout.box()
         column = box.column(align=True)

@@ -506,6 +506,12 @@ def unregister_shortcuts():
 ############################
 
 
+# 物体收集器
+class ObjectCollection(bpy.types.PropertyGroup):
+    name: StringProperty(default="")  # type: ignore
+    obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+
+
 # 整型收集器
 class IntegerCollection(bpy.types.PropertyGroup):
     name: StringProperty(default="")  # type: ignore

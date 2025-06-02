@@ -240,8 +240,8 @@ class OT_Scene_External_Add(bpy.types.Operator):
         item = scene_data.externals.add()
         item.name = f"{id_}"
         item["_item_name"] = data.get_name(used_names, "Sun{}", id_)
-        item["_color"] = (0.784, 0.784, 0.392)
-        item["_vector"] = (-1, 0, -1)
+        # item["_color"] = (0.784, 0.784, 0.392)
+        # item["_vector"] = (-1, 0, -1)
         item.update_obj()
 
         scene_data.active_external = len(scene_data.externals) - 1

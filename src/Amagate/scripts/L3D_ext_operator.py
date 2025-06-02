@@ -580,8 +580,8 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
         v_factor = 0.86264  # 明度系数
         ambient_light_p = bytes.fromhex("0000803C")  # 0.015625 环境光精度
         ext_light_p = bytes.fromhex("0000003D")  # 0.03125 外部灯光精度
-        spot_buffer = BytesIO()  # 缓存聚光灯数据
-        spot_num = 0
+        bulb_buffer = BytesIO()  # 缓存灯泡数据
+        bulb_num = 0
         group_buffer = BytesIO()  # 缓存组数据
         sec_name_buffer = BytesIO()  # 缓存扇区名称数据
         steep_auto = []  # 自动陡峭
@@ -617,20 +617,27 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 ypos_layer,
             ]
 
-            # 聚光灯
-            if sec_data.spot_light:
-                spot_num += len(sec_data.spot_light)
-                spot = None  # type: data.SectorFocoLightProperty # type: ignore
-                for spot in sec_data.spot_light:
-                    spot_buffer.write(struct.pack("<I", 15001))
-                    spot_buffer.write(
-                        struct.pack("<BBB", *(math.ceil(c * 255) for c in spot.color))
-                    )
-                    spot_buffer.write(struct.pack("<f", spot.strength))
-                    spot_buffer.write(struct.pack("<f", spot.precision))
-                    pos = spot.pos * 1000
-                    spot_buffer.write(struct.pack("<ddd", pos[0], -pos[2], pos[1]))
-                    spot_buffer.write(struct.pack("<f", global_sector_map[sector_id]))
+            # 灯泡
+            if sec_data.bulb_light:
+                bulb_num += len(sec_data.bulb_light)
+                # bulb = None
+                for bulb in sec_data.bulb_light:
+                    light = bulb.light_obj  # type: Object
+                    if light:
+                        light_data = light.data  # type: bpy.types.Light # type: ignore
+                        bulb_buffer.write(struct.pack("<I", 15001))
+                        bulb_buffer.write(
+                            struct.pack(
+                                "<BBB", *(math.ceil(c * 255) for c in light_data.color)
+                            )
+                        )
+                        bulb_buffer.write(struct.pack("<f", bulb.strength))
+                        bulb_buffer.write(struct.pack("<f", bulb.precision))
+                        pos = (light.matrix_world.translation * 1000).to_tuple(1)
+                        bulb_buffer.write(struct.pack("<ddd", pos[0], -pos[2], pos[1]))
+                        bulb_buffer.write(
+                            struct.pack("<I", global_sector_map[sector_id])
+                        )
 
             # 组
             group_buffer.write(struct.pack("<i", sec_data.group))  # 有符号整数
@@ -973,7 +980,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 #             )
                 #         )
 
-        # 写入外部光和聚光灯数据
+        # 写入外部光和灯泡数据
         external_num = 0
         number_pos = f.tell()
         f.write(struct.pack("<I", 0))  # 占位
@@ -1007,13 +1014,13 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
             f.write(struct.pack("<I", users_num))
             f.seek(stream_pos)
             external_num += 1
-        ## 聚光灯
+        ## 灯泡
         stream_pos = f.tell()
         f.seek(number_pos)
-        f.write(struct.pack("<I", spot_num + external_num))
+        f.write(struct.pack("<I", bulb_num + external_num))
         f.seek(stream_pos)
-        f.write(spot_buffer.getvalue())
-        spot_buffer.close()
+        f.write(bulb_buffer.getvalue())
+        bulb_buffer.close()
 
         ## 未知数据 地图边界？
         f.write(struct.pack("<ddd", 0, 0, 0))

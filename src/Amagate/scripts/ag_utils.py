@@ -537,6 +537,10 @@ def get_vertex_in_group(obj: Object, vg_name):
     return vertex_indices
 
 
+def set_dict(this, key, value):
+    this[key] = value
+
+
 # 射线法，判断点是否在多边形内
 def is_point_in_polygon(pt, poly):
     x, y = pt
@@ -1056,10 +1060,12 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
             return
         obj = SectorManage["sectors"][id_key]["obj"]
 
+    delete_bulb(obj)
+
     sec_data = obj.amagate_data.get_sector_data()
     mesh = obj.data  # type: bpy.types.Mesh # type: ignore
     id_key = str(sec_data.id)
-
+    #
     if mesh.users == 1:
         bpy.data.meshes.remove(mesh)
     else:
@@ -1072,27 +1078,44 @@ def delete_sector(obj: Object | Any = None, id_key: str | Any = None):
 def sector_mgr_remove(id_key: str):
     scene_data = bpy.context.scene.amagate_data
     SectorManage = scene_data["SectorManage"]
-    #
-    for l in SectorManage["sectors"][id_key]["light_objs"]:
-        l.hide_viewport = True
-    #
+    # 移除大气引用
     atmo = L3D_data.get_atmo_by_id(
         scene_data, SectorManage["sectors"][id_key]["atmo_id"]
     )[1]
     if atmo:
         atmo.users_obj.remove(atmo.users_obj.find(id_key))
-    #
+    # 移除外部光引用
     external = L3D_data.get_external_by_id(
         scene_data, SectorManage["sectors"][id_key]["external_id"]
     )[1]
     if external:
         external.users_obj.remove(external.users_obj.find(id_key))
-    #
+    # 调整id管理
     if int(id_key) != SectorManage["max_id"]:
         SectorManage["deleted_id_count"] += 1
     else:
         SectorManage["max_id"] -= 1
     SectorManage["sectors"].pop(id_key)
+
+
+# 删除灯泡
+def delete_bulb(sec: Object):
+    scene_data = bpy.context.scene.amagate_data
+    light_link_manager = scene_data.light_link_manager
+    sec_data = sec.amagate_data.get_sector_data()
+
+    for item in sec_data.bulb_light:
+        key = item.name
+        if key in light_link_manager:
+            light_link_manager.remove(light_link_manager.find(key))
+        #
+        light = item.light_obj
+        if light:
+            bpy.data.lights.remove(light.data)
+    #
+    for coll in (sec_data.bulb_light_link, sec_data.bulb_shadow_link):
+        if coll:
+            bpy.data.collections.remove(coll)
 
 
 # 单选并设为活动对象

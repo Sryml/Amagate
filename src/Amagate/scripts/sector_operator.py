@@ -1802,6 +1802,229 @@ class OT_SectorSetDefault(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 扇区灯泡
+class OT_Bulb_Add(bpy.types.Operator):
+    bl_idname = "amagate.sector_bulb_add"
+    bl_label = "Add Bulb"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        selected_sectors = L3D_data.SELECTED_SECTORS
+        active_sector = L3D_data.ACTIVE_SECTOR
+        if len(selected_sectors) != 1:
+            return {"CANCELLED"}
+
+        scene_data = context.scene.amagate_data
+        sec_data = active_sector.amagate_data.get_sector_data()
+        item = sec_data.bulb_light.add()
+        item.set_id()
+        # 创建灯泡
+        light_name = f"AG.{sec_data.id}.Light"
+        light_data = bpy.data.lights.new("", "POINT")
+        # light_data.energy = 2  # type: ignore
+        light_data.color = (0.784, 0.784, 0.392)
+        light_data.shadow_maximum_resolution = 0.03125  # type: ignore
+        light_data.volume_factor = 0
+
+        light = bpy.data.objects.new("", light_data)
+        light.rename(light_name, mode="SAME_ROOT")
+        light_data.rename(light.name, mode="ALWAYS")
+        #
+        data.link2coll(light, L3D_data.ensure_collection(L3D_data.S_COLL))
+        light.parent = active_sector
+        #
+        item.light_obj = light
+        item.update_strength(context)
+
+        # 调整活动索引
+        scene_data.bulb_operator.active = len(sec_data.bulb_light) - 1
+
+        return {"FINISHED"}
+
+
+class OT_Bulb_Del(bpy.types.Operator):
+    bl_idname = "amagate.sector_bulb_del"
+    bl_label = "Delete Bulb"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        selected_sectors = L3D_data.SELECTED_SECTORS
+        active_sector = L3D_data.ACTIVE_SECTOR
+        if len(selected_sectors) != 1:
+            return {"CANCELLED"}
+
+        scene_data = context.scene.amagate_data
+        sec_data = active_sector.amagate_data.get_sector_data()
+        index = scene_data.bulb_operator.active
+        if index != -1 and index < len(sec_data.bulb_light):
+            item = sec_data.bulb_light[index]
+            light = item.light_obj
+            if light:
+                bpy.data.lights.remove(light.data)
+
+            #
+            light_link_manager = scene_data.light_link_manager
+            key = item.name
+            if key in light_link_manager:
+                light_link_manager.remove(light_link_manager.find(key))
+
+            id_manager = scene_data.bulb_operator.id_manager
+            id_manager.remove(id_manager.find(key))
+            #
+            sec_data.bulb_light.remove(index)
+            # 调整活动索引
+            if index != 0 and index >= len(sec_data.bulb_light):
+                scene_data.bulb_operator.active = len(sec_data.bulb_light) - 1
+
+        return {"FINISHED"}
+
+
+class OT_Bulb_Set(bpy.types.Operator):
+    bl_idname = "amagate.sector_bulb_set"
+    bl_label = ""  # "Bulb Settings"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    key: StringProperty()  # type: ignore
+
+    @classmethod
+    def description(cls, context, properties):
+        active_sector = L3D_data.ACTIVE_SECTOR
+        sec_data = active_sector.amagate_data.get_sector_data()
+        item = sec_data.bulb_light[properties.key]  # type: ignore
+        light = item.light_obj  # type: Object
+        if light:
+            return light.name
+        return ""
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+    def draw(self, context: Context):
+        active_sector = L3D_data.ACTIVE_SECTOR
+        sec_data = active_sector.amagate_data.get_sector_data()
+        item = sec_data.bulb_light[self.key]
+
+        layout = self.layout
+
+        col = layout.column()
+        col.prop(item, "vector", text="")
+        col.prop(item, "distance", text="Distance")
+        col.prop(item, "precision")
+        op = col.operator(OT_Bulb_Render.bl_idname, text="Render")
+        op.key = self.key  # type: ignore
+
+    def invoke(self, context, event):
+        active_sector = L3D_data.ACTIVE_SECTOR
+        sec_data = active_sector.amagate_data.get_sector_data()
+        item = sec_data.bulb_light[self.key]
+        light = item.light_obj  # type: Object
+
+        bbox_corners = [
+            active_sector.matrix_world @ Vector(corner)
+            for corner in active_sector.bound_box
+        ]
+        center = sec_data.center = sum(bbox_corners, Vector()) / 8
+        vector = center - light.matrix_world.translation
+        if vector.length > epsilon:
+            item["vector"] = vector.normalized()
+            item.update_location(context)
+
+        return context.window_manager.invoke_popup(self, width=110)  # type: ignore
+
+
+class OT_Bulb_Render(bpy.types.Operator):
+    bl_idname = "amagate.sector_bulb_render"
+    bl_label = "Bulb Render"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    key: StringProperty()  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        active_sector = L3D_data.ACTIVE_SECTOR
+        sec_data = active_sector.amagate_data.get_sector_data()
+        item = sec_data.bulb_light[self.key]
+        light = item.light_obj  # type: Object
+        light_data = light.data  # type: bpy.types.Light # type: ignore
+
+        if light_data.type != "SUN":
+            return {"CANCELLED"}
+
+        light_link_manager = scene_data.light_link_manager
+        if len(light_link_manager) >= 60:
+            light2 = light_link_manager[0].obj
+            light_link_manager.remove(0)
+            if light2:
+                light2.light_linking.receiver_collection = None
+                light2.light_linking.blocker_collection = None
+
+        light_link = sec_data.bulb_light_link
+        if not light_link:
+            light_link = bpy.data.collections.new(
+                f"AG.{sec_data.id}.Bulb  Light Linking"
+            )
+            sec_data.bulb_light_link = light_link
+        shadow_link = sec_data.bulb_shadow_link
+        if not shadow_link:
+            shadow_link = bpy.data.collections.new(
+                f"AG.{sec_data.id}.Bulb  Shadow Linking"
+            )
+            sec_data.bulb_shadow_link = shadow_link
+        #
+        for coll in (light_link, shadow_link):
+            while coll.objects:
+                coll.objects.unlink(coll.objects[-1])
+        data.link2coll(active_sector, light_link)
+        data.link2coll(active_sector, shadow_link)
+        shadow_link.collection_objects[0].light_linking.link_state = "EXCLUDE"
+        #
+        light_pos = light.matrix_world.translation
+        co_list = [active_sector.matrix_world @ v.co for v in active_sector.data.vertices]  # type: ignore
+        co_list.sort(key=lambda v: (v - light_pos).length)
+        origin = co_list[0]
+        direction = item.vector
+        sectors = {active_sector}
+        depth = 0
+        while sectors and depth < 3:
+            sec = sectors.pop()
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            for attr in mesh.attributes["amagate_connected"].data:  # type: ignore
+                conn_sid = attr.value
+                # 如果没有连接，跳过
+                if conn_sid == 0:
+                    continue
+
+                conn_sec = L3D_data.get_sector_by_id(scene_data, conn_sid)
+                co = conn_sec.matrix_world @ conn_sec.data.vertices[0].co  # type: ignore
+                # 如果连接扇区在光源的反方向，跳过
+                if (co - origin).normalized().dot(direction) < -epsilon:
+                    continue
+
+                has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
+                # 如果不是天空扇区，加入集合
+                if not has_sky:
+                    sectors.add(conn_sec)
+            depth += 1
+        for sec in sectors:
+            data.link2coll(sec, light_link)
+            data.link2coll(sec, shadow_link)
+        #
+        light.light_linking.receiver_collection = light_link
+        light.light_linking.blocker_collection = shadow_link
+        light.hide_viewport = False
+        #
+        if item.name not in light_link_manager:
+            light_link_mgr = light_link_manager.add()
+            light_link_mgr.name = item.name
+            light_link_mgr.obj = light
+
+        return {"FINISHED"}
+
+
 ############################
 ############################
 ############################
