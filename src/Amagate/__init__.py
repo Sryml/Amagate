@@ -32,11 +32,12 @@ def register():
 
         # for module in ("data", "operator", "panel", "translations"):
         #     del sys.modules[f"{__package__}.{module}"]
-        del sys.modules[f"{__package__}.scripts"]
-        for file in os.listdir(os.path.join(os.path.dirname(__file__), "scripts")):
-            m_name = f"{__package__}.scripts.{os.path.splitext(file)[0]}"
-            if sys.modules.get(m_name):
-                del sys.modules[m_name]
+        for sub_pack in ("scripts", "service"):
+            del sys.modules[f"{__package__}.{sub_pack}"]
+            for file in os.listdir(os.path.join(os.path.dirname(__file__), sub_pack)):
+                m_name = f"{__package__}.{sub_pack}.{os.path.splitext(file)[0]}"
+                if sys.modules.get(m_name):
+                    del sys.modules[m_name]
         # from . import data, operator, panel, translations
         for module in module_list:
             globals()[module] = importlib.import_module(

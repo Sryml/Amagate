@@ -13,6 +13,7 @@ import pickle
 import threading
 import contextlib
 import ast
+import time
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -42,6 +43,7 @@ from mathutils import *  # type: ignore
 
 #
 from . import ag_utils, data
+from ..service import ag_service
 
 #
 
@@ -53,6 +55,10 @@ if TYPE_CHECKING:
     Image = bpy.__Image
     Scene = bpy.__Scene
     Collection = bpy.__Collection
+
+############################
+LAST_SENT_TIME = 0
+SYNC_INTERVAL = 1 / 30  # 30FPS的最小间隔
 
 
 AG_COLL = "Amagate Auto Generated"
@@ -595,7 +601,7 @@ def geometry_modify_post(
 
 # @bpy.app.handlers.persistent
 def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
-    global OPERATOR_POINTER, S_COLL_OBJECTS
+    global OPERATOR_POINTER, S_COLL_OBJECTS, LAST_SENT_TIME
     scene_data = scene.amagate_data
     if not scene_data.is_blade:
         return
@@ -605,6 +611,14 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         return
 
     context = bpy.context
+
+    #
+    current_time = time.time()
+    # if ag_service.server_thread and current_time - LAST_SENT_TIME >= SYNC_INTERVAL:
+    #     LAST_SENT_TIME = current_time
+    #     if scene_data.operator_props.camera_sync and scene.camera:
+    # ...  # 同步摄像机
+    #
 
     s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
     item = scene_data.ensure_coll.get(S_COLL)
@@ -645,7 +659,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         # 分离扇区的回调
         elif bl_idname == "MESH_OT_separate":
             check_sector_separate()
-        # 复制扇区的回调
+        # 复制扇区的回调 # FIXME 有时候没有触发该回调，原因未知
         elif bl_idname in DUPLICATE_OP:
             check_sector_duplicate()
         # 粘贴扇区的回调
@@ -1374,6 +1388,7 @@ class OperatorProperty(bpy.types.PropertyGroup):
     sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
     # OT_Sector_SeparateConvex
     sec_separate_connect: BoolProperty(name="Auto Connect", default=True)  # type: ignore
+    camera_sync: BoolProperty(name="Camera Sync", default=False)  # type: ignore
 
 
 # 图像属性
@@ -1729,3 +1744,5 @@ def unregister():
     if draw_handler is not None:
         bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
         draw_handler = None
+    # 关闭服务器
+    ag_service.stop_server()

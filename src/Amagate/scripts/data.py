@@ -12,6 +12,8 @@ import shutil
 import pickle
 import threading
 import contextlib
+import logging
+
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -36,14 +38,12 @@ from bpy.props import (
     StringProperty,
 )
 import rna_keymap_ui
-import blf
+
+# import blf
 from mathutils import *  # type: ignore
 
-#
-from . import ag_utils
 
 #
-
 if TYPE_CHECKING:
     import bpy_stub as bpy
 
@@ -88,7 +88,19 @@ DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 
 ICONS: Any = None
 
+#
+logger = logging.getLogger(PACKAGE)
+if DEBUG:
+    logger.setLevel(logging.DEBUG)
+else:
+    logger.setLevel(logging.INFO)
 
+handler = logging.StreamHandler()
+handler.setFormatter(
+    logging.Formatter("[Amagate] %(asctime)s - %(levelname)s - %(message)s")
+)
+logger.addHandler(handler)
+logger.propagate = False
 ############################
 
 
@@ -602,3 +614,7 @@ def unregister():
 
     L3D_data.unregister()
     sector_data.unregister()
+    ############################
+    handler = logger.handlers[0]
+    logger.removeHandler(handler)
+    handler.close()

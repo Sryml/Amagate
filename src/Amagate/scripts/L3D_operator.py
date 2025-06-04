@@ -37,6 +37,7 @@ from mathutils import *  # type: ignore
 
 from . import data, L3D_data
 from . import ag_utils
+from ..service import ag_service
 
 
 if TYPE_CHECKING:
@@ -52,7 +53,7 @@ if TYPE_CHECKING:
 
 epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
-
+logger = data.logger
 
 ############################
 ############################ 场景面板 -> 属性面板
@@ -846,6 +847,31 @@ class OT_PolyPath(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
 
+        return {"FINISHED"}
+
+
+############################
+############################ 服务器
+############################
+class OT_Server_Start(bpy.types.Operator):
+    bl_idname = "amagate.server_start"
+    bl_label = "Start Server"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        ag_service.start_server()
+        return {"FINISHED"}
+
+
+class OT_Server_Stop(bpy.types.Operator):
+    bl_idname = "amagate.server_stop"
+    bl_label = "Stop Server"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        ag_service.stop_server()
         return {"FINISHED"}
 
 

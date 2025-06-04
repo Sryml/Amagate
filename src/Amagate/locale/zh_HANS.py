@@ -160,6 +160,15 @@
     ("*", "Connected Sector"): "连接的扇区",
     ("*", "Texture type"): "纹理类型",
     #
+    # 服务器面板
+    ("Operator", "Start Server"): "启动服务器",
+    ("Operator", "Stop Server"): "停止服务器",
+    ("*", "Server"): "服务器",
+    ("*", "Client"): "客户端",
+    ("*", "Closed"): "关闭",
+    ("*", "Running"): "运行中",
+    ("*", "Not connected"): "未连接",
+    ("Server", "Connected"): "已连接",
     # 工具面板
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",

@@ -16,6 +16,7 @@ from . import L3D_operator as OP_L3D
 from . import L3D_ext_operator as OP_L3D_EXT
 from . import sector_operator as OP_SECTOR
 from . import ag_utils
+from ..service import ag_service
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -1166,6 +1167,32 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
             # 平面光
         except:
             pass
+
+
+############################
+############################ 服务器面板
+############################
+class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
+    bl_label = "Server"
+    bl_parent_id = "AMAGATE_PT_L3D"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    def draw(self, context: Context):
+        layout = self.layout
+        scene_data = context.scene.amagate_data
+        column = layout.column(align=True)
+        # 状态
+        row = column.row()
+        split = row.split(factor=0.5)
+        split.label(text=f"{pgettext('Status')}: {ag_service.get_status()}")
+        split2 = split.split(factor=0.5, align=True)
+        split2.operator(OP_L3D.OT_Server_Start.bl_idname, text="", icon="PLAY")
+        split2.operator(OP_L3D.OT_Server_Stop.bl_idname, text="", icon="PAUSE")
+        # 客户端
+        row = column.row()
+        row.label(text=f"{pgettext('Client')}: {ag_service.get_client_status()}")
+
+        column.separator(type="LINE")
 
 
 ############################
