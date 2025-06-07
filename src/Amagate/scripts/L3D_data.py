@@ -14,6 +14,8 @@ import threading
 import contextlib
 import ast
 import time
+
+from asyncio import run_coroutine_threadsafe
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -56,6 +58,8 @@ if TYPE_CHECKING:
     Scene = bpy.__Scene
     Collection = bpy.__Collection
 
+############################
+logger = data.logger
 ############################
 LAST_SENT_TIME = 0
 SYNC_INTERVAL = 1 / 30  # 30FPS的最小间隔
@@ -614,10 +618,27 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
 
     #
     current_time = time.time()
-    # if ag_service.server_thread and current_time - LAST_SENT_TIME >= SYNC_INTERVAL:
-    #     LAST_SENT_TIME = current_time
-    #     if scene_data.operator_props.camera_sync and scene.camera:
-    # ...  # 同步摄像机
+    server_thread = ag_service.server_thread
+    if (
+        server_thread
+        and server_thread.clients
+        and current_time - LAST_SENT_TIME >= SYNC_INTERVAL
+    ):
+        LAST_SENT_TIME = current_time
+        for update in depsgraph.updates:
+            obj = update.id
+            if not isinstance(update.id, bpy.types.Object):
+                continue
+            if not update.is_updated_transform:
+                continue
+            # logger.debug(update.id)
+            if (
+                scene_data.operator_props.camera_sync
+                and scene.camera
+                and scene.camera.name == obj.name
+            ):
+                # logger.debug("camera_sync")
+                ag_service.send_camera_data(obj)  # type: ignore
     #
 
     s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
@@ -1388,7 +1409,18 @@ class OperatorProperty(bpy.types.PropertyGroup):
     sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
     # OT_Sector_SeparateConvex
     sec_separate_connect: BoolProperty(name="Auto Connect", default=True)  # type: ignore
-    camera_sync: BoolProperty(name="Camera Sync", default=False)  # type: ignore
+    camera_sync: BoolProperty(name="Camera Sync", default=False, get=lambda self: self.get("camera_sync", False), set=lambda self, value: self.set_camera_sync(value))  # type: ignore
+
+    def set_camera_sync(self, value):
+        self["camera_sync"] = value
+        #
+        if not value:
+            script = (
+                """e=Bladex.GetEntity("Camera");e.SetPersonView("Player1");e.Cut()"""
+            )
+        else:
+            script = """e=Bladex.GetEntity("Camera");e.TType=e.SType=0"""
+        ag_service.send_exec_script(script)
 
 
 # 图像属性

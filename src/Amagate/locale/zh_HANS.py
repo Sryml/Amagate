@@ -169,6 +169,7 @@
     ("*", "Running"): "运行中",
     ("*", "Not connected"): "未连接",
     ("Server", "Connected"): "已连接",
+    ("*", "Camera Sync"): "摄像机同步",
     # 工具面板
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",

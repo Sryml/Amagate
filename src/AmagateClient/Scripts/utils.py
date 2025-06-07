@@ -85,3 +85,6 @@ class SimpleLogger:
 
 
 ############################
+log_file = "../../bin/AmagateClient.log"
+
+logger = SimpleLogger("Amagate", level="DEBUG", output=open(log_file, "a"))

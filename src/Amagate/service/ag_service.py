@@ -10,14 +10,27 @@ import threading
 import struct
 
 #
+from asyncio import run_coroutine_threadsafe
 from typing import Any, TYPE_CHECKING
 
 #
+import bpy
 from bpy.app.translations import pgettext
+from mathutils import *  # type: ignore
 
 #
 from . import protocol
 from ..scripts import data
+
+#
+if TYPE_CHECKING:
+    import bpy_stub as bpy
+
+    Context = bpy.__Context
+    Object = bpy.__Object
+    Image = bpy.__Image
+    Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 ############################
 logger = data.logger
@@ -29,8 +42,8 @@ server_thread = None  # type: AsyncServerThread | None
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 1673
 
-HEARTBEAT_INTERVAL = 3  # 5  # 心跳间隔(秒)
-HEARTBEAT_TIMEOUT = 6  # 10  # 心跳超时(秒)
+HEARTBEAT_INTERVAL = 10  # 心跳间隔(秒)
+HEARTBEAT_TIMEOUT = 15  # 心跳超时(秒)
 ############################
 
 
@@ -46,6 +59,56 @@ def get_client_status():
     )
 
 
+############################
+# 执行脚本操作
+def send_exec_script(script):
+    # 打包数据
+    msg = protocol.pack_data(
+        protocol.EXEC_SCRIPT,
+        {protocol.STRING: script},
+    )
+    # 添加到消息队列
+    run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
+
+
+# 发送摄像机数据
+def send_camera_data(cam):
+    # type: (Object) -> None
+    # 获取摄像机的位置和旋转矩阵
+    cam_pos = cam.matrix_world.translation
+    cam_rot = cam.matrix_world.to_quaternion()
+    distance = 5.0
+
+    # 摄像机默认朝向-z方向，创建一个向前的向量
+    forward = Vector((0.0, 0.0, -1.0))
+
+    # 应用摄像机的旋转得到实际朝向
+    forward.rotate(cam_rot)
+
+    # 计算前方distance米的位置
+    target_pos = cam_pos + forward * distance
+
+    # 转换坐标
+    cam_pos = (cam_pos * 1000).to_tuple(1)
+    cam_pos = cam_pos[0], -cam_pos[2], cam_pos[1]
+    target_pos = (target_pos * 1000).to_tuple(1)
+    target_pos = target_pos[0], -target_pos[2], target_pos[1]
+    # 打包数据
+    msg = protocol.pack_data(
+        protocol.ENTITY_ATTR,
+        {
+            protocol.NAME: "Camera",
+            protocol.POSITION: cam_pos,
+            protocol.TPOS: target_pos,
+        },
+    )
+    # 添加到消息队列
+    run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
+
+
+############################
+
+
 class AsyncServerThread(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
@@ -53,6 +116,7 @@ class AsyncServerThread(threading.Thread):
         self.server = None  # type: asyncio.AbstractServer | None
         self.queue: asyncio.Queue | None = None
         self.clients = []  # type: list[tuple[asyncio.Future, asyncio.Event]]
+        self.server_closing = False
         self.server_closed: asyncio.Event
 
     # 接收消息
@@ -131,7 +195,7 @@ class AsyncServerThread(threading.Thread):
             },
             return_when=asyncio.FIRST_COMPLETED,
         )
-        #
+        # 连接中断的情况，非关闭服务器
         if cancel_event.is_set():
             logger.debug("cancel_event is set")
             self.clients.pop(client_idx)
@@ -146,41 +210,11 @@ class AsyncServerThread(threading.Thread):
         #
         logger.info(f"{addr} - Connection closed")
         if not self.clients:
-            self.server_closed.set()
-
-        # try:
-        #     await tasks
-        # except asyncio.CancelledError:
-        #     pass
-        # finally:
-        #     writer.close()  # 关闭连接
-        #     await writer.wait_closed()
-        #     logger.info(f"{addr} - Connection closed")
-
-        # while True:
-        #     try:
-        #         # 从队列获取消息
-        #         message = await message_queue.get()
-        #         # writer.write(message.encode())
-        #         # await writer.drain()
-        #     # except queue.Empty:
-        #     #     await asyncio.sleep(0.03)
-        #     except asyncio.IncompleteReadError:
-        #         # 处理客户端非正常中断的情况（比如连接被重置）
-        #         logger.debug(f"{addr} - Connection closed unexpectedly.")
-        #         break
-        #     except ConnectionResetError:
-        #         # 处理连接重置的情况（通常是客户端强行关闭连接）
-        #         logger.debug(f"{addr} - Connection reset by peer.")
-        #         break
-        #     except Exception as e:
-        #         # 捕获其他未预料到的异常
-        #         logger.debug(f"{addr} - Unexpected error: {e}")
-        #         break
-
-        # writer.close()
-        # await writer.wait_closed()
-        # logger.info(f"Connection with {addr} closed")
+            scene_data = bpy.context.scene.amagate_data
+            scene_data.operator_props["camera_sync"] = False
+            # 如果是关闭了服务器
+            if self.server_closing:
+                self.server_closed.set()
 
     # 创建服务器
     async def create_server(self):
@@ -249,6 +283,7 @@ def stop_server():
     if server_thread:
 
         async def shutdown():
+            server_thread.server_closing = True
             server_thread.server.close()
             await server_thread.server.wait_closed()
             # server_thread.loop.stop()

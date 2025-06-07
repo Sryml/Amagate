@@ -13,6 +13,7 @@ import select
 import time
 import struct
 import os
+import traceback
 
 sys.path.append("../../LIB/PythonLib/Plat-Win")
 
@@ -23,6 +24,7 @@ import BODLoader
 
 #
 from AmagateClient.Scripts import utils
+from AmagateClient.Scripts import protocol
 
 ############################
 true = 1 == 1
@@ -35,29 +37,25 @@ KEY = "AmagateClient"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 1673
 
-HEARTBEAT_INTERVAL = 3  # 5  # 心跳间隔(秒)
-HEARTBEAT_TIMEOUT = 6  # 10  # 心跳超时(秒)
+SYNC_INTERVAL = 1.0 / 30  # 30FPS的最小间隔
+
+HEARTBEAT_INTERVAL = 10  # 心跳间隔(秒)
+HEARTBEAT_TIMEOUT = 15  # 心跳超时(秒)
 ############################
 
 printx = utils.printx
-log_file = "../../bin/AmagateClient.log"
-
-logger = utils.SimpleLogger("Amagate", level="DEBUG", output=open(log_file, "a"))
+logger = utils.logger
 ############################
 
 
-# def recv_exact(sock, length):
-#     """阻塞读取指定长度的数据，直到收完或连接关闭"""
-#     data = bytearray()
-#     while len(data) < length:
-#         remaining = length - len(data)
-#         chunk = sock.recv(remaining)
-#         if not chunk:  # 连接被对方关闭
-#             raise ConnectionError(f"Connection closed, expected {length} bytes, got {len(data)}")
-#         data.extend(chunk)
-#     return bytes(data)
+# 恢复摄像机
+def restore_camera():
+    e = Bladex.GetEntity("Camera")
+    e.SetPersonView("Player1")
+    e.Cut()
 
 
+# 客户端线程
 class ClientThread(threading.Thread):
     def __init__(self, *args):
         # threading.Thread.__init__(self, *args)
@@ -70,7 +68,6 @@ class ClientThread(threading.Thread):
         self.callback = None
         self.callback_args = ()
         #
-        # self.log_file = open("../../bin/AmagateClient.log","w")
 
     def handle_message(self):
         # print不是线程安全的，会导致游戏崩溃
@@ -84,12 +81,12 @@ class ClientThread(threading.Thread):
             if not BODLoader.BLModInfo["Amagate Client"]["Enabled"]:
                 logger.debug("Client disabled")
                 break
-            # 如果锁被释放，则退出循环
+            # 如果用户断开连接（锁被释放），则退出循环
             if not self.sock_lock.locked():
                 logger.debug("Socket lock released")
                 break
 
-            readable, writable, exceptional = select.select([sock], [sock], [sock], 2.0)
+            readable, writable, exceptional = select.select([sock], [sock], [sock], 1.0)
             if readable:
                 msg = sock.recv(2)
                 if not msg:  # 服务器关闭连接
@@ -97,20 +94,36 @@ class ClientThread(threading.Thread):
                     break
 
                 msg_type = struct.unpack("!H", msg)[0]
-                logger.debug("msg_type: %s" % msg_type)
-                if msg_type == 0x0400:
-                    # 心跳包
+                # logger.debug("msg_type: 0x%04X" % msg_type)
+                # 心跳包
+                if msg_type == protocol.HEARTBEAT:
                     logger.debug("Received heartbeat")
                     self.last_heartbeat = time.time()
                     if writable:
-                        sock.send(struct.pack("!H", 0x0400))  # type: ignore
+                        sock.send(struct.pack("!H", protocol.HEARTBEAT))  # type: ignore
                         logger.debug("Sent heartbeat")
+                else:
+                    msg_len = struct.unpack("!H", sock.recv(2))[0]
+                    recv_len = 0
+                    msg_body = ""
+                    while recv_len < msg_len:
+                        chunk = sock.recv(msg_len - recv_len)
+                        msg_body = msg_body + chunk  # type: ignore
+                        recv_len = recv_len + len(chunk)
+                    # logger.debug("unpacked data: %s" % msg_body)
+                    # logger.debug("unpacked data...")
+                    # try:
+                    data_dict = protocol.unpack_data(msg_body)
+                    # logger.debug("handling data...")
+                    protocol.HANDLERS[msg_type](data_dict)
+                    # except:
+                    #     traceback.print_exc(file=logger.output)
             else:
                 current_time = time.time()
                 if current_time - self.last_heartbeat > HEARTBEAT_TIMEOUT:
                     logger.debug("heartbeat timeout")
                     break
-            time.sleep(0.03)
+            time.sleep(SYNC_INTERVAL)
         # 关闭连接
         sock.close()
 
@@ -122,16 +135,16 @@ class ClientThread(threading.Thread):
 
     def on_exit(self):
         global client_thread
-        # self.log_file.close()
         client_thread = None
         Bladex.DeleteStringValue(KEY)
         if self.callback:
             apply(self.callback, self.callback_args)
+        restore_camera()
         logger.debug("Client thread exited")
 
 
 # 连接到服务器
-def connect_server():
+def connect_server(callback=None, callback_args=()):
     global client_thread
     if client_thread is None:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -142,10 +155,12 @@ def connect_server():
             pass  # 非阻塞模式下 connect 会立即返回
         # 用 select 检测是否可写（连接成功）
         readable, writable, exceptional = select.select(
-            [client_socket], [client_socket], [client_socket], 2.0
+            [client_socket], [client_socket], [client_socket], 1.0
         )
         if writable:
             client_thread = ClientThread()
+            client_thread.callback = callback
+            client_thread.callback_args = callback_args
             client_thread.sock = client_socket
             client_thread.setDaemon(true)
             client_thread.start()

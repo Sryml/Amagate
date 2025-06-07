@@ -1180,7 +1180,8 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         scene_data = context.scene.amagate_data
-        column = layout.column(align=True)
+        column = layout.column()
+
         # 状态
         row = column.row()
         split = row.split(factor=0.5)
@@ -1188,11 +1189,18 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         split2 = split.split(factor=0.5, align=True)
         split2.operator(OP_L3D.OT_Server_Start.bl_idname, text="", icon="PLAY")
         split2.operator(OP_L3D.OT_Server_Stop.bl_idname, text="", icon="PAUSE")
-        # 客户端
+        # 客户端状态
         row = column.row()
         row.label(text=f"{pgettext('Client')}: {ag_service.get_client_status()}")
 
         column.separator(type="LINE")
+
+        # 同步功能
+        server_thread = ag_service.server_thread
+
+        row = column.row()
+        row.enabled = True if server_thread and server_thread.clients else False
+        row.prop(scene_data.operator_props, "camera_sync", toggle=True)
 
 
 ############################

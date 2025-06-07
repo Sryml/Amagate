@@ -55,7 +55,10 @@ def InitConnectedStatus(target):
 
 
 def CMD_Connect(target):
-    ag_client.connect_server()
+    ag_client.connect_server(
+        callback=InitConnectedStatus,
+        callback_args=(BODLoader.GetMenuWidget("ConnectedStatus"),),
+    )
     InitConnectedStatus(BODLoader.GetMenuWidget("ConnectedStatus"))
 
 
