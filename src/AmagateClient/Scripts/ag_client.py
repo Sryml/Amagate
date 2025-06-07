@@ -37,7 +37,7 @@ KEY = "AmagateClient"
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 1673
 
-SYNC_INTERVAL = 1.0 / 30  # 30FPS的最小间隔
+SYNC_INTERVAL = 1.0 / 60  # 同步频率
 
 HEARTBEAT_INTERVAL = 10  # 心跳间隔(秒)
 HEARTBEAT_TIMEOUT = 15  # 心跳超时(秒)
@@ -97,11 +97,11 @@ class ClientThread(threading.Thread):
                 # logger.debug("msg_type: 0x%04X" % msg_type)
                 # 心跳包
                 if msg_type == protocol.HEARTBEAT:
-                    logger.debug("Received heartbeat")
+                    # logger.debug("Received heartbeat")
                     self.last_heartbeat = time.time()
                     if writable:
                         sock.send(struct.pack("!H", protocol.HEARTBEAT))  # type: ignore
-                        logger.debug("Sent heartbeat")
+                        # logger.debug("Sent heartbeat")
                 else:
                     msg_len = struct.unpack("!H", sock.recv(2))[0]
                     recv_len = 0

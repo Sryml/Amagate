@@ -62,7 +62,7 @@ if TYPE_CHECKING:
 logger = data.logger
 ############################
 LAST_SENT_TIME = 0
-SYNC_INTERVAL = 1 / 30  # 30FPS的最小间隔
+SYNC_INTERVAL = ag_service.SYNC_INTERVAL
 
 
 AG_COLL = "Amagate Auto Generated"
@@ -1413,13 +1413,25 @@ class OperatorProperty(bpy.types.PropertyGroup):
 
     def set_camera_sync(self, value):
         self["camera_sync"] = value
+        scene = bpy.context.scene
         #
         if not value:
             script = (
                 """e=Bladex.GetEntity("Camera");e.SetPersonView("Player1");e.Cut()"""
             )
         else:
-            script = """e=Bladex.GetEntity("Camera");e.TType=e.SType=0"""
+            cam = scene.camera
+            if cam:
+                cam_pos, target_pos = ag_utils.get_camera_transform(cam)  # type: ignore
+                script_extra = f"e.Position={cam_pos};e.TPos={target_pos}"
+            else:
+                script_extra = ""
+            script = f"""
+if 1:
+    e=Bladex.GetEntity("Camera")
+    e.TType=e.SType=0
+    {script_extra}
+"""
         ag_service.send_exec_script(script)
 
 
@@ -1586,7 +1598,7 @@ class SceneProperty(bpy.types.PropertyGroup):
             return
 
         self["set_coord_conv_2"] = str(position)
-        location = position[0], position[2], -position[1]
+        location = position[0] / 1000.0, position[2] / 1000.0, -position[1] / 1000.0
 
         selected_objects = context.selected_objects
         if selected_objects:

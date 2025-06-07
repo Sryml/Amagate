@@ -537,6 +537,33 @@ def get_vertex_in_group(obj: Object, vg_name):
     return vertex_indices
 
 
+# 获取摄像机变换并转换为Blade坐标空间
+def get_camera_transform(cam):
+    # type: (Object) -> tuple[tuple[float, float, float], tuple[float, float, float]]
+    """获取摄像机变换并转换为Blade坐标空间"""
+    # 获取摄像机的位置和旋转矩阵
+    cam_pos = cam.matrix_world.translation
+    cam_rot = cam.matrix_world.to_quaternion()
+    distance = 5.0
+
+    # 摄像机默认朝向-z方向，创建一个向前的向量
+    forward = Vector((0.0, 0.0, -1.0))
+
+    # 应用摄像机的旋转得到实际朝向
+    forward.rotate(cam_rot)
+
+    # 计算前方distance米的位置
+    target_pos = cam_pos + forward * distance
+
+    # 转换坐标
+    cam_pos = (cam_pos * 1000).to_tuple(1)
+    cam_pos = cam_pos[0], -cam_pos[2], cam_pos[1]
+    target_pos = (target_pos * 1000).to_tuple(1)
+    target_pos = target_pos[0], -target_pos[2], target_pos[1]
+
+    return cam_pos, target_pos
+
+
 def set_dict(this, key, value):
     this[key] = value
 

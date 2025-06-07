@@ -21,6 +21,7 @@ from mathutils import *  # type: ignore
 #
 from . import protocol
 from ..scripts import data
+from ..scripts import ag_utils
 
 #
 if TYPE_CHECKING:
@@ -42,21 +43,19 @@ server_thread = None  # type: AsyncServerThread | None
 SERVER_HOST = "127.0.0.1"
 SERVER_PORT = 1673
 
+SYNC_INTERVAL = 1.0 / 30  # 同步频率
+
 HEARTBEAT_INTERVAL = 10  # 心跳间隔(秒)
 HEARTBEAT_TIMEOUT = 15  # 心跳超时(秒)
 ############################
 
 
 def get_status():
-    return pgettext("Closed") if server_thread is None else f'{pgettext("Running")}...'
+    return True if server_thread else False
 
 
 def get_client_status():
-    return (
-        pgettext("Connected", "Server")
-        if server_thread and server_thread.clients
-        else pgettext("Not connected")
-    )
+    return True if server_thread and server_thread.clients else False
 
 
 ############################
@@ -74,25 +73,7 @@ def send_exec_script(script):
 # 发送摄像机数据
 def send_camera_data(cam):
     # type: (Object) -> None
-    # 获取摄像机的位置和旋转矩阵
-    cam_pos = cam.matrix_world.translation
-    cam_rot = cam.matrix_world.to_quaternion()
-    distance = 5.0
-
-    # 摄像机默认朝向-z方向，创建一个向前的向量
-    forward = Vector((0.0, 0.0, -1.0))
-
-    # 应用摄像机的旋转得到实际朝向
-    forward.rotate(cam_rot)
-
-    # 计算前方distance米的位置
-    target_pos = cam_pos + forward * distance
-
-    # 转换坐标
-    cam_pos = (cam_pos * 1000).to_tuple(1)
-    cam_pos = cam_pos[0], -cam_pos[2], cam_pos[1]
-    target_pos = (target_pos * 1000).to_tuple(1)
-    target_pos = target_pos[0], -target_pos[2], target_pos[1]
+    cam_pos, target_pos = ag_utils.get_camera_transform(cam)
     # 打包数据
     msg = protocol.pack_data(
         protocol.ENTITY_ATTR,
@@ -132,10 +113,10 @@ class AsyncServerThread(threading.Thread):
                     logger.debug("Client closed connection")
                     break
                 #
-                logger.debug(f"Received message: {msg}")
-                msg_type = struct.unpack("!H", msg)[0]
-                if msg_type == protocol.HEARTBEAT:
-                    logger.debug("Received heartbeat")
+                # logger.debug(f"Received message: {msg}")
+                # msg_type = struct.unpack("!H", msg)[0]
+                # if msg_type == protocol.HEARTBEAT:
+                #     logger.debug("Received heartbeat")
 
         except asyncio.CancelledError:
             logger.debug("Receive task cancelled")

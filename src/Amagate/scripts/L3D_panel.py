@@ -1185,13 +1185,21 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         # 状态
         row = column.row()
         split = row.split(factor=0.5)
-        split.label(text=f"{pgettext('Status')}: {ag_service.get_status()}")
+        status = ag_service.get_status()
+        text = f'{pgettext("Running")}...' if status else pgettext("Closed")
+        row2 = split.row()
+        row2.alert = not status
+        row2.label(text=f"{pgettext('Status')}: {text}")
+
         split2 = split.split(factor=0.5, align=True)
         split2.operator(OP_L3D.OT_Server_Start.bl_idname, text="", icon="PLAY")
         split2.operator(OP_L3D.OT_Server_Stop.bl_idname, text="", icon="PAUSE")
         # 客户端状态
         row = column.row()
-        row.label(text=f"{pgettext('Client')}: {ag_service.get_client_status()}")
+        status = ag_service.get_client_status()
+        text = pgettext("Connected", "Server") if status else pgettext("Not connected")
+        row.alert = not status
+        row.label(text=f"{pgettext('Client')}: {text}")
 
         column.separator(type="LINE")
 
