@@ -12,8 +12,9 @@ TPOS = 0x0001  # 目标位置更新
 NAME = 0x0002  # 字符串
 STRING = 0x0003  # 字符串
 ############################ Operation
-EXEC_SCRIPT = 0x0400  # 执行脚本
-ENTITY_ATTR = 0x0401  # 实体属性更新
+HEARTBEAT = 0x0400  # 心跳包
+EXEC_SCRIPT = 0x0401  # 执行脚本
+ENTITY_ATTR = 0x0402  # 实体属性更新
 ############################
 
 
