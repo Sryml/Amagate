@@ -14,6 +14,10 @@ import time
 import importlib
 import contextlib
 import math
+import requests
+import zipfile
+import tempfile
+import typing
 
 from typing import Any, TYPE_CHECKING
 from io import StringIO, BytesIO
@@ -40,6 +44,8 @@ if TYPE_CHECKING:
 ############################
 epsilon: float = 1e-5
 epsilon2: float = 1 - epsilon
+
+logger = data.logger
 
 
 # 预设颜色
@@ -1345,6 +1351,81 @@ def dissolve_limit_sectors(sectors):
 
 
 ############################
+
+
+def download_file(url, save_file, referer):
+    # type: (str, tempfile._TemporaryFileWrapper, str) -> bool
+    """
+    下载文件到指定路径
+    """
+    proxies = {
+        "http": "http://127.0.0.1:10809",  # HTTP 代理
+        "https": "http://127.0.0.1:10809",  # HTTPS 代理（如果代理支持）
+    }
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": referer,
+        # "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+        # "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+        # "Accept-Encoding": "gzip, deflate, br",  # 注意：requests 默认不自动解压 br（Brotli）
+    }
+
+    with requests.Session() as session:
+        try:
+            response = session.get(
+                url, headers=headers, stream=True, timeout=10
+            )  # proxies=proxies
+            # logger.debug(f"status_code: {response.status_code}")
+            response.raise_for_status()
+
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    save_file.write(chunk)
+            return True
+        except Exception as e:
+            logger.info(f"下载文件时出错: {e}")
+            return False
+
+
+def extract_file(archive_file, extract_to):
+    # type: (tempfile._TemporaryFileWrapper, str) -> bool
+    """
+    解压文件到指定目录
+    """
+    try:
+        if not os.path.exists(extract_to):
+            os.makedirs(extract_to, exist_ok=True)
+
+        if archive_file.name.endswith(".zip"):
+            with zipfile.ZipFile(archive_file, "r") as zip_ref:
+                # zip_ref.extractall(extract_to)
+                for member in zip_ref.infolist():
+                    target_path = os.path.join(extract_to, member.filename)
+                    # 检查文件是否存在且不是目录
+                    if not (
+                        os.path.exists(target_path) and not os.path.isdir(target_path)
+                    ):
+                        zip_ref.extract(member, extract_to)
+                    else:
+                        pass
+                        # logger.info(f"文件已存在，跳过: {member.filename}")
+        # elif archive_path.endswith(('.tar.gz', '.tgz')):
+        #     with tarfile.open(archive_path, 'r:gz') as tar_ref:
+        #         tar_ref.extractall(extract_to)
+        # elif archive_path.endswith(('.tar.bz2', '.tbz2')):
+        #     with tarfile.open(archive_path, 'r:bz2') as tar_ref:
+        #         tar_ref.extractall(extract_to)
+        # elif archive_path.endswith('.tar'):
+        #     with tarfile.open(archive_path, 'r:') as tar_ref:
+        #         tar_ref.extractall(extract_to)
+        else:
+            logger.info("不支持的文件格式")
+            return False
+
+        return True
+    except Exception as e:
+        logger.info(f"解压文件时出错: {e}")
+        return False
 
 
 ############################

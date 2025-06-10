@@ -6,6 +6,8 @@
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
+import os
+
 import bpy
 import bmesh
 from bpy.app.translations import pgettext
@@ -291,10 +293,31 @@ class AMAGATE_PT_SkyTexture(L3D_Panel, bpy.types.Panel):
 
         col = row1.column()
         col.prop(scene_data, "sky_tex_enum", text="")
-
+        # 打开文件浏览器
         col = row1.column()
         col.operator(OP_L3D.OT_SkyTexture_Open.bl_idname, text="", icon="FILEBROWSER")
         col.enabled = scene_data.sky_tex_enum == "-1"
+        # 下载
+        prop_rna = scene_data.bl_rna.properties["sky_tex_enum"]
+        enum_items = prop_rna.enum_items  # type: ignore
+        not_exists = next(
+            (
+                True
+                for item in enum_items
+                if item.description != ""
+                and not os.path.exists(
+                    os.path.join(
+                        data.ADDON_PATH, f"textures/panorama/{item.description}.jpg"
+                    )
+                )
+            ),
+            False,
+        )
+        col = row1.column()
+        col.enabled = not_exists and (not L3D_data.PANORAMA_LOCK.locked())
+        col.operator(
+            OP_L3D.OT_SkyTexture_Download.bl_idname, text="", icon="EVENT_DOWN_ARROW"
+        )
         #
         row2 = split.row()
         row2.prop(scene_data, "sky_color", text="")
@@ -1196,9 +1219,13 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         split2.operator(OP_L3D.OT_Server_Stop.bl_idname, text="", icon="PAUSE")
         # 客户端状态
         row = column.row()
-        status = ag_service.get_client_status()
-        text = pgettext("Connected", "Server") if status else pgettext("Not connected")
-        row.alert = not status
+        client_status = ag_service.get_client_status()
+        text = (
+            pgettext("Connected", "Server")
+            if client_status
+            else pgettext("Not connected")
+        )
+        row.alert = not client_status
         row.label(text=f"{pgettext('Client')}: {text}")
 
         column.separator(type="LINE")
@@ -1206,9 +1233,13 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         # 同步功能
         server_thread = ag_service.server_thread
 
-        row = column.row()
-        row.enabled = True if server_thread and server_thread.clients else False
-        row.prop(scene_data.operator_props, "camera_sync", toggle=True)
+        box = column.box()
+        box.enabled = client_status
+        col = box.column(align=True)
+
+        row = col.row()
+        row.label(text=f"{pgettext('Camera')}:")
+        row.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
 
 
 ############################

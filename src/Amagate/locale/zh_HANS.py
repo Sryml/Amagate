@@ -12,6 +12,7 @@
     ("*", "Camera Collection"): "摄像机集合",
     ("*", "Marked Collection"): "标记集合",
     ("*", "Sectors"): "扇区",
+    ("*", "Please enable online access in Preferences -> System"): "请在 [偏好设置 -> 系统] 中开启联机访问",
     # ("*", "non-uniform"): "不一致的",
     ("Operator", "Don't Save"): "不保存",
     ("Operator", "Cancel"): "取消",
@@ -22,6 +23,7 @@
     ("Operator", "Special Object Check"): "特殊对象检查",
     ("Operator", "Sector Paste Check"): "扇区粘贴检查",
     ("Operator", "Join Sector"): "合并扇区",
+    ("Operator", "Download"): "下载",
     ("Property", "Yes"): "是",
     ("Property", "No"): "否",
     # py包安装面板
@@ -111,6 +113,7 @@
     ("*","The Abyss"): "深渊",
     ("*","No valid files selected"): "无效文件选择",
     ("*","Not supported in the Reissue version"): "重制版中不支持",
+    ("*","Texture not found, please click the download button."): "纹理文件不存在，请点击下载按钮。",
     # 扇区面板
     ("*", "Select NULL for sky"): "选择 NULL 作为天空",
     ("*", "Sector"): "扇区",

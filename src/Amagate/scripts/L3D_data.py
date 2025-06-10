@@ -75,6 +75,9 @@ DEPSGRAPH_UPDATE_LOCK = threading.Lock()
 CHECK_CONNECT = threading.Lock()
 CONNECT_SECTORS = set()
 
+# 全景图下载锁
+PANORAMA_LOCK = threading.Lock()
+
 S_COLL_OBJECTS = 0
 OPERATOR_POINTER = None
 draw_handler = None
@@ -1549,7 +1552,9 @@ class SceneProperty(bpy.types.PropertyGroup):
             ("-1", "Custom", ""),
         ],
         default="5",  # 默认选中项
-        update=lambda self, context: self.update_sky_tex_enum(context),
+        get=lambda self: self.get_sky_tex_enum(),
+        set=lambda self, value: self.set_sky_tex_enum(value),
+        # update=lambda self, context: self.update_sky_tex_enum(context),
     )  # type: ignore
     # 天空颜色
     sky_color: FloatVectorProperty(
@@ -1623,28 +1628,45 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
 
-    def update_sky_tex_enum(self, context):
+    def get_sky_tex_enum(self):
+        return self.get("sky_tex_enum", 4)
+
+    # def update_sky_tex_enum(self, context: Context):
+    def set_sky_tex_enum(self, value):
         prop_rna = self.bl_rna.properties["sky_tex_enum"]
         enum_items = prop_rna.enum_items  # type: ignore
-        enum_id = self.sky_tex_enum
+        item = enum_items[value]
+        enum_id = item.identifier
         if enum_id == "-1":
             return
 
         # 通过ID查找名称
-        selected_name = next(
-            (item.description for item in enum_items if item.identifier == enum_id),
-            None,
-        )
+        selected_name = item.description
+        # selected_name = next(
+        #     (item.description for item in enum_items if item.identifier == enum_id),
+        #     None,
+        # )
         if selected_name is None:
             return
 
         filepath = os.path.join(
             data.ADDON_PATH, f"textures/panorama/{selected_name}.jpg"
         )
+        if not os.path.exists(filepath):
+            bpy.context.window_manager.popup_menu(
+                lambda self, context: self.layout.label(
+                    text="Texture not found, please click the download button."
+                ),
+                title=pgettext("Warning"),
+                icon="ERROR",
+            )
+            return
+
         img = ensure_null_texture()
         img.filepath = filepath
         img.reload()
         # print(f"selected_name: {selected_name}")
+        self["sky_tex_enum"] = value
 
     def update_sky_color(self, context):
         scene = self.id_data  # type: Scene

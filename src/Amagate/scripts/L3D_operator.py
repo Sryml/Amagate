@@ -14,6 +14,9 @@ import contextlib
 import shutil
 import threading
 import time
+import locale
+import requests
+import tempfile
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -813,6 +816,94 @@ class OT_SkyTexture_Open(bpy.types.Operator):
         return {"RUNNING_MODAL"}
 
 
+# 下载全景图
+class OT_SkyTexture_Download(bpy.types.Operator):
+    bl_idname = "amagate.sky_texture_download"
+    bl_label = "Download"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        if not context.preferences.system.use_online_access:
+            self.report(
+                {"ERROR"}, "Please enable online access in Preferences -> System"
+            )
+            return {"CANCELLED"}
+
+        L3D_data.PANORAMA_LOCK.acquire()
+
+        logger.info("Downloading panorama...")
+        threading.Thread(target=self.download, args=()).start()
+
+        return {"FINISHED"}
+
+    @staticmethod
+    def download():
+        # if 0:
+        #     direct_link = "https://q1080.webgetstore.com/2025/06/10/393cfc9cd5028772feff983c07c731c9.zip?sg=dd92aef7c869afc3f76e7445ee4be3c5&e=6847c748&fileName=panorama.zip"
+        #     referer = "https://www.lanzoul.com/"
+        # 中文系统的情况
+        if locale.setlocale(locale.LC_ALL, "").startswith("Chinese"):
+            link = "https://astra.lanzoul.com/iGctt2ygneni"
+            name = "panorama.zip"
+            api = (
+                f"https://cn.apihz.cn/api/ziyuan/lanzou.php?id=88888888&key=88888888&url={link}&type=1",
+                f"https://api.nxvav.cn/api/lanzou/?type=json&url={link}",
+                f"https://api.mmp.cc/api/lanzou?type=json&url={link}",
+            )
+
+            for url in api:
+                try:
+                    response = requests.get(url)
+                    response.raise_for_status()
+                    response_json = response.json()
+                    if response_json.get("name") != name:
+                        continue
+
+                    direct_link = next(
+                        (
+                            response_json[k]
+                            for k in ("downurl", "downUrl")
+                            if k in response_json
+                        ),
+                        None,
+                    )
+                    if direct_link:
+                        # logger.debug(f"api: {url}, direct_link: {direct_link}")
+                        referer = "https://www.lanzoul.com/"
+                        break
+                except Exception as e:
+                    continue
+            # 如果没有发生break，说明没有解析到直链
+            else:
+                direct_link = (
+                    "https://gitee.com/sryml/file-hosting/raw/main/panorama.zip"
+                )
+                referer = "https://gitee.com/"
+        else:
+            direct_link = (
+                "https://github.com/sryml9/FileHosting/raw/refs/heads/main/panorama.zip"
+            )
+            referer = "https://github.com/"
+
+        with tempfile.NamedTemporaryFile(
+            mode="wb+",
+            suffix=".zip",
+            delete=True,
+            dir=os.path.join(data.ADDON_PATH, "textures/panorama"),
+        ) as save_file:
+            # logger.debug(f"tempfile: {save_file.name}")
+            down_result = ag_utils.download_file(direct_link, save_file, referer)
+            if down_result:
+                save_file.flush()
+                extract_result = ag_utils.extract_file(
+                    save_file, os.path.join(data.ADDON_PATH, "textures/panorama")
+                )
+                if extract_result:
+                    logger.info("Panorama downloaded and extracted")
+        #
+        L3D_data.PANORAMA_LOCK.release()
+
+
 ############################
 ############################ 扇区工具
 ############################
@@ -874,6 +965,8 @@ class OT_Server_Stop(bpy.types.Operator):
         ag_service.stop_server()
         return {"FINISHED"}
 
+
+# 对齐摄像机到客户端
 
 ############################
 ############################ 工具面板
