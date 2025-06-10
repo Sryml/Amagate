@@ -22,6 +22,11 @@ class __Context(bpy.types.Context):
     objects_in_mode: list[__Object]
     active_object: __Object
 
+class __Collection(bpy.types.Collection):
+    objects: list[__Object]
+    all_objects: list[__Object]
+    collection_objects: list[__Object]
+
 class __BlendDataImages(bpy.types.BlendDataImages):
     @overload
     def __getitem__(self, key: str | int) -> __Image: ...

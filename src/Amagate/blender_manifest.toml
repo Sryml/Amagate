@@ -3,7 +3,7 @@ schema_version = "1.0.0"
 # Example of manifest file for a Blender extension
 # Change the values according to your extension
 id = "Amagate"
-version = "0.1.0"
+version = "0.9.0"
 name = "Amagate"
 tagline = "This extension provides a variety of utility tools for 3D development in Blade"
 maintainer = "Sryml <sryml@hotmail.com>"

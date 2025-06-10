@@ -315,7 +315,7 @@ def parse(file):
                                     y = unpack("f", f)[0]
 
                                     f.seek(8, 1)  # 0
-                                    msg = f"{' ':<{7+4+4}}Texture: Vector: {vector}, {distance}, {texture_name}, pos: ({x}, {y}) - {address}"
+                                    msg = f"{' ':<{7+4+4}}Texture: Vector: {vector}, {distance}, {texture_name}, v1: {v1}, v2: {v2}, pos: ({x}, {y}) - {address}"
                                     Info.append(msg)
                                     print_(msg, sector=i)
                                 else:

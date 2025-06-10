@@ -316,19 +316,21 @@ class OT_Test(bpy.types.Operator):
 
         obj = context.object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
-        # bm = bmesh.from_edit_mesh(mesh)
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
+        bm = bmesh.from_edit_mesh(mesh)
+        # bm = bmesh.new()
+        # bm.from_mesh(mesh)
         # OP_L3D_EXT.hole_split(bm)
 
-        # result = bmesh.ops.bisect_plane(
-        # bm, geom=list(bm.faces)+list(bm.edges)+list(bm.verts),
-        # dist = 1e-4,
-        # plane_no=Vector((1, 0, 0)),
-        # plane_co=Vector((0, 0, 0)),
-        # clear_inner=False,
-        # clear_outer=False
-        # )
+        result = bmesh.ops.bisect_plane(
+            bm,
+            geom=[v for v in bm.verts if v.select] + [e for e in bm.edges if e.select] + [f for f in bm.faces if f.select],  # type: ignore
+            dist=1e-4,
+            plane_no=Vector((1, 0, 0)),
+            plane_co=Vector((0.5, 0, 0)),
+            clear_inner=False,
+            clear_outer=False,
+        )
+        bmesh.update_edit_mesh(mesh)
         # bm.verts.ensure_lookup_table()
         # for i in (8,9,10,11):
         #     bm.verts[i].select = True
@@ -342,9 +344,9 @@ class OT_Test(bpy.types.Operator):
         # bpy.context.scene.collection.objects.link(obj_new)
         # outer_bm.free()
 
-        # edge = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+        edge = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
         # vert = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
-        # print(f"edge: {[e.index for e in edge]}, vert: {[v.index for v in vert]}")
+        print(f"edge: {[e.index for e in edge]}")
 
         # 获取新生成的面
         # new_faces = [g for g in result["geom"] if isinstance(g, bmesh.types.BMFace)]
@@ -363,25 +365,19 @@ class OT_Test(bpy.types.Operator):
         # bpy.ops.ed.undo_push(message="test1")
 
     def test2(self, context: Context):
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
         bm = bmesh.new()
-        verts = [
-            (0, 0, 0),
-            (1, 0, 0),
-            (1, 1, 0),
-        ]
-        for v in verts:
-            bm.verts.new(v)
-        bm.faces.new(bm.verts[-3:])
-        for v in verts:
-            bm.verts.new(v)
-        bm.faces.new(bm.verts[-3:])
-
-        mesh = bpy.data.meshes.new("AG.test")
-        bm.to_mesh(mesh)
-        obj = bpy.data.objects.new("AG.test", mesh)
-        bpy.context.scene.collection.objects.link(obj)
-
-        bm.free()
+        bm.from_mesh(mesh)
+        layer = bm.faces.layers.int.get("amagate_connected")
+        faces = [f for f in bm.faces if f[layer] == 0] # type: ignore
+        bmesh.ops.connect_verts_concave(bm, faces=faces) 
+        #
+        bm_mesh = bpy.data.meshes.new(f"AG.split")
+        bm.to_mesh(bm_mesh)
+        bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+        data.link2coll(bm_obj, bpy.context.scene.collection)
+        #
 
     def test3(self, context: Context):
         mesh = context.object.data  # type: bpy.types.Mesh # type: ignore

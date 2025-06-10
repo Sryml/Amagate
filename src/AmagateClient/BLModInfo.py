@@ -6,6 +6,8 @@
 # Global variables
 ####################################################################################
 
+import string
+
 global ModName
 global ModDesc
 global ModVersion
@@ -43,7 +45,9 @@ ModDesc = (
 # 	             )
 
 # Mod Version
-ModVersion = "1.0"
+version = open("../../BODLoader/Mods/AmagateClient/version","r")
+ModVersion = string.strip(version.read()) # type: ignore
+version.close()
 # Author name
 ModAuthor = "Sryml"
 # Author info: email, url,...
