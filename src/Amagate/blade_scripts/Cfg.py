@@ -2,6 +2,7 @@ import Bladex
 import LoadBar
 import os
 import string
+import BBLib
 
 LoadBar.ECTSProgressBar(100, "Blade_progress.jpg")
 
@@ -18,14 +19,29 @@ for i in ("Pak/BODPak.dat", "Pak/pf.pak"):
 
 
 execfile("../../Scripts/sys_init.py")
+
+Bladex.ReadLevel("AG_dome.lvl")
 #
-execfile("mapcfg.py")
+execfile("AG_MapCfg.py")
 
 for f in os.listdir("textures"):
     name, ext = os.path.splitext(f)
-    if string.lower(ext) == ".bmp":
+    if string.lower(ext) == ".bmp":  # type: ignore
         Bladex.ReadBitMap("textures/" + f, name)
 
-Bladex.LoadWorld(mapcfg["bw_file"])
+general_texture = (
+    "../../3dobjs/3dobjs.mmp",
+    "../../3dobjs/genericos.mmp",
+    "../../3dobjs/weapons.mmp",
+    "../../3dobjs/objetos_p.mmp",
+)
+for f in general_texture:
+    BBLib.ReadMMP(f)
+
+
+Bladex.LoadWorld(AG_MapCfg["bw_file"])
 #
 execfile("../../Scripts/BladeInit.py")
+
+#
+execfile("AG_Script.py")
