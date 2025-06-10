@@ -66,7 +66,7 @@ def unpack_float3(data):
 
 
 def pack_string(data):
-    bytes_data = data.encode()
+    bytes_data = data
     return struct.pack("!H", len(bytes_data)) + bytes_data
 
 
@@ -161,7 +161,7 @@ def get_attr_recv(b_data):
         attr = int(struct.unpack("!H", b_attr)[0])
         attr_name = Codec[attr][NAME]
         b_attr_val = Codec[attr][PACK](getattr(obj, attr_name))
-        result.extend([b_attr, b_attr_val])
+        result.append(b_attr + b_attr_val)
         offset = offset + 2
     return string.join(result, "")  # type: ignore
 

@@ -172,6 +172,8 @@
     ("*", "Running"): "运行中",
     ("*", "Not connected"): "未连接",
     ("Server", "Connected"): "已连接",
+    ("Operator", "To Client"): "到客户端",
+    ("*", "Align Camera to Client"): "对齐摄像机到客户端",
     ("*", "Camera Sync"): "摄像机同步",
     # 工具面板
     ("Operator", "New Map"): "新建地图",

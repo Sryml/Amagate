@@ -86,13 +86,11 @@ def send_camera_data(cam):
     run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
 
 
-# 请求摄像机数据
-def request_camera_data(callback):
+# 请求属性
+def get_attr_send(obj_type, obj_name, attrs, callback):
     uid = AsyncRequestResponse.callback_register(callback)
     packer = protocol.Handlers[protocol.GET_ATTR][protocol.PACK]
-    msg = packer(
-        protocol.T_ENTITY, "Camera", (protocol.A_POSITION, protocol.A_TPOS), uid
-    )
+    msg = packer(obj_type, obj_name, attrs, uid)
     # 添加到消息队列
     run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
 

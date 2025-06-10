@@ -40,7 +40,7 @@ from mathutils import *  # type: ignore
 
 from . import data, L3D_data
 from . import ag_utils
-from ..service import ag_service
+from ..service import ag_service, protocol
 
 
 if TYPE_CHECKING:
@@ -967,6 +967,42 @@ class OT_Server_Stop(bpy.types.Operator):
 
 
 # 对齐摄像机到客户端
+class OT_Server_CamToClient(bpy.types.Operator):
+    bl_idname = "amagate.server_cam_to_client"
+    bl_label = "To Client"
+    bl_description = "Align Camera to Client"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        scene = context.scene
+        if not scene.camera:
+            self.report({"ERROR"}, "No camera found")
+            return {"CANCELLED"}
+
+        ag_service.get_attr_send(
+            protocol.T_ENTITY,
+            "Camera",
+            (protocol.A_POSITION, protocol.A_TPOS),
+            self.response_handler,
+        )
+        return {"FINISHED"}
+
+    @staticmethod
+    def response_handler(attrs_dict):
+        scene = bpy.context.scene
+        if not scene.camera:
+            return
+        #
+        cam = scene.camera
+        pos = Vector(attrs_dict[protocol.A_POSITION]) / 1000
+        pos = Vector((pos[0], pos[2], -pos[1]))
+        tpos = Vector(attrs_dict[protocol.A_TPOS]) / 1000
+        tpos = Vector((tpos[0], tpos[2], -tpos[1]))
+        dir = (tpos - pos).normalized()
+        #
+        cam.matrix_world.translation = pos
+        cam.rotation_euler = dir.to_track_quat("-Z", "Y").to_euler()
+
 
 ############################
 ############################ 工具面板

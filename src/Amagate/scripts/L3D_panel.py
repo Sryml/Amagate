@@ -1237,8 +1237,9 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         box.enabled = client_status
         col = box.column(align=True)
 
-        row = col.row()
+        row = col.row(align=True)
         row.label(text=f"{pgettext('Camera')}:")
+        row.operator(OP_L3D.OT_Server_CamToClient.bl_idname)
         row.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
 
 

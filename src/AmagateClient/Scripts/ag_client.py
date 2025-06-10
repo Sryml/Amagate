@@ -103,28 +103,29 @@ class ClientThread(threading.Thread):
                         sock.send(struct.pack("!H", protocol.HEARTBEAT))  # type: ignore
                         # logger.debug("Sent heartbeat")
                 else:
-                    # try:
-                    handler_select = int(struct.unpack("!B", sock.recv(1))[0])
-                    responder = protocol.Handlers[msg_type][protocol.RESP]
-                    handler = protocol.Handlers[msg_type][handler_select]
-                    if responder:
-                        uid = int(struct.unpack("!B", sock.recv(1))[0])
+                    try:
+                        handler_select = int(struct.unpack("!B", sock.recv(1))[0])
+                        responder = protocol.Handlers[msg_type][protocol.RESP]
+                        handler = protocol.Handlers[msg_type][handler_select]
+                        if responder:
+                            uid = int(struct.unpack("!B", sock.recv(1))[0])
 
-                    msg_len = int(struct.unpack("!H", sock.recv(2))[0])
-                    recv_len = 0
-                    msg_body = ""
-                    while recv_len < msg_len:
-                        chunk = sock.recv(msg_len - recv_len)
-                        msg_body = msg_body + chunk  # type: ignore
-                        recv_len = recv_len + len(chunk)
+                        msg_len = int(struct.unpack("!H", sock.recv(2))[0])
+                        recv_len = 0
+                        msg_body = ""
+                        while recv_len < msg_len:
+                            chunk = sock.recv(msg_len - recv_len)
+                            msg_body = msg_body + chunk  # type: ignore
+                            recv_len = recv_len + len(chunk)
 
-                    result = handler(msg_body)
-                    if handler_select == protocol.RESP:
-                        pass
-                    elif responder:
-                        sock.send(msg_type + struct.pack("!B", protocol.RESP) + struct.pack("!B", uid) + struct.pack("!H", len(result)) + result)  # type: ignore
-                    # except:
-                    #     traceback.print_exc(file=logger.output)
+                        result = handler(msg_body)
+                        if handler_select == protocol.RESP:
+                            pass
+                        elif responder:
+                            sock.send(struct.pack("!H", msg_type) + struct.pack("!B", protocol.RESP) + struct.pack("!B", uid) + struct.pack("!H", len(result)) + result)  # type: ignore
+                    except:
+                        traceback.print_exc(file=logger.output)
+                        logger.output.flush()
 
             else:
                 current_time = time.time()
