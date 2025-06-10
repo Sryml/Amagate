@@ -14,6 +14,7 @@ import threading
 import contextlib
 import ast
 import time
+from pathlib import Path
 
 from asyncio import run_coroutine_threadsafe
 from io import StringIO, BytesIO
@@ -45,7 +46,7 @@ from mathutils import *  # type: ignore
 
 #
 from . import ag_utils, data
-from ..service import ag_service
+from ..service import ag_service, protocol
 
 #
 
@@ -145,6 +146,31 @@ def get_sector_by_id(scene_data, sector_id) -> Object:
     return scene_data["SectorManage"]["sectors"][str(sector_id)]["obj"]
 
 
+def get_level_item(this, context):
+    map_dir = Path(bpy.data.filepath).parent.name
+    return [
+        ("-1", map_dir, map_dir),
+        ("0", "Casa", "Casa"),
+        ("1", "Kashgar", "Barb_M1"),
+        ("2", "Tabriz", "Ragnar_M2"),
+        ("3", "Khazel Zalam", "Dwarf_M3"),
+        ("4", "Marakamda", "Ruins_M4"),
+        ("5", "Mines of Kelbegen", "Mine_M5"),
+        ("6", "Fortress of Tell Halaf", "Labyrinth_M6"),
+        ("7", "Tombs of Ephyra", "Tomb_M7"),
+        ("8", "Island of Karum", "Island_M8"),
+        ("9", "Shalatuwar Fortress", "Orc_M9"),
+        ("10", "The Gorge of Orlok", "Orlok_M10"),
+        ("11", "Fortress of Nemrut", "Ice_M11"),
+        ("12", "The Oasis of Nejeb", "Btomb_M12"),
+        ("13", "Temple of Al Farum", "Desert_M13"),
+        ("14", "Forge of Xshathra", "Volcano_M14"),
+        ("15", "The Temple of Ianna", "Palace_M15"),
+        ("16", "Tower of Dal Gurak", "Tower_M16"),
+        ("17", "The Abyss", "Chaos_M17"),
+    ]
+
+
 # 确保NULL纹理存在
 def ensure_null_texture() -> Image:
     scene_data = bpy.context.scene.amagate_data
@@ -195,6 +221,7 @@ def ensure_render_camera() -> Object:
         render_cam = bpy.data.objects.new("AG.RenderCamera", cam_data)  # type: ignore
         cam_data.sensor_width = 100
         cam_data.passepartout_alpha = 0.98
+        cam_data.lens = 49.0
         # cam_data.show_limits = True
         render_cam.location = (0, -0.1, 0)  # 避免0位置崩溃
         render_cam.rotation_euler = (math.pi / 2, 0, 0)
@@ -641,7 +668,12 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
                 and scene.camera.name == obj.name
             ):
                 # logger.debug("camera_sync")
-                ag_service.send_camera_data(obj)  # type: ignore
+                cam_pos, target_pos = ag_utils.get_camera_transform(obj)  # type: ignore
+                ag_service.set_attr_send(
+                    protocol.T_ENTITY,
+                    "Camera",
+                    {protocol.A_POSITION: cam_pos, protocol.A_TPOS: target_pos},
+                )
     #
 
     s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
@@ -1412,16 +1444,18 @@ class OperatorProperty(bpy.types.PropertyGroup):
     sec_connect_sep_convex: BoolProperty(name="Auto Separate Convex", default=True)  # type: ignore
     # OT_Sector_SeparateConvex
     sec_separate_connect: BoolProperty(name="Auto Connect", default=True)  # type: ignore
-    camera_sync: BoolProperty(name="Camera Sync", default=False, get=lambda self: self.get("camera_sync", False), set=lambda self, value: self.set_camera_sync(value))  # type: ignore
+    camera_sync: BoolProperty(name="Camera Sync", default=False, get=lambda self: self.get_camera_sync(), set=lambda self, value: self.set_camera_sync(value))  # type: ignore
+
+    def get_camera_sync(self):
+        return ag_service.P_CAMERA_SYNC
 
     def set_camera_sync(self, value):
-        self["camera_sync"] = value
+        ag_service.P_CAMERA_SYNC = value
         scene = bpy.context.scene
         #
         if not value:
-            script = (
-                """e=Bladex.GetEntity("Camera");e.SetPersonView("Player1");e.Cut()"""
-            )
+            # 远程调用
+            script = """restore_camera()"""
         else:
             cam = scene.camera
             if cam:
@@ -1435,7 +1469,7 @@ if 1:
     e.TType=e.SType=0
     {script_extra}
 """
-        ag_service.send_exec_script(script)
+        ag_service.exec_script_send(script)
 
 
 # 图像属性
@@ -1568,6 +1602,15 @@ class SceneProperty(bpy.types.PropertyGroup):
         update=lambda self, context: self.update_sky_color(context),
     )  # type: ignore
 
+    # 加载关卡
+    level_enum: EnumProperty(
+        name="",
+        description="",
+        items=get_level_item,
+        get=lambda self: 0,
+        set=lambda self, value: self.set_level_enum(value),
+    )  # type: ignore
+
     # 坐标转换
     coord_conv_1: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get_coord_conv_1(), set=lambda self, value: None)  # type: ignore
     coord_conv_2: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get("set_coord_conv_2", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_2(value))  # type: ignore
@@ -1672,6 +1715,29 @@ class SceneProperty(bpy.types.PropertyGroup):
         scene = self.id_data  # type: Scene
         scene.update_tag()
         data.area_redraw("VIEW_3D")
+
+    ############################
+    def set_level_enum(self, value):
+        # prop_rna = self.bl_rna.properties["level_enum"]
+        dynamic_items = get_level_item(None, None)
+        item = dynamic_items[value]
+        map_dir = item[2]
+        if not map_dir:
+            return
+
+        ag_service.exec_script_ret_send(
+            f"result=load_map('{map_dir}')", self.response_load_level
+        )
+
+    def response_load_level(self, result):
+        if not result:
+            logger.error(
+                pgettext(
+                    "Map directory not found, please ensure that the map is located in the Maps folder at the root of the game directory."
+                )
+            )
+        else:
+            logger.debug("Map loaded successfully.")
 
     ############################
 

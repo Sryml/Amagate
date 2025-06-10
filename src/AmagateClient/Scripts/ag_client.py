@@ -14,6 +14,7 @@ import time
 import struct
 import os
 import traceback
+import pickle
 
 sys.path.append("../../LIB/PythonLib/Plat-Win")
 
@@ -53,6 +54,137 @@ def restore_camera():
     e = Bladex.GetEntity("Camera")
     e.SetPersonView("Player1")
     e.Cut()
+
+
+# 移动玩家到摄像机
+def player_to_camera():
+    e = Bladex.GetEntity("Player1")
+    e.Position = Bladex.GetEntity("Camera").Position
+    e.SetOnFloor()
+
+
+# 加载地图
+def load_map(map_directory):
+    if not os.path.exists("../%s" % map_directory):
+        return 0
+    eval_str = (
+        'Bladex.SetAfterFrameFunc("AG.load_map", lambda t: Bladex.LoadLevel("%s",))'
+        % map_directory
+    )
+    eval(eval_str)
+    return 1
+
+
+# 重载地图
+def reload_map():
+    Bladex.SetAfterFrameFunc(
+        "AG.reload_map", lambda t: Bladex.LoadLevel(Bladex.GetCurrentMap())
+    )
+
+
+############################
+############################
+############################
+
+
+def exec_script_send(script, uid=""):
+    pass
+
+
+def exec_script_recv(b_data):
+    locals_dict = {}
+    compiled = compile(b_data, "<AmagateServer>", "exec")
+    eval(compiled, globals(), locals_dict)
+    return locals_dict.get("result", None)
+
+
+############################
+def exec_script_ret_send(script, uid):
+    pass
+
+
+def exec_script_ret_recv(b_data):
+    result = exec_script_recv(b_data)
+    return pickle.dumps(result, 1)
+
+
+def exec_script_ret_resp(result):
+    pass
+
+
+############################
+def set_attr_send(obj_type, obj_name, attrs_dict):
+    pass
+
+
+def set_attr_recv(b_data):
+    obj_type = int(struct.unpack("!B", b_data[0])[0])
+    obj_name_len = int(struct.unpack("!B", b_data[1])[0])
+    obj_name = b_data[2 : 2 + obj_name_len]
+    if obj_type == protocol.T_ENTITY:
+        obj = Bladex.GetEntity(obj_name)
+    #
+    offset = 2 + obj_name_len
+    while offset < len(b_data):
+        attr = int(struct.unpack("!H", b_data[offset : offset + 2])[0])
+        offset = offset + 2
+        attr_name = protocol.Codec[attr][protocol.NAME]
+        # 获取解码器和数据长度
+        _, unpacker, data_len, _ = protocol.Codec[attr]
+        if data_len is None:
+            data_len = struct.unpack("!H", b_data[offset : offset + 2])[0]
+            offset = offset + 2
+            # py1.5 解包H的类型是长整型，需要转成int
+            data_len = int(data_len)
+        # 解码数据
+        attr_val = unpacker(b_data[offset : offset + data_len])
+        offset = offset + data_len
+        setattr(obj, attr_name, attr_val)
+
+
+############################
+def get_attr_send(obj_type, obj_name, attrs, uid):
+    pass
+
+
+def get_attr_recv(b_data):
+    obj_type = int(struct.unpack("!B", b_data[0])[0])
+    obj_name_len = int(struct.unpack("!B", b_data[1])[0])
+    obj_name = b_data[2 : 2 + obj_name_len]
+    if obj_type == protocol.T_ENTITY:
+        obj = Bladex.GetEntity(obj_name)
+    #
+    result = []
+    offset = 2 + obj_name_len
+    while offset < len(b_data):
+        b_attr = b_data[offset : offset + 2]
+        attr = int(struct.unpack("!H", b_attr)[0])
+        attr_name = protocol.Codec[attr][protocol.NAME]
+        b_attr_val = protocol.Codec[attr][protocol.PACK](getattr(obj, attr_name))
+        result.append(b_attr + b_attr_val)
+        offset = offset + 2
+    return string.join(result, "")  # type: ignore
+
+
+def get_attr_resp(b_data):
+    pass
+
+
+############################
+Handlers = {
+    # sender, receiver, responder
+    protocol.EXEC_SCRIPT: (exec_script_send, exec_script_recv, None),
+    protocol.EXEC_SCRIPT_RET: (
+        exec_script_ret_send,
+        exec_script_ret_recv,
+        exec_script_ret_resp,
+    ),
+    protocol.SET_ATTR: (set_attr_send, set_attr_recv, None),
+    protocol.GET_ATTR: (get_attr_send, get_attr_recv, get_attr_resp),
+}
+############################
+############################
+############################
 
 
 # 客户端线程
@@ -105,8 +237,8 @@ class ClientThread(threading.Thread):
                 else:
                     try:
                         handler_select = int(struct.unpack("!B", sock.recv(1))[0])
-                        responder = protocol.Handlers[msg_type][protocol.RESP]
-                        handler = protocol.Handlers[msg_type][handler_select]
+                        responder = Handlers[msg_type][protocol.RESP]
+                        handler = Handlers[msg_type][handler_select]
                         if responder:
                             uid = int(struct.unpack("!B", sock.recv(1))[0])
 

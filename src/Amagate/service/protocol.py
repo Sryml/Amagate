@@ -40,6 +40,7 @@ UNPACK = 1
 LENGTH = 2
 NAME = 3
 
+SEND = 0
 RECV = 1
 RESP = 2
 
@@ -84,97 +85,3 @@ Codec = {
 ############################
 ############################
 ############################
-
-
-def exec_script_pack(script, uid=b""):
-    b_data = Codec[A_STRING][PACK](script)
-    op_type = struct.pack("!H", EXEC_SCRIPT)
-    # 告诉接收方要选择哪个处理器
-    select = struct.pack("!B", RECV)
-    return op_type + select + uid + b_data
-
-
-def exec_script_recv(b_data):
-    pass
-
-
-############################
-def exec_script_ret_pack(script, uid):
-    return exec_script_pack(script, uid)
-
-
-def exec_script_ret_recv(b_data):
-    pass
-
-
-def exec_script_ret_resp(result):
-    return pickle.loads(result)
-
-
-############################
-def set_attr_pack(obj_type, obj_name, attrs_dict):
-    obj_name = obj_name.encode(encoding="utf-8")
-    b_data = b"".join(
-        [struct.pack("!BB", obj_type, len(obj_name)), obj_name]
-        + [struct.pack("!H", dt) + Codec[dt][PACK](d) for dt, d in attrs_dict.items()]
-    )
-    #
-    op_type = struct.pack("!H", SET_ATTR)
-    # 告诉接收方要选择哪个处理器
-    select = struct.pack("!B", RECV)
-    length = struct.pack("!H", len(b_data))
-    return op_type + select + length + b_data
-
-
-def set_attr_recv(b_data):
-    pass
-
-
-############################
-def get_attr_pack(obj_type, obj_name, attrs, uid):
-    obj_name = obj_name.encode(encoding="utf-8")
-    b_data = b"".join(
-        [struct.pack("!BB", obj_type, len(obj_name)), obj_name]
-        + [struct.pack("!H", attr) for attr in attrs]
-    )
-    #
-    op_type = struct.pack("!H", GET_ATTR)
-    # 告诉接收方要选择哪个处理器
-    select = struct.pack("!B", RECV)
-    length = struct.pack("!H", len(b_data))
-    return op_type + select + uid + length + b_data
-
-
-def get_attr_recv(b_data):
-    pass
-
-
-def get_attr_resp(b_data):
-    attrs_dict = {}
-    offset = 0
-    while offset < len(b_data):
-        attr = struct.unpack("!H", b_data[offset : offset + 2])[0]
-        offset = offset + 2
-        # attr_name = Codec[attr][NAME]
-        # 获取解码器和数据长度
-        _, unpacker, data_len, _ = Codec[attr]
-        if data_len is None:
-            data_len = struct.unpack("!H", b_data[offset : offset + 2])[0]
-            offset = offset + 2
-            # py1.5 解包H的类型是长整型，需要转成int
-            # data_len = int(data_len)
-        # 解码数据
-        attr_val = unpacker(b_data[offset : offset + data_len])
-        offset = offset + data_len
-        attrs_dict[attr] = attr_val
-    return attrs_dict
-
-
-############################
-Handlers = {
-    # packer, receiver, responder
-    EXEC_SCRIPT: (exec_script_pack, exec_script_recv, None),
-    EXEC_SCRIPT_RET: (exec_script_ret_pack, exec_script_ret_recv, exec_script_ret_resp),
-    SET_ATTR: (set_attr_pack, set_attr_recv, None),
-    GET_ATTR: (get_attr_pack, get_attr_recv, get_attr_resp),
-}

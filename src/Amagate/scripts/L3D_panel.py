@@ -1235,12 +1235,24 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
 
         box = column.box()
         box.enabled = client_status
-        col = box.column(align=True)
-
+        col = box.column()
+        # 加载/重载地图
+        row = col.row(align=True)
+        col2 = row.column()
+        col2.alignment = "LEFT"
+        col2.label(text=f"{pgettext('Load Level')}:")
+        row.prop(scene_data, "level_enum")
+        row.separator(factor=1, type="SPACE")
+        row.operator(OP_L3D.OT_Server_ReloadMap.bl_idname, text="", icon="FILE_REFRESH")
+        col.separator(type="SPACE")
+        # 摄像机
         row = col.row(align=True)
         row.label(text=f"{pgettext('Camera')}:")
         row.operator(OP_L3D.OT_Server_CamToClient.bl_idname)
         row.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
+        # col.separator(type="SPACE")
+        # 玩家到摄像机
+        col.operator(OP_L3D.OT_Server_PlayerToCam.bl_idname)
 
 
 ############################

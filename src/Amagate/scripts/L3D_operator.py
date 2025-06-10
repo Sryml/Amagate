@@ -983,12 +983,12 @@ class OT_Server_CamToClient(bpy.types.Operator):
             protocol.T_ENTITY,
             "Camera",
             (protocol.A_POSITION, protocol.A_TPOS),
-            self.response_handler,
+            self.response,
         )
         return {"FINISHED"}
 
     @staticmethod
-    def response_handler(attrs_dict):
+    def response(attrs_dict):
         scene = bpy.context.scene
         if not scene.camera:
             return
@@ -1002,6 +1002,30 @@ class OT_Server_CamToClient(bpy.types.Operator):
         #
         cam.matrix_world.translation = pos
         cam.rotation_euler = dir.to_track_quat("-Z", "Y").to_euler()
+
+
+# 移动玩家到摄像机
+class OT_Server_PlayerToCam(bpy.types.Operator):
+    bl_idname = "amagate.server_player_to_cam"
+    bl_label = "Player to Camera"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        ag_service.exec_script_send("player_to_camera()")
+        return {"FINISHED"}
+
+
+# 重载地图
+class OT_Server_ReloadMap(bpy.types.Operator):
+    bl_idname = "amagate.server_reload_map"
+    bl_label = "Reload"
+    bl_description = "Reload Level"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        ag_service.exec_script_send("reload_map()")
+        return {"FINISHED"}
 
 
 ############################
