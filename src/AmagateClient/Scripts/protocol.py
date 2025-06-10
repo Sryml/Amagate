@@ -7,7 +7,8 @@ import Bladex
 
 #
 import struct
-import traceback
+import string
+import pickle
 
 #
 from AmagateClient.Scripts import utils
@@ -18,21 +19,43 @@ logger = utils.logger
 ############################
 ############################ 2字节标识符
 ############################
-# Attribute
-POSITION = 0x0000  # 位置更新
-TPOS = 0x0001  # 目标位置更新
-NAME = 0x0002  # 字符串
-STRING = 0x0003  # 字符串
 
-# Operation
-HEARTBEAT = 0x0400  # 心跳包
-EXEC_SCRIPT = 0x0401  # 执行脚本
-ENTITY_ATTR = 0x0402  # 实体属性更新
-LOAD_LEVEL = 0x0403  # 加载地图
+# Operation 0x0000-0x0FFF
+HEARTBEAT = 0x0000  # 心跳包
+EXEC_SCRIPT = 0x0001  # 执行脚本
+EXEC_SCRIPT_RET = 0x0002  # 执行脚本并返回结果
+GET_ATTR = 0x0003  # 获取属性
+SET_ATTR = 0x0004  # 设置属性
+CALL_FUNC = 0x0005  # 调用函数
+CALL_FUNC_RET = 0x0006  # 调用函数并返回结果
+LOAD_LEVEL = 0x0007  # 加载地图
 
+# Attribute 0x1000-0x1FFF
+A_POSITION = 0x1000  # 位置更新
+A_TPOS = 0x1001  # 目标位置更新
+A_NAME = 0x1002  # 字符串
+A_STRING = 0x1003  # 字符串
+
+# Method 0x2000-0x2FFF
+
+# Object Type 0x00-0xFF
+T_MODULE = 0x00  # 模块
+T_ENTITY = 0x01  # 实体
 
 ############################
 ############################
+############################
+PACK = 0
+UNPACK = 1
+LENGTH = 2
+NAME = 3
+
+RECV = 1
+RESP = 2
+
+
+############################
+############################ 编码/解码处理
 ############################
 def pack_float3(data):
     return struct.pack("!fff", data[0], data[1], data[2])
@@ -51,58 +74,106 @@ def unpack_string(data):
     return data
 
 
-############################
-############################
-############################
-
-PROTOCOL = {
+Codec = {
     # packer, unpacker, data_len, name
-    POSITION: (pack_float3, unpack_float3, 12, "Position"),
-    TPOS: (pack_float3, unpack_float3, 12, "TPos"),
-    NAME: (pack_string, unpack_string, None, ""),
-    STRING: (pack_string, unpack_string, None, ""),
+    A_POSITION: (pack_float3, unpack_float3, 12, "Position"),
+    A_TPOS: (pack_float3, unpack_float3, 12, "TPos"),
+    A_NAME: (pack_string, unpack_string, None, ""),
+    A_STRING: (pack_string, unpack_string, None, ""),
 }
 
 ############################
-############################ 数据处理器
+############################
 ############################
 
 
-def unpack_data(binary_data):
-    data_dict = {}
-    offset = 0
-    while offset < len(binary_data):
-        data_type = struct.unpack("!H", binary_data[offset : offset + 2])[0]
-        # logger.debug("data_type: 0x%04X" % data_type)
+def exec_script_pack(script, uid=""):
+    pass
+
+
+def exec_script_recv(b_data):
+    locals_dict = {}
+    compiled = compile(b_data, "<AmagateServer>", "exec")
+    eval(compiled, globals(), locals_dict)
+    return locals_dict.get("result", None)
+
+
+############################
+def exec_script_ret_pack(script, uid):
+    pass
+
+
+def exec_script_ret_recv(b_data):
+    result = exec_script_recv(b_data)
+    return pickle.dumps(result, 1)
+
+
+def exec_script_ret_resp(result):
+    pass
+
+
+############################
+def set_attr_pack(obj_type, obj_name, attrs_dict):
+    pass
+
+
+def set_attr_recv(b_data):
+    obj_type = int(struct.unpack("!B", b_data[0])[0])
+    obj_name_len = int(struct.unpack("!B", b_data[1])[0])
+    obj_name = b_data[2 : 2 + obj_name_len]
+    if obj_type == T_ENTITY:
+        obj = Bladex.GetEntity(obj_name)
+    #
+    offset = 2 + obj_name_len
+    while offset < len(b_data):
+        attr = int(struct.unpack("!H", b_data[offset : offset + 2])[0])
         offset = offset + 2
+        attr_name = Codec[attr][NAME]
         # 获取解码器和数据长度
-        _, unpacker, data_len, _ = PROTOCOL[data_type]
+        _, unpacker, data_len, _ = Codec[attr]
         if data_len is None:
-            data_len = struct.unpack("!H", binary_data[offset : offset + 2])[0]
-            data_len = int(data_len)
+            data_len = struct.unpack("!H", b_data[offset : offset + 2])[0]
             offset = offset + 2
+            # py1.5 解包H的类型是长整型，需要转成int
+            data_len = int(data_len)
         # 解码数据
-        data = unpacker(binary_data[offset : offset + data_len])
-        data_dict[data_type] = data
+        attr_val = unpacker(b_data[offset : offset + data_len])
         offset = offset + data_len
-        # logger.debug("unpacked data: %s=%s" % (data_type, data))
-    return data_dict
+        setattr(obj, attr_name, attr_val)
 
 
-def handle_entity_attr(data_dict):
-    ent = Bladex.GetEntity(data_dict[NAME])
-    for k, v in data_dict.items():
-        if k == NAME:
-            continue
-
-        attr_name = PROTOCOL[k][3]
-        setattr(ent, attr_name, v)
-        # logger.debug("Received data_dict: 0x%04X=%s" % (k, v))
+############################
+def get_attr_pack(obj_type, obj_name, attrs, uid):
+    pass
 
 
-def handle_exec_script(data_dict):
-    compiled = compile(data_dict[STRING], "<AmagateServer>", "exec")
-    eval(compiled)
+def get_attr_recv(b_data):
+    obj_type = int(struct.unpack("!B", b_data[0])[0])
+    obj_name_len = int(struct.unpack("!B", b_data[1])[0])
+    obj_name = b_data[2 : 2 + obj_name_len]
+    if obj_type == T_ENTITY:
+        obj = Bladex.GetEntity(obj_name)
+    #
+    result = []
+    offset = 2 + obj_name_len
+    while offset < len(b_data):
+        b_attr = b_data[offset : offset + 2]
+        attr = int(struct.unpack("!H", b_attr)[0])
+        attr_name = Codec[attr][NAME]
+        b_attr_val = Codec[attr][PACK](getattr(obj, attr_name))
+        result.extend([b_attr, b_attr_val])
+        offset = offset + 2
+    return string.join(result, "")  # type: ignore
 
 
-HANDLERS = {ENTITY_ATTR: handle_entity_attr, EXEC_SCRIPT: handle_exec_script}
+def get_attr_resp(b_data):
+    pass
+
+
+Handlers = {
+    # packer, receiver, responder
+    EXEC_SCRIPT: (exec_script_pack, exec_script_recv, None),
+    EXEC_SCRIPT_RET: (exec_script_ret_pack, exec_script_ret_recv, exec_script_ret_resp),
+    SET_ATTR: (set_attr_pack, set_attr_recv, None),
+    GET_ATTR: (get_attr_pack, get_attr_recv, get_attr_resp),
+}

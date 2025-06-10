@@ -41,9 +41,9 @@ logger = data.logger
 server_thread = None  # type: AsyncServerThread | None
 
 SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 1673
+SERVER_PORT = 16730
 
-SYNC_INTERVAL = 1.0 / 30  # 同步频率
+SYNC_INTERVAL = 1.0 / 40  # 同步频率
 
 HEARTBEAT_INTERVAL = 10  # 心跳间隔(秒)
 HEARTBEAT_TIMEOUT = 15  # 心跳超时(秒)
@@ -62,10 +62,8 @@ def get_client_status():
 # 执行脚本操作
 def send_exec_script(script):
     # 打包数据
-    msg = protocol.pack_data(
-        protocol.EXEC_SCRIPT,
-        {protocol.STRING: script},
-    )
+    packer = protocol.Handlers[protocol.EXEC_SCRIPT][protocol.PACK]
+    msg = packer(script)
     # 添加到消息队列
     run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
 
@@ -75,13 +73,25 @@ def send_camera_data(cam):
     # type: (Object) -> None
     cam_pos, target_pos = ag_utils.get_camera_transform(cam)
     # 打包数据
-    msg = protocol.pack_data(
-        protocol.ENTITY_ATTR,
+    packer = protocol.Handlers[protocol.SET_ATTR][protocol.PACK]
+    msg = packer(
+        protocol.T_ENTITY,
+        "Camera",
         {
-            protocol.NAME: "Camera",
-            protocol.POSITION: cam_pos,
-            protocol.TPOS: target_pos,
+            protocol.A_POSITION: cam_pos,
+            protocol.A_TPOS: target_pos,
         },
+    )
+    # 添加到消息队列
+    run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
+
+
+# 请求摄像机数据
+def request_camera_data(callback):
+    uid = AsyncRequestResponse.callback_register(callback)
+    packer = protocol.Handlers[protocol.GET_ATTR][protocol.PACK]
+    msg = packer(
+        protocol.T_ENTITY, "Camera", (protocol.A_POSITION, protocol.A_TPOS), uid
     )
     # 添加到消息队列
     run_coroutine_threadsafe(server_thread.queue.put(msg), server_thread.loop)
@@ -90,6 +100,24 @@ def send_camera_data(cam):
 ############################
 
 
+# 异步请求-响应
+class AsyncRequestResponse:
+    callbacks = {}
+
+    # 回调注册
+    @classmethod
+    def callback_register(cls, callback):
+        uid = len(cls.callbacks)
+        cls.callbacks[uid] = callback
+        return struct.pack("!B", uid)
+
+    # pop回调
+    @classmethod
+    def callback_pop(cls, uid):
+        return cls.callbacks.pop(uid, None)
+
+
+# 异步服务器线程
 class AsyncServerThread(threading.Thread):
     def __init__(self):
         super().__init__(daemon=True)
@@ -114,9 +142,26 @@ class AsyncServerThread(threading.Thread):
                     break
                 #
                 # logger.debug(f"Received message: {msg}")
-                # msg_type = struct.unpack("!H", msg)[0]
-                # if msg_type == protocol.HEARTBEAT:
-                #     logger.debug("Received heartbeat")
+                msg_type = struct.unpack("!H", msg)[0]
+                if msg_type == protocol.HEARTBEAT:
+                    pass
+                    # logger.debug("Received heartbeat")
+                else:
+                    handler_select = struct.unpack("!B", await reader.read(1))[0]
+                    responder = protocol.Handlers[msg_type][protocol.RESP]
+                    handler = protocol.Handlers[msg_type][handler_select]
+                    if responder:
+                        uid = struct.unpack("!B", await reader.read(1))[0]
+
+                    msg_len = struct.unpack("!H", await reader.read(2))[0]
+                    msg_body = await reader.read(msg_len)
+
+                    result = handler(msg_body)
+                    if handler_select == protocol.RESP:
+                        callback = AsyncRequestResponse.callback_pop(uid)
+                        callback(result)
+                    elif responder:
+                        pass
 
         except asyncio.CancelledError:
             logger.debug("Receive task cancelled")

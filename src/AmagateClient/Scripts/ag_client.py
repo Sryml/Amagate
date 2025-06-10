@@ -35,7 +35,7 @@ client_thread = None
 KEY = "AmagateClient"
 
 SERVER_HOST = "127.0.0.1"
-SERVER_PORT = 1673
+SERVER_PORT = 16730
 
 SYNC_INTERVAL = 1.0 / 60  # 同步频率
 
@@ -93,7 +93,7 @@ class ClientThread(threading.Thread):
                     logger.debug("Server closed connection")
                     break
 
-                msg_type = struct.unpack("!H", msg)[0]
+                msg_type = int(struct.unpack("!H", msg)[0])
                 # logger.debug("msg_type: 0x%04X" % msg_type)
                 # 心跳包
                 if msg_type == protocol.HEARTBEAT:
@@ -103,21 +103,29 @@ class ClientThread(threading.Thread):
                         sock.send(struct.pack("!H", protocol.HEARTBEAT))  # type: ignore
                         # logger.debug("Sent heartbeat")
                 else:
-                    msg_len = struct.unpack("!H", sock.recv(2))[0]
+                    # try:
+                    handler_select = int(struct.unpack("!B", sock.recv(1))[0])
+                    responder = protocol.Handlers[msg_type][protocol.RESP]
+                    handler = protocol.Handlers[msg_type][handler_select]
+                    if responder:
+                        uid = int(struct.unpack("!B", sock.recv(1))[0])
+
+                    msg_len = int(struct.unpack("!H", sock.recv(2))[0])
                     recv_len = 0
                     msg_body = ""
                     while recv_len < msg_len:
                         chunk = sock.recv(msg_len - recv_len)
                         msg_body = msg_body + chunk  # type: ignore
                         recv_len = recv_len + len(chunk)
-                    # logger.debug("unpacked data: %s" % msg_body)
-                    # logger.debug("unpacked data...")
-                    # try:
-                    data_dict = protocol.unpack_data(msg_body)
-                    # logger.debug("handling data...")
-                    protocol.HANDLERS[msg_type](data_dict)
+
+                    result = handler(msg_body)
+                    if handler_select == protocol.RESP:
+                        pass
+                    elif responder:
+                        sock.send(msg_type + struct.pack("!B", protocol.RESP) + struct.pack("!B", uid) + struct.pack("!H", len(result)) + result)  # type: ignore
                     # except:
                     #     traceback.print_exc(file=logger.output)
+
             else:
                 current_time = time.time()
                 if current_time - self.last_heartbeat > HEARTBEAT_TIMEOUT:
