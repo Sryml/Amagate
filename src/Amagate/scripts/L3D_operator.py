@@ -1151,13 +1151,13 @@ class OT_InitMap(bpy.types.Operator):
         L3D_data.ensure_null_texture()
         L3D_data.ensure_null_object()
         L3D_data.ensure_render_camera()
-        ## 加载纹理
+        ## 加载纹理，用bmp格式兼容经典版
+        for i in ("lisa.bmp", "long.bmp"):
+            filepath = os.path.join(data.ADDON_PATH, "textures", i)
+            OT_Texture_Add.load_image(filepath).builtin = True
         if data.DEBUG:
             filepath = os.path.join(data.ADDON_PATH, "textures", "test.bmp")
             OT_Texture_Add.load_image(filepath).builtin = True
-        # for i in ("floor_01.jpg", "wall_01.jpg"):
-        #     filepath = os.path.join(data.ADDON_PATH, "textures", i)
-        #     OT_Texture_Add.load_image(filepath).builtin = True
         ## 创建默认数据
         # 内部大气
         bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore

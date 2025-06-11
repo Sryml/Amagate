@@ -1811,7 +1811,8 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop = defaults.textures.add()
             prop.target = "Scene"
             prop.name = i
-            prop.id = 1
+            tex_id = 2 if i == "Wall" else 1
+            prop.id = tex_id
             prop.xpos = prop.ypos = 0.0
             prop.xzoom = prop.yzoom = 20.0
             if i == "Wall":
