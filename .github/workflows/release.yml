@@ -2,9 +2,20 @@ name: 发布
 
 on:
   workflow_dispatch:
+    # inputs:
+    #   target_task:
+    #     description: "选择要执行的任务" # 下拉菜单标题
+    #     required: true
+    #     type: choice
+    #     options:
+    #       - label: "仅插件" # 显示在下拉菜单中的名称
+    #         value: "release_addon" # 实际传递的值
+    #       - label: "仅客户端"
+    #         value: "release_client"
+    #       - label: "全部"
+    #         value: "release_all"
   push:
-    tags:
-      - "*" # 匹配所有 Tag
+    tags: ["*"]
   #   branches:
   #     - main
   # schedule:
@@ -13,7 +24,8 @@ on:
 
 env:
   # 环境变量
-  VERSION_NAME: Amagate-${{ github.ref_name }}
+  # VERSION_NAME: Amagate-${{ github.ref_name }}
+  PRERELEASE: 0
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 permissions:
@@ -21,23 +33,39 @@ permissions:
 
 jobs:
   release:
+    # if: ${{ github.event.inputs.target_task =='release_addon' }}
     runs-on: ubuntu-latest
 
     steps:
       - name: 检出代码
         uses: actions/checkout@v3
 
-      - name: Create a zip file excluding certain files
+      - name: 打包
+        # if: ${{ github.event.inputs.target_task =='release_addon' || github.event.inputs.target_task =='release_all' }}
         run: |
           # 创建一个包含文件的 zip 文件，排除掉特定文件或文件夹
           cd src/Amagate
+
           mkdir -p textures
+          mkdir -p textures/panorama
+
+          curl -L -o textures/panorama/Marakamda.jpg https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/Marakamda.jpg
           curl -L -o textures/test.bmp https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/test.bmp
+          curl -L -o textures/lisa.bmp https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/lisa.bmp
+          curl -L -o textures/long.bmp https://raw.githubusercontent.com/Sryml/Image/refs/heads/master/AG/long.bmp
+
           cp -r ../../docs ./docs
           cp -p ../../README.md README.md
           cp -p ../../LICENSE LICENSE
-          echo ${{ github.ref_name }} > version
-          zip -r ../../${VERSION_NAME}.zip ./ -x "__pycache__/*" "*.tmp" "*.ai"
+
+          # echo ${{ github.ref_name }} > version
+          VERSION=$(cat version | tr -d '\n')
+          [[ "${VERSION:0:3}" != "dev" ]] && rm -f DEBUG || echo "PRERELEASE=1" >> $GITHUB_ENV
+          VERSION_NAME="Amagate-${VERSION}"
+          echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
+
+          cd ..
+          zip -r ../${VERSION_NAME}.zip ./Amagate -x "__pycache__/*" "*.tmp" "*.ai"
 
       # - name: Upload zip file as artifact
       #   uses: actions/upload-artifact@v3
@@ -47,13 +75,13 @@ jobs:
 
       - name: 创建GitHub发布
         id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
-          release_name: "${{ env.VERSION_NAME }}"
+          # name: "${{ env.VERSION_NAME }}"
           body: ""
           draft: false
-          prerelease: true
+          prerelease: ${{ env.PRERELEASE == 1 }}
 
       - name: 上传发布资源
         uses: actions/upload-release-asset@v1
