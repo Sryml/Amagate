@@ -304,7 +304,7 @@ class AMAGATE_PT_SkyTexture(L3D_Panel, bpy.types.Panel):
             (
                 True
                 for item in enum_items
-                if item.description != ""
+                if item.description != "Custom"
                 and not os.path.exists(
                     os.path.join(
                         data.ADDON_PATH, f"textures/panorama/{item.description}.jpg"

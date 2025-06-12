@@ -49,10 +49,10 @@ def register():
         # importlib.reload(translations)
         print("Amagate reload")
 
+    translations.register()
     data.register()
     operator.register()
     panel.register()
-    translations.register()
     data.register_shortcuts()
 
     # 检查包是否已安装
@@ -78,10 +78,10 @@ def register():
 
 def unregister():
     data.unregister_shortcuts()
-    translations.unregister()
     panel.unregister()
     operator.unregister()
     data.unregister()
+    translations.unregister()
     print("Amagate unregister")
 
 

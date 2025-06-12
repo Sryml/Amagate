@@ -1547,7 +1547,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     sky_tex_enum: EnumProperty(
         name="",
         description="",
+        translation_context="Map",
         items=[
+            ("", "Original", ""),
             ("1", "Casa", "Casa"),
             ("2", "Kashgar", "Kashgar"),
             ("3", "Tabriz (The Abyss)", "Tabriz"),
@@ -1567,25 +1569,25 @@ class SceneProperty(bpy.types.PropertyGroup):
             ("13", "Forge of Xshathra", "Forge of Xshathra"),
             ("14", "The Temple of Ianna", "The Temple of Ianna"),
             ("15", "Tower of Dal Gurak", "Tower of Dal Gurak"),
+            ("-1", "Custom", "Custom"),
             #
-            ("", "", ""),
+            ("", "Reforged", ""),
             #
-            ("16", "Casa - Reforged", "Casa - Reforged"),
-            ("17", "Kashgar - Reforged", "Kashgar - Reforged"),
-            ("18", "Khazel Zalam - Reforged", "Khazel Zalam - Reforged"),
-            ("19", "Marakamda - Reforged", "Marakamda - Reforged"),
-            ("20", "Mines of Kelbegen - Reforged", "Mines of Kelbegen - Reforged"),
-            ("21", "Tombs of Ephyra - Reforged", "Tombs of Ephyra - Reforged"),
-            ("22", "Shalatuwar Fortress - Reforged", "Shalatuwar Fortress - Reforged"),
-            ("23", "Fortress of Nemrut - Reforged", "Fortress of Nemrut - Reforged"),
-            ("24", "The Oasis of Nejeb - Reforged", "The Oasis of Nejeb - Reforged"),
-            ("25", "Temple of Al Farum - Reforged", "Temple of Al Farum - Reforged"),
-            ("26", "The Temple of Ianna - Reforged", "The Temple of Ianna - Reforged"),
-            ("27", "Tower of Dal Gurak - Reforged", "Tower of Dal Gurak - Reforged"),
-            ("28", "The Abyss - Reforged", "The Abyss - Reforged"),
-            ("-1", "Custom", ""),
+            ("16", "Casa", "Casa - Reforged"),
+            ("17", "Kashgar", "Kashgar - Reforged"),
+            ("18", "Khazel Zalam", "Khazel Zalam - Reforged"),
+            ("19", "Marakamda", "Marakamda - Reforged"),
+            ("20", "Mines of Kelbegen", "Mines of Kelbegen - Reforged"),
+            ("21", "Tombs of Ephyra", "Tombs of Ephyra - Reforged"),
+            ("22", "Shalatuwar Fortress", "Shalatuwar Fortress - Reforged"),
+            ("23", "Fortress of Nemrut", "Fortress of Nemrut - Reforged"),
+            ("24", "The Oasis of Nejeb", "The Oasis of Nejeb - Reforged"),
+            ("25", "Temple of Al Farum", "Temple of Al Farum - Reforged"),
+            ("26", "The Temple of Ianna", "The Temple of Ianna - Reforged"),
+            ("27", "Tower of Dal Gurak", "Tower of Dal Gurak - Reforged"),
+            ("28", "The Abyss", "The Abyss - Reforged"),
         ],
-        default="5",  # 默认选中项
+        # default="5",  # 默认选中项
         get=lambda self: self.get_sky_tex_enum(),
         set=lambda self, value: self.set_sky_tex_enum(value),
         # update=lambda self, context: self.update_sky_tex_enum(context),
@@ -1606,6 +1608,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     level_enum: EnumProperty(
         name="",
         description="",
+        translation_context="Map",
         items=get_level_item,
         get=lambda self: 0,
         set=lambda self, value: self.set_level_enum(value),
@@ -1672,42 +1675,41 @@ class SceneProperty(bpy.types.PropertyGroup):
     ############################
 
     def get_sky_tex_enum(self):
-        return self.get("sky_tex_enum", 4)
+        return self.get("sky_tex_enum", 5)
 
     # def update_sky_tex_enum(self, context: Context):
     def set_sky_tex_enum(self, value):
         prop_rna = self.bl_rna.properties["sky_tex_enum"]
-        enum_items = prop_rna.enum_items  # type: ignore
-        item = enum_items[value]
-        enum_id = item.identifier
-        if enum_id == "-1":
-            return
+        enum_items_static_ui = prop_rna.enum_items_static_ui  # type: ignore
+        item = enum_items_static_ui[value]
+        # enum_id = item.identifier
+        # if enum_id == "-1":
+        #     return
 
         # 通过ID查找名称
-        selected_name = item.description
         # selected_name = next(
         #     (item.description for item in enum_items if item.identifier == enum_id),
         #     None,
         # )
-        if selected_name is None:
-            return
-
-        filepath = os.path.join(
-            data.ADDON_PATH, f"textures/panorama/{selected_name}.jpg"
-        )
-        if not os.path.exists(filepath):
-            bpy.context.window_manager.popup_menu(
-                lambda self, context: self.layout.label(
-                    text="Texture not found, please click the download button."
-                ),
-                title=pgettext("Warning"),
-                icon="ERROR",
+        selected_name = item.description
+        if selected_name != "Custom":
+            filepath = os.path.join(
+                data.ADDON_PATH, f"textures/panorama/{selected_name}.jpg"
             )
-            return
+            if not os.path.exists(filepath):
+                bpy.context.window_manager.popup_menu(
+                    lambda self, context: self.layout.label(
+                        text="Texture not found, please click the download button."
+                    ),
+                    title=pgettext("Warning"),
+                    icon="ERROR",
+                )
+                return
 
-        img = ensure_null_texture()
-        img.filepath = filepath
-        img.reload()
+            img = ensure_null_texture()
+            img.filepath = filepath
+            img.reload()
+
         # print(f"selected_name: {selected_name}")
         self["sky_tex_enum"] = value
 
