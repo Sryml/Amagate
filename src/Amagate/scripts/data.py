@@ -585,8 +585,10 @@ def register():
 
     ICONS = bpy.utils.previews.new()
     icons_dir = os.path.join(ADDON_PATH, "icons")
-    for name in ("star", "blade", "knife", "L3D", "L3D_2"):
-        ICONS.load(name, os.path.join(icons_dir, f"{name}.png"), "IMAGE")
+    for root, dirs, files in os.walk(icons_dir):
+        for file in files:
+            if file.endswith(".png"):
+                ICONS.load(file[:-4], os.path.join(root, file), "IMAGE")
     #
     bpy.utils.register_class(AmagatePreferences)
     #
