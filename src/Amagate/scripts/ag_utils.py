@@ -84,7 +84,7 @@ else:
 
 
 # pyp安装进度定时器
-def pyp_install_progress_timer(start_time, total_time=45.0, fps=24, timeout=180):
+def pyp_install_progress_timer(start_time, total_time=25.0, fps=24, timeout=180):
     interval = 1.0 / fps
     # 增量值
     increment = 1.0 / (total_time * fps)

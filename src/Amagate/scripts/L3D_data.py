@@ -917,6 +917,11 @@ def load_post(filepath=""):
     context = bpy.context
     scene_data = context.scene.amagate_data
     if scene_data.is_blade:
+        # 向后兼容
+        if not scene_data.sector_public.textures.get("Face"):
+            prop = scene_data.sector_public.textures.add()
+            prop.name = "Face"
+            prop.target = "SectorPublic"
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
             if hasattr(spaces, "shading"):
@@ -1727,6 +1732,26 @@ class SceneProperty(bpy.types.PropertyGroup):
         if not map_dir:
             return
 
+        # 如果选择的是当前编辑地图，检查运行时文件
+        if value == 0:
+            runtime_file = set()
+            map_path = Path(bpy.data.filepath).parent
+            for f in os.listdir(map_path):
+                name = f.lower()
+                if name in ("cfg.py", "pj.py"):
+                    runtime_file.add(name)
+                elif name.endswith(".bw"):
+                    runtime_file.add(".bw")
+            if runtime_file != {"cfg.py", "pj.py", ".bw"}:
+                bpy.context.window_manager.popup_menu(
+                    lambda self, context: self.layout.label(
+                        text="Missing runtime files"
+                    ),
+                    title=pgettext("Warning"),
+                    icon="ERROR",
+                )
+                return
+
         ag_service.exec_script_ret_send(
             f"result=load_map('{map_dir}')", self.response_load_level
         )
@@ -1825,6 +1850,10 @@ class SceneProperty(bpy.types.PropertyGroup):
             prop = self.sector_public.textures.add()
             prop.name = i
             prop.target = "SectorPublic"
+        #
+        prop = self.sector_public.textures.add()
+        prop.name = "Face"
+        prop.target = "SectorPublic"
 
         # 添加32个组
         for i in range(32):

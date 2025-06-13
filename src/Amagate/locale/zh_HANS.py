@@ -198,6 +198,7 @@
     ("Operator", "Player to Camera"): "玩家到摄像机",
     ("*", "Load Level"): "加载关卡",
     ("*", "Reload Level"): "重载关卡",
+    ("*", "Missing runtime files"): "缺少运行时文件",
     # 工具面板
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",

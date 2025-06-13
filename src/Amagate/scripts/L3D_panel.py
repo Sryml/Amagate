@@ -1045,7 +1045,7 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
             row_1.prop(scene_data, "face_type", text="")
 
             # 面纹理
-            name = "Floor"
+            name = "Face"
             box = layout.box()
             prop = scene_data.sector_public.textures[name]
 
