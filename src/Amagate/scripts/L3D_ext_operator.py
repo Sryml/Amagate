@@ -381,8 +381,8 @@ def flat_split(bm, hole_dict):
                 # tex_data = (img.name, face[layer_list[1]], face[layer_list[2]], face[layer_list[3]], face[layer_list[4]])  # type: ignore
                 tex_vx = face[layer_list[1]]
                 tex_vy = face[layer_list[2]]
-                tex_vx = tex_vx[0], -tex_vx[2], tex_vx[1]
-                tex_vy = tex_vy[0], -tex_vy[2], tex_vy[1]
+                tex_vx = Vector((tex_vx[0], -tex_vx[2], tex_vx[1]))
+                tex_vy = Vector((tex_vy[0], -tex_vy[2], tex_vy[1]))
                 name = img.name.encode("utf-8")
                 tex_buffer = b"".join(
                     (
@@ -392,8 +392,8 @@ def flat_split(bm, hole_dict):
                             "<ddddddff",
                             *tex_vx,
                             *tex_vy,
-                            face[layer_list[3]] * 50,
-                            face[layer_list[4]] * 50,
+                            face[layer_list[3]] / (0.001 * (1 / tex_vx.length)),
+                            face[layer_list[4]] / (0.001 * (1 / tex_vy.length)),
                         ),
                     )
                 )
@@ -909,7 +909,15 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
                     tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
                     tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
-                    f.write(struct.pack("<ff", tex_xpos * 50, tex_ypos * 50))
+                    tex_xzoom = mesh.attributes["amagate_tex_xzoom"].data[face_index].value  # type: ignore
+                    tex_yzoom = mesh.attributes["amagate_tex_yzoom"].data[face_index].value  # type: ignore
+                    f.write(
+                        struct.pack(
+                            "<ff",
+                            tex_xpos / (0.001 * tex_xzoom),
+                            tex_ypos / (0.001 * tex_yzoom),
+                        )
+                    )
 
                 f.write(b"\x00" * 8)  # 0
                 #
