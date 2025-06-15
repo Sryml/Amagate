@@ -52,6 +52,9 @@ if TYPE_CHECKING:
     Image = bpy.__Image
     Scene = bpy.__Scene
 
+############################
+epsilon: float = 1e-5
+epsilon2: float = 1 - epsilon
 
 ############################
 ############################ 模板列表
@@ -1174,9 +1177,9 @@ class SectorProperty(bpy.types.PropertyGroup):
 
                 # 设置纹理
                 dp = face_normal.dot(Vector((0, 0, 1)))
-                if dp > 0.99999:  # 地板
+                if dp > epsilon:  # 地板
                     face_flag_name = "Floor"
-                elif dp < -0.99999:  # 天花板
+                elif dp < -epsilon:  # 天花板
                     face_flag_name = "Ceiling"
                 else:  # 墙壁
                     face_flag_name = "Wall"

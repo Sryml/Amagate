@@ -1107,6 +1107,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 edges=list(edges),
                 delimit={"SEAM", "MATERIAL"},
             )  # NORMAL
+            ag_utils.unsubdivide(sec_bm)  # 反细分边
             sec_bm.to_mesh(mesh)
         #
         bpy.data.meshes.remove(knife_mesh)  # 删除网格
@@ -1809,14 +1810,21 @@ class OT_Bulb_Add(bpy.types.Operator):
     bl_description = ""
     bl_options = {"INTERNAL"}
 
+    undo: BoolProperty(default=True)  # type: ignore
+
     def execute(self, context: Context):
         selected_sectors = L3D_data.SELECTED_SECTORS
         active_sector = L3D_data.ACTIVE_SECTOR
         if len(selected_sectors) != 1:
             return {"CANCELLED"}
 
+        self.add(context, active_sector, self.undo)
+        return {"FINISHED"}
+
+    @staticmethod
+    def add(context: Context, sec: Object, undo=False):
         scene_data = context.scene.amagate_data
-        sec_data = active_sector.amagate_data.get_sector_data()
+        sec_data = sec.amagate_data.get_sector_data()
         item = sec_data.bulb_light.add()
         item.set_id()
         # 创建灯泡
@@ -1832,7 +1840,7 @@ class OT_Bulb_Add(bpy.types.Operator):
         light_data.rename(light.name, mode="ALWAYS")
         #
         data.link2coll(light, L3D_data.ensure_collection(L3D_data.S_COLL))
-        light.parent = active_sector
+        light.parent = sec
         #
         item.light_obj = light
         item.update_strength(context)
@@ -1840,7 +1848,10 @@ class OT_Bulb_Add(bpy.types.Operator):
         # 调整活动索引
         scene_data.bulb_operator.active = len(sec_data.bulb_light) - 1
 
-        return {"FINISHED"}
+        if undo:
+            bpy.ops.ed.undo_push(message="Add Bulb")
+
+        return item
 
 
 class OT_Bulb_Del(bpy.types.Operator):
@@ -1848,6 +1859,8 @@ class OT_Bulb_Del(bpy.types.Operator):
     bl_label = "Delete Bulb"
     bl_description = ""
     bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context: Context):
         selected_sectors = L3D_data.SELECTED_SECTORS
@@ -1877,6 +1890,9 @@ class OT_Bulb_Del(bpy.types.Operator):
             # 调整活动索引
             if index != 0 and index >= len(sec_data.bulb_light):
                 scene_data.bulb_operator.active = len(sec_data.bulb_light) - 1
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message="Delete Bulb")
 
         return {"FINISHED"}
 
