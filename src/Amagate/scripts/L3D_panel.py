@@ -16,6 +16,7 @@ from bpy.app.translations import pgettext
 from . import data, L3D_data
 from . import L3D_operator as OP_L3D
 from . import L3D_ext_operator as OP_L3D_EXT
+from . import L3D_imp_operator as OP_L3D_IMP
 from . import sector_operator as OP_SECTOR
 from . import ag_utils
 from ..service import ag_service
@@ -1270,8 +1271,9 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         scene_data = context.scene.amagate_data
+        column = layout.column()
 
-        row = layout.row(align=True)
+        row = column.row(align=True)
         op = row.operator(
             OP_L3D.OT_New.bl_idname,
             text="New Map",
@@ -1280,7 +1282,7 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         op.target = "new"  # type: ignore
         op.execute_type = 0  # type: ignore
         # 导出地图
-        row = layout.row(align=True)
+        row = column.row(align=True)
         row.enabled = scene_data.is_blade
         row.operator(OP_L3D_EXT.OT_ExportMap.bl_idname, icon="EXPORT")
         op = row.operator(
@@ -1288,7 +1290,17 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         )
         op.more = True  # type: ignore
         # 导出虚拟扇区
-        layout.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")
+        column.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")
+
+        column.separator(type="LINE")
+
+        # 导入地图
+        op = column.operator(
+            OP_L3D_IMP.OT_ImportMap.bl_idname,
+            # text="Import Map",
+            icon_value=data.ICONS["blade"].icon_id,
+        )
+        # op.execute_type = 0  # type: ignore
 
 
 ############################
