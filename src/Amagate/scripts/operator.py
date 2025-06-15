@@ -92,6 +92,7 @@ class OT_InstallPyPackages(bpy.types.Operator):
 class OT_Cubemap2Equirect(bpy.types.Operator):
     bl_idname = "amagate.cubemap2equirect"
     bl_label = "Select and export"
+    bl_description = "Select and export"
     bl_options = {"INTERNAL"}
 
     # 过滤文件
@@ -286,7 +287,7 @@ class OT_Test(bpy.types.Operator):
     bl_options = {"INTERNAL", "UNDO"}
 
     def execute(self, context: Context):
-        # self.test1(context)
+        self.test1(context)
         # self.test2(context)
         # self.test3(context)
 
@@ -325,12 +326,11 @@ class OT_Test(bpy.types.Operator):
             bm,
             geom=[v for v in bm.verts if v.select] + [e for e in bm.edges if e.select] + [f for f in bm.faces if f.select],  # type: ignore
             dist=1e-4,
-            plane_no=Vector((1, 0, 0)),
-            plane_co=Vector((0.5, 0, 0)),
+            plane_no=Vector((0, 1, 0)),
+            plane_co=Vector((0.0, 0, 0)),
             clear_inner=False,
             clear_outer=False,
         )
-        bmesh.update_edit_mesh(mesh)
         # bm.verts.ensure_lookup_table()
         # for i in (8,9,10,11):
         #     bm.verts[i].select = True
@@ -344,9 +344,20 @@ class OT_Test(bpy.types.Operator):
         # bpy.context.scene.collection.objects.link(obj_new)
         # outer_bm.free()
 
-        edge = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+        edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+        face = edges[0].link_faces[0]
+        result = bmesh.ops.bisect_plane(
+            bm,
+            geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
+            dist=1e-4,
+            plane_no=Vector((1, 0, 0)),
+            plane_co=Vector((0.0, 0, 0)),
+            clear_inner=False,
+            clear_outer=False,
+        )
         # vert = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
-        print(f"edge: {[e.index for e in edge]}")
+        # print(f"edge: {[e.index for e in edge]}")
+        bmesh.update_edit_mesh(mesh)
 
         # 获取新生成的面
         # new_faces = [g for g in result["geom"] if isinstance(g, bmesh.types.BMFace)]
@@ -370,8 +381,8 @@ class OT_Test(bpy.types.Operator):
         bm = bmesh.new()
         bm.from_mesh(mesh)
         layer = bm.faces.layers.int.get("amagate_connected")
-        faces = [f for f in bm.faces if f[layer] == 0] # type: ignore
-        bmesh.ops.connect_verts_concave(bm, faces=faces) 
+        faces = [f for f in bm.faces if f[layer] == 0]  # type: ignore
+        bmesh.ops.connect_verts_concave(bm, faces=faces)
         #
         bm_mesh = bpy.data.meshes.new(f"AG.split")
         bm.to_mesh(bm_mesh)
@@ -518,10 +529,11 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    from . import L3D_operator, L3D_ext_operator, sector_operator
+    from . import L3D_operator, L3D_ext_operator, L3D_imp_operator, sector_operator
 
     L3D_operator.register()
     L3D_ext_operator.register()
+    L3D_imp_operator.register()
     sector_operator.register()
 
 
@@ -529,8 +541,9 @@ def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    from . import L3D_operator, L3D_ext_operator, sector_operator
+    from . import L3D_operator, L3D_ext_operator, L3D_imp_operator, sector_operator
 
     L3D_operator.unregister()
     L3D_ext_operator.unregister()
+    L3D_imp_operator.unregister()
     sector_operator.unregister()

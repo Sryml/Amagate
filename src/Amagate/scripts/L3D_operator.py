@@ -94,6 +94,11 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
     undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context: Context):
+        self.add(context, self.undo)
+        return {"FINISHED"}
+
+    @staticmethod
+    def add(context: Context, undo=False):
         scene_data = context.scene.amagate_data
 
         # 获取可用 ID
@@ -110,10 +115,10 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         # item.ensure_obj(scene)
 
         scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
-        if self.undo:
+        if undo:
             bpy.ops.ed.undo_push(message="Add Atmosphere")
 
-        return {"FINISHED"}
+        return item
 
 
 class OT_Scene_Atmo_Remove(bpy.types.Operator):
@@ -233,6 +238,11 @@ class OT_Scene_External_Add(bpy.types.Operator):
     undo: BoolProperty(default=True)  # type: ignore
 
     def execute(self, context: Context):
+        self.add(context, self.undo)
+        return {"FINISHED"}
+
+    @staticmethod
+    def add(context: Context, undo=False):
         scene_data = context.scene.amagate_data
 
         # 获取可用 ID
@@ -249,9 +259,9 @@ class OT_Scene_External_Add(bpy.types.Operator):
         item.update_obj()
 
         scene_data.active_external = len(scene_data.externals) - 1
-        if self.undo:
+        if undo:
             bpy.ops.ed.undo_push(message="Add External Light")
-        return {"FINISHED"}
+        return item
 
 
 class OT_Scene_External_Remove(bpy.types.Operator):
@@ -772,6 +782,7 @@ class OT_Texture_Preview(bpy.types.Operator):
 class OT_SkyTexture_Open(bpy.types.Operator):
     bl_idname = "amagate.sky_texture_open"
     bl_label = "Open Panorama"
+    bl_description = "Open panorama"
     bl_options = {"INTERNAL"}
 
     # 过滤文件
@@ -1322,18 +1333,6 @@ class OT_MergeMap(bpy.types.Operator):
 
     def execute(self, context: Context):
         # TODO 合并地图
-        return {"FINISHED"}
-
-
-# 导入地图
-class OT_ImportMap(bpy.types.Operator):
-    bl_idname = "amagate.importmap"
-    bl_label = "Import Map"
-    bl_description = "Import Blade Map"
-    bl_options = {"INTERNAL"}
-
-    def execute(self, context):
-        # TODO 导入地图
         return {"FINISHED"}
 
 
