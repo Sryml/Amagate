@@ -62,9 +62,8 @@ if TYPE_CHECKING:
 ############################
 logger = data.logger
 ############################
-LAST_SENT_TIME = 0
+LAST_SENT_TIME = 0  # 上次发送时间
 SYNC_INTERVAL = ag_service.SYNC_INTERVAL
-
 
 AG_COLL = "Amagate Auto Generated"
 S_COLL = "Sector Collection"
@@ -72,9 +71,11 @@ GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
 
+# CONNECT_SECTORS = set()
+
+# 锁
 DEPSGRAPH_UPDATE_LOCK = threading.Lock()
 CHECK_CONNECT = threading.Lock()
-CONNECT_SECTORS = set()
 
 # 全景图下载锁
 PANORAMA_LOCK = threading.Lock()
@@ -82,7 +83,8 @@ PANORAMA_LOCK = threading.Lock()
 S_COLL_OBJECTS = 0
 OPERATOR_POINTER = None
 draw_handler = None
-
+LOAD_POST_CALLBACK = None
+#
 SELECTED_FACES = (
     []
 )  # type: list[tuple[bmesh.types.BMesh, list[bmesh.types.BMFace], Object]]
@@ -90,7 +92,7 @@ SELECTED_SECTORS: list[Object] = []
 ACTIVE_SECTOR: Object = None  # type: ignore
 
 FACE_FLAG = {"Floor": 0, "Ceiling": 1, "Wall": 2, "Custom": 3}
-
+#
 COLLECTION_OP = (
     "Move to Collection",
     "Remove from Collection",
@@ -913,7 +915,7 @@ def draw_callback_3d():
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
-    global OPERATOR_POINTER, draw_handler
+    global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK
     context = bpy.context
     scene_data = context.scene.amagate_data
     if scene_data.is_blade:
@@ -941,6 +943,10 @@ def load_post(filepath=""):
         if draw_handler is not None:
             bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
             draw_handler = None
+    #
+    if LOAD_POST_CALLBACK is not None:
+        LOAD_POST_CALLBACK[0](*LOAD_POST_CALLBACK[1])  # type: ignore
+        LOAD_POST_CALLBACK = None
 
 
 ############################
@@ -1396,6 +1402,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
         self["_item_name"] = value
 
     def ensure_obj(self):
+        scene_data = bpy.context.scene.amagate_data
         name = f"AG.Sun{self.id}"
         if not self.data:
             light_data = bpy.data.lights.get(name)
@@ -1403,6 +1410,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
                 light_data = bpy.data.lights.new("", type="SUN")
                 light_data.rename(name, mode="ALWAYS")
             light_data.volume_factor = 0.0  # 体积散射
+            light_data.shadow_maximum_resolution = 0.03125  # type: ignore
             self.data = light_data
         if not self.obj:
             light_data = self.data
@@ -1413,6 +1421,8 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
                 light.data = light_data
             self.obj = light
             light.hide_select = True  # 不可选
+            if len(scene_data.externals) > 1:
+                light.hide_viewport = True  # 不可见
             data.link2coll(light, ensure_collection(AG_COLL, hide_select=True))
 
         # return self.data
@@ -1865,7 +1875,6 @@ class SceneProperty(bpy.types.PropertyGroup):
 
 
 def register_timer():
-    bpy.app.handlers.load_post.append(load_post)  # type: ignore
     load_post(None)
 
 
@@ -1887,6 +1896,7 @@ def register():
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
     # 注册回调函数
+    bpy.app.handlers.load_post.append(load_post)  # type: ignore
     bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
 
 
