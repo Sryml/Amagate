@@ -179,8 +179,8 @@ def ensure_null_texture() -> Image:
     img = scene_data.ensure_null_tex  # type: Image
     if not img:
         # img = bpy.data.images.new("NULL", width=256, height=256)  # type: ignore
-        enum_items = scene_data.bl_rna.properties["sky_tex_enum"].enum_items  # type: ignore
-        file_name = enum_items[int(scene_data.sky_tex_enum) - 1].description
+        enum_items_static_ui = scene_data.bl_rna.properties["sky_tex_enum"].enum_items_static_ui  # type: ignore
+        file_name = enum_items_static_ui[scene_data.get_sky_tex_enum()].description
         filepath = os.path.join(data.ADDON_PATH, f"textures/panorama/{file_name}.jpg")
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img.name = "NULL"
@@ -945,8 +945,11 @@ def load_post(filepath=""):
             draw_handler = None
     #
     if LOAD_POST_CALLBACK is not None:
-        LOAD_POST_CALLBACK[0](*LOAD_POST_CALLBACK[1])  # type: ignore
+        # print("load_post callback")
+        load_post_callback = LOAD_POST_CALLBACK
         LOAD_POST_CALLBACK = None
+        # 延迟初始化，以免崩溃
+        bpy.app.timers.register(lambda: load_post_callback[0](*load_post_callback[1]) and None, first_interval=0.15)  # type: ignore
 
 
 ############################
@@ -1844,11 +1847,12 @@ class SceneProperty(bpy.types.PropertyGroup):
         self.sector_public.target = "SectorPublic"
         self.sector_public.flat_light.target = "SectorPublic"
         ############################
+        tex_ids = (1, 2 if get_texture_by_id(2)[0] != -1 else 1)
         for i in ("Floor", "Ceiling", "Wall"):
             prop = defaults.textures.add()
             prop.target = "Scene"
             prop.name = i
-            tex_id = 2 if i == "Wall" else 1
+            tex_id = tex_ids[1] if i == "Wall" else tex_ids[0]
             prop.id = tex_id
             prop.xpos = prop.ypos = 0.0
             prop.xzoom = prop.yzoom = 20.0

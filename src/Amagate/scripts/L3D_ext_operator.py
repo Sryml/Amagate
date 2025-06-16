@@ -713,7 +713,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     else:
                         face_type = 7002  # 整个面是连接的
                         connect_data = (conne_sid,)
-                    verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
+                    # verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
                     # connect_num += 1
                 # 如果该平面有多个面
                 else:
@@ -806,46 +806,29 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                             conn_layer,
                         )
                         connect_data = flat_split(bm_flat, hole_dict)
-                    # 获取凸壳顶点
-                    group_faces_idx = [f.index for f in group_faces]
-                    bm_convex = sec_bm.copy()
-                    bmesh.ops.delete(
-                        bm_convex,
-                        geom=[
-                            f for f in bm_convex.faces if f.index not in group_faces_idx
-                        ],
-                        context="FACES",
-                    )  # 删除非组面
-                    bmesh.ops.dissolve_faces(
-                        bm_convex, faces=list(bm_convex.faces), use_verts=False
-                    )  # 合并组面
-                    ag_utils.unsubdivide(bm_convex)  # 反细分
-                    bm_convex.faces.ensure_lookup_table()
-                    verts_idx = [
-                        global_vertex_map[((matrix_world @ v.co) * 1000).to_tuple(1)]
-                        for v in bm_convex.faces[0].verts
-                    ]
-                    # 清理
-                    bm_convex.free()
+                # 获取凸壳顶点
+                group_faces_idx = [f.index for f in group_faces]
+                bm_convex = sec_bm.copy()
+                bmesh.ops.delete(
+                    bm_convex,
+                    geom=[f for f in bm_convex.faces if f.index not in group_faces_idx],
+                    context="FACES",
+                )  # 删除非组面
+                bmesh.ops.dissolve_faces(
+                    bm_convex, faces=list(bm_convex.faces), use_verts=False
+                )  # 合并组面
+                ag_utils.unsubdivide(bm_convex)  # 反细分
+                bm_convex.faces.ensure_lookup_table()
+                verts_idx = [
+                    global_vertex_map[((matrix_world @ v.co) * 1000).to_tuple(1)]
+                    for v in bm_convex.faces[0].verts
+                ]
+                # 清理
+                bm_convex.free()
 
                 faces_sorted.append(
                     (face_index, verts_idx, normal, face_type, connect_data)
                 )
-
-            # connect_data = ()  # 空的连接信息
-            # for face_index, face in enumerate(sec_bm.faces):
-            #     if face in conn_face_visited:
-            #         continue
-
-            #     normal = matrix_world.to_quaternion() @ face.normal
-            #     if mesh.attributes["amagate_tex_id"].data[face_index].value == -1:  # type: ignore
-            #         face_type = 7005  # 天空面
-            #     else:
-            #         face_type = 7001  # 普通面
-            #     verts_idx = [sec_vertex_indices[v.index] for v in face.verts]
-            #     faces_sorted.append(
-            #         (face_index, verts_idx, normal, face_type, connect_data)
-            #     )
 
             sec_bm.free()
             # ag_utils.debugprint(f"{sec.name}: {[i[0] for i in faces_sorted]}")
@@ -896,6 +879,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                 f.write(struct.pack("<I", 3))
                 f.write(struct.pack("<I", 0))
 
+                # 写入纹理数据
                 if face_type == 7004:
                     tex_buffer = connect_data[2]
                     f.write(tex_buffer)
@@ -958,36 +942,6 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
                     while cut_data_buff:
                         f.write(cut_data_buff.pop())
 
-                # elif face_type == 7004:
-                #     f.write(struct.pack("<I", len(connect_info)))
-
-                #     for conn_sid, verts_sub_idx, tangent_data in connect_info:
-                #         f.write(struct.pack("<I", len(verts_sub_idx)))
-                #         for v_idx in verts_sub_idx:
-                #             f.write(struct.pack("<I", v_idx))
-                #         f.write(struct.pack("<I", global_sector_map[conn_sid]))
-
-                #         f.write(struct.pack("<I", len(tangent_data)))
-                #         for dist, cross in tangent_data:
-                #             f.write(
-                #                 struct.pack("<ddd", cross[0], -cross[2], cross[1])
-                #             )
-                #             f.write(struct.pack("<d", dist))
-
-                #     f.write(struct.pack("<I", 8001))  # 8001 固定标识
-                #     for i in range(len(connect_info) - 1, -1, -1):
-                #         f.write(struct.pack("<I", 8003))
-                #         f.write(struct.pack("<I", 1))  # 隐藏面
-                #         conn_sid, verts_sub_idx, tangent_data = connect_info[i]
-                #         f.write(struct.pack("<I", i))
-                #         edges_num = len(tangent_data)
-                #         f.write(struct.pack("<I", edges_num))
-                #         f.write(
-                #             struct.pack(
-                #                 f"<{'I'*edges_num}", *list(range(edges_num))
-                #             )
-                #         )
-
         # 写入外部光和灯泡数据
         external_num = 0
         number_pos = f.tell()
@@ -999,10 +953,11 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
 
             color = ext.color
             vector = ext.vector.normalized()
+            precision = ext.data.shadow_maximum_resolution
             f.write(struct.pack("<I", 15002))
             f.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
             f.write(struct.pack("<f", color.v * v_factor))
-            f.write(ext_light_p)
+            f.write(struct.pack("<f", precision))
             f.write(struct.pack("<ddd", 0, 0, 0))
             f.write(bytes.fromhex("CD" * 8))
             f.write(struct.pack("<I", 0))

@@ -541,7 +541,7 @@ class OT_GhostSector_Create(bpy.types.Operator):
         name = f"SectorGhost"
         gsec.rename(name, mode="SAME_ROOT")
         gsec.data.rename(name, mode="SAME_ROOT")
-        coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+        coll = L3D_data.ensure_collection(L3D_data.GS_COLL)
         # 链接到集合
         if coll not in gsec.users_collection:
             # 清除集合
@@ -1680,7 +1680,7 @@ class OT_GhostSectorExport(bpy.types.Operator):
             self.report({"WARNING"}, "Please save the file first")
             return {"CANCELLED"}
 
-        coll = L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
+        coll = L3D_data.ensure_collection(L3D_data.GS_COLL)
         gho_sectors = [
             obj
             for obj in coll.all_objects
@@ -2015,15 +2015,18 @@ class OT_Bulb_Render(bpy.types.Operator):
                     continue
 
                 conn_sec = L3D_data.get_sector_by_id(scene_data, conn_sid)
-                co = conn_sec.matrix_world @ conn_sec.data.vertices[0].co  # type: ignore
-                # 如果连接扇区在光源的反方向，跳过
-                if (co - origin).normalized().dot(direction) < -epsilon:
+                has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
+                # 如果是天空扇区，跳过
+                if has_sky:
                     continue
 
-                has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
-                # 如果不是天空扇区，加入集合
-                if not has_sky:
-                    sectors.add(conn_sec)
+                for v in conn_sec.data.vertices:  # type: ignore
+                    co = conn_sec.matrix_world @ v.co
+                    # 只要有1个顶点在光源的正方向，添加
+                    if (co - origin).normalized().dot(direction) > epsilon:
+                        sectors.add(conn_sec)
+                        break
+
             depth += 1
         for sec in sectors:
             data.link2coll(sec, light_link)
