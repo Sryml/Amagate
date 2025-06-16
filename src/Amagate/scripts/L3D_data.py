@@ -1354,14 +1354,14 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
         min=0.0,
         max=1.0,
         # default=(0.784, 0.784, 0.784),
-        get=lambda self: self.get("_color", (0.784, 0.784, 0.392)),
+        get=lambda self: self.get("_color", (0.784, 0.7, 0.22)),
         set=lambda self, value: self.set_dict("_color", value),
         update=lambda self, context: self.update_obj(context),
     )  # type: ignore
     color_readonly: FloatVectorProperty(
         name="Color",
         subtype="COLOR",
-        get=lambda self: self.get("_color", (0.784, 0.784, 0.392)),
+        get=lambda self: self.get("_color", (0.784, 0.7, 0.22)),
         set=lambda self, value: None,
     )  # type: ignore
     vector: FloatVectorProperty(
@@ -1638,9 +1638,16 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     # 编辑模式标识
     is_edit_mode: BoolProperty(name="Edit Mode", default=False)  # type: ignore
+    # HUD开关
+    hud_enable: BoolProperty(name="HUD", default=True, get=lambda self: self.get_hud_enable(), set=lambda self, value: self.set_hud_enable(value))  # type: ignore
+    # 体积雾开关
+    # volume_enable: BoolProperty(name="Volume Fog", default=False, update=lambda self, context: self.update_volume_enable(context))  # type: ignore
 
     # 灯光链接管理器
     light_link_manager: CollectionProperty(type=data.ObjectCollection)  # type: ignore
+
+    # Amagate版本
+    # version: StringProperty()  # type: ignore
 
     ############################
 
@@ -1833,17 +1840,64 @@ class SceneProperty(bpy.types.PropertyGroup):
         data.area_redraw("VIEW_3D")
 
     ############################
+    # def update_volume_enable(self, context):
+    #     scene = self.id_data  # type: Scene
+    #     for i in bpy.data.images:
+    #         img_data = i.amagate_data
+    #         if img_data.id > 0:
+    #             mat = img_data.mat_obj  # type: bpy.types.Material
+    #             if not mat:
+    #                 continue
+    #             nodes = mat.node_tree.nodes  # type: bpy.types.Nodes
+    #             links = mat.node_tree.links  # type: bpy.types.NodeLinks
+    #             from_node = nodes["Add Shader - Volume"]
+    #             to_node = nodes["Material Output"]
+
+    #             if self.volume_enable:
+    #                 from_socket = from_node.outputs[0]
+    #                 to_socket = to_node.inputs[1]
+    #                 links.new(from_socket, to_socket)
+    #             else:
+    #                 for link in links:
+    #                     if link.from_node == from_node and link.to_node == to_node:
+    #                         links.remove(link)
+
+    #     scene.update_tag()
+
+    def get_hud_enable(self):
+        context = bpy.context
+        area_index = next(
+            i for i, a in enumerate(context.screen.areas) if a == context.area
+        )
+        return True if self.areas_show_hud.get(str(area_index)) else False
+
+    def set_hud_enable(self, value):
+        context = bpy.context
+        area_index = next(
+            i for i, a in enumerate(context.screen.areas) if a == context.area
+        )
+        item_index = self.areas_show_hud.find(str(area_index))
+        # print(f"item_index: {item_index}")
+        if item_index != -1:
+            self.areas_show_hud.remove(item_index)
+        else:
+            self.areas_show_hud.add().value = area_index
+        data.region_redraw("WINDOW")
+
+    ############################
     def init(self):
         #
+        # self.version = data.VERSION
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults
 
         defaults.target = "Scene"
         defaults.atmo_id = 1
         defaults.external_id = 1
-        defaults.ambient_color = (0.5, 0.5, 0.5)
+        defaults.ambient_color = (0.42, 0.42, 0.42)
 
         defaults.flat_light.target = "Scene"
+        defaults.flat_light["color"] = (0.784, 0.784, 0.784)
         self.sector_public.target = "SectorPublic"
         self.sector_public.flat_light.target = "SectorPublic"
         ############################

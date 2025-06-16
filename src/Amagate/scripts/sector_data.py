@@ -500,7 +500,7 @@ class FlatLightProperty(bpy.types.PropertyGroup):
         size=3,
         min=0.0,
         max=1.0,
-        default=(0.784, 0.784, 0.784),
+        # default=(0.784, 0.784, 0.784),
         get=lambda self: self.get_color(),
         set=lambda self, value: self.set_color(value),
     )  # type: ignore
@@ -916,7 +916,7 @@ class SectorProperty(bpy.types.PropertyGroup):
             sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
             return getattr(sec_data, attr)
         else:
-            return self.get(attr, (0.784, 0.784, 0.784))
+            return self.get(attr, (0.42, 0.42, 0.42))
 
     def set_ambient_color(self, value):
         from . import L3D_data

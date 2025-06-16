@@ -17,6 +17,7 @@ import time
 import locale
 import requests
 import tempfile
+from pathlib import Path
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -63,24 +64,24 @@ logger = data.logger
 ############################
 
 
-class OT_Scene_Props_HUD(bpy.types.Operator):
-    bl_idname = "amagate.scene_props_hud"
-    bl_label = "Show HUD"
-    bl_options = {"INTERNAL"}
+# class OT_Scene_Props_HUD(bpy.types.Operator):
+#     bl_idname = "amagate.scene_props_hud"
+#     bl_label = "Show HUD"
+#     bl_options = {"INTERNAL"}
 
-    def execute(self, context: Context):
-        scene_data = context.scene.amagate_data
-        area_index = next(
-            i for i, a in enumerate(context.screen.areas) if a == context.area
-        )
-        item_index = scene_data.areas_show_hud.find(str(area_index))
-        # print(f"item_index: {item_index}")
-        if item_index != -1:
-            scene_data.areas_show_hud.remove(item_index)
-        else:
-            scene_data.areas_show_hud.add().value = area_index
-        data.region_redraw("WINDOW")
-        return {"FINISHED"}
+#     def execute(self, context: Context):
+#         scene_data = context.scene.amagate_data
+#         area_index = next(
+#             i for i, a in enumerate(context.screen.areas) if a == context.area
+#         )
+#         item_index = scene_data.areas_show_hud.find(str(area_index))
+#         # print(f"item_index: {item_index}")
+#         if item_index != -1:
+#             scene_data.areas_show_hud.remove(item_index)
+#         else:
+#             scene_data.areas_show_hud.add().value = area_index
+#         data.region_redraw("WINDOW")
+#         return {"FINISHED"}
 
 
 ############################
@@ -99,6 +100,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
 
     @staticmethod
     def add(context: Context, undo=False):
+        # type: (bpy.types.Context, bool) -> L3D_data.AtmosphereProperty
         scene_data = context.scene.amagate_data
 
         # 获取可用 ID
@@ -111,6 +113,7 @@ class OT_Scene_Atmo_Add(bpy.types.Operator):
         item = scene_data.atmospheres.add()
         item.name = f"{id_}"
         item["_item_name"] = name
+        item["_color"] = (0.0, 0.0, 0.0, 0.002)
 
         # item.ensure_obj(scene)
 
@@ -254,8 +257,8 @@ class OT_Scene_External_Add(bpy.types.Operator):
         item = scene_data.externals.add()
         item.name = f"{id_}"
         item["_item_name"] = data.get_name(used_names, "Sun{}", id_)
-        # item["_color"] = (0.784, 0.784, 0.392)
-        # item["_vector"] = (-1, 0, -1)
+        item["_color"] = (0.784, 0.7, 0.22)
+        item["_vector"] = (-1, 0, -1)
         item.update_obj()
 
         scene_data.active_external = len(scene_data.externals) - 1
@@ -1060,8 +1063,8 @@ class OT_New(bpy.types.Operator):
             return ""
         if properties.target == "new":  # type: ignore
             return pgettext("New Blade Map")
-        elif properties.target == "import":  # type: ignore
-            return pgettext("Import Blade scene from *.bw file")
+        # elif properties.target == "import":  # type: ignore
+        #     return pgettext("Import Blade scene from *.bw file")
 
     def draw(self, context: Context):
         layout = self.layout
@@ -1075,13 +1078,13 @@ class OT_New(bpy.types.Operator):
         row.operator(OT_New.bl_idname, text="Don't Save").execute_type = 2  # type: ignore
         row.operator(OT_New.bl_idname, text="Cancel").execute_type = 3  # type: ignore
 
-    @staticmethod
-    def timer_func(target):
-        def warp():
-            operators = {"new": "initmap", "import": ""}
-            getattr(bpy.ops.amagate, operators[target])()  # type: ignore
+    # @staticmethod
+    # def timer_func(target):
+    #     def warp():
+    #         operators = {"new": "initmap", "import": ""}
+    #         getattr(bpy.ops.amagate, operators[target])()  # type: ignore
 
-        return warp
+    #     return warp
 
     def execute(self, context):
         return {"FINISHED"}
@@ -1102,66 +1105,102 @@ class OT_New(bpy.types.Operator):
             ag_utils.simulate_keypress(27)
             return {"CANCELLED"}
 
+        L3D_data.LOAD_POST_CALLBACK = (InitMap, ())
         bpy.ops.wm.read_homefile(app_template="")
-        bpy.app.timers.register(
-            self.timer_func(self.target), first_interval=0.15
-        )  # XXX 可能会执行失败
+        # bpy.app.timers.register(
+        #     self.timer_func(self.target), first_interval=0.15
+        # )  #
         return {"FINISHED"}
 
 
 # 初始化地图
-class OT_InitMap(bpy.types.Operator):
-    bl_idname = "amagate.initmap"
-    bl_label = "Initialize Map"
-    bl_description = ""
-    bl_options = {"INTERNAL"}
+# class OT_InitMap(bpy.types.Operator):
+#     bl_idname = "amagate.initmap"
+#     bl_label = "Initialize Map"
+#     bl_description = ""
+#     bl_options = {"INTERNAL"}
 
-    def execute(self, context: Context):
-        # 清空场景
-        bpy.ops.object.select_all(action="SELECT")
-        bpy.ops.object.delete(use_global=True)
-        for d in (
-            bpy.data.meshes,
-            bpy.data.lights,
-            bpy.data.cameras,
-            bpy.data.collections,
-            bpy.data.materials,
-            bpy.data.worlds,
-        ):
-            for _ in range(len(d)):
-                # 倒序删除，避免集合索引更新的开销
-                d.remove(d[-1])  # type: ignore
-        old_scene = context.window.scene
 
-        # 创建新场景
-        name = "Blade Scene"
-        bpy.ops.scene.new(type="EMPTY")
-        scene = context.window.scene  # type: Scene # type: ignore
-        # scene = bpy.data.scenes.new("")  # type: Scene # type: ignore
-        scene.rename(name, mode="ALWAYS")
-        # context.window.scene = scene
-        bpy.data.scenes.remove(old_scene)
-        scene_data = scene.amagate_data
+def InitMap(imp_filepath=""):
+    context = bpy.context
+    is_import = imp_filepath != ""
+    imp_filepath = Path(imp_filepath)
+    # 清空场景
+    bpy.ops.object.select_all(action="SELECT")
+    bpy.ops.object.delete(use_global=True)
+    for d in (
+        bpy.data.meshes,
+        bpy.data.lights,
+        bpy.data.cameras,
+        bpy.data.collections,
+        bpy.data.materials,
+        bpy.data.worlds,
+    ):
+        for _ in range(len(d)):
+            # 倒序删除，避免集合索引更新的开销
+            d.remove(d[-1])  # type: ignore
+    old_scene = context.window.scene
 
-        # 初始化场景数据
-        scene_data.id = 1
-        ## 创建集合
-        L3D_data.ensure_collection(L3D_data.C_COLL, hide_select=True)
-        L3D_data.ensure_collection(L3D_data.GS_COLL, hide_select=True)
-        L3D_data.ensure_collection(L3D_data.S_COLL)
-        L3D_data.ensure_collection(L3D_data.E_COLL)
-        L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
-        coll = bpy.data.collections.new(pgettext("Marked Collection"))
-        scene.collection.children.link(coll)
-        ## 创建标记对象
-        player_pos = bpy.data.objects.new("Player", None)
-        # player_pos.empty_display_size = 2
-        player_pos.empty_display_type = "PLAIN_AXES"
-        data.link2coll(player_pos, coll)
-        ## 创建默认对象
-        L3D_data.ensure_null_texture()
-        L3D_data.ensure_null_object()
-        L3D_data.ensure_render_camera()
+    # 创建新场景
+    name = "Blade Scene"
+    bpy.ops.scene.new(type="EMPTY")
+    scene = context.window.scene  # type: Scene # type: ignore
+    # scene = bpy.data.scenes.new("")  # type: Scene # type: ignore
+    scene.rename(name, mode="ALWAYS")
+    # context.window.scene = scene
+    bpy.data.scenes.remove(old_scene)
+    scene_data = scene.amagate_data
+
+    # 初始化场景数据
+    scene_data.id = 1
+    ## 创建集合
+    L3D_data.ensure_collection(L3D_data.C_COLL)
+    L3D_data.ensure_collection(L3D_data.GS_COLL)
+    L3D_data.ensure_collection(L3D_data.S_COLL)
+    L3D_data.ensure_collection(L3D_data.E_COLL)
+    L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
+    coll = bpy.data.collections.new(pgettext("Marked Collection"))
+    scene.collection.children.link(coll)
+    ## 创建标记对象
+    player_pos = bpy.data.objects.new("Player", None)
+    # player_pos.empty_display_size = 2
+    player_pos.empty_display_type = "PLAIN_AXES"
+    data.link2coll(player_pos, coll)
+    ## 创建默认对象
+    L3D_data.ensure_null_texture()
+    L3D_data.ensure_null_object()
+    L3D_data.ensure_render_camera()
+
+    ## 创建节点
+    L3D_data.ensure_node()
+    ## 设置渲染引擎
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.eevee.taa_samples = 2
+    scene.eevee.use_shadows = True
+    scene.view_settings.view_transform = "Standard"  # type: ignore
+    ## 设置世界环境
+    world = bpy.data.worlds.new("")
+    world.rename("BWorld", mode="ALWAYS")
+    world.use_nodes = True
+    Background = next(
+        n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
+    )
+    Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
+    Background.inputs[1].default_value = 0.0  # type: ignore
+    scene.world = world
+    ##
+    scene.tool_settings.use_snap = True  # 吸附开关
+    scene.tool_settings.snap_elements_base = {
+        "EDGE",
+        "VERTEX",
+        "GRID",
+        "FACE",
+    }  # 吸附对象
+
+    ## 分割编辑器
+    main_area, render_area, front_area = split_editor(context, is_import)
+
+    if not is_import:
         ## 加载纹理，用bmp格式兼容经典版
         for i in ("lisa.bmp", "long.bmp"):
             filepath = os.path.join(data.ADDON_PATH, "textures", i)
@@ -1169,89 +1208,100 @@ class OT_InitMap(bpy.types.Operator):
         if data.DEBUG:
             filepath = os.path.join(data.ADDON_PATH, "textures", "test.bmp")
             OT_Texture_Add.load_image(filepath).builtin = True
-        ## 创建默认数据
-        # 内部大气
-        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
-        idx, atmo = L3D_data.get_atmo_by_id(scene_data, 1)
-        atmo.item_name = "int"
-        atmo["_color"] = (0.0, 0.0, 0.0, 0.018)
         # 外部大气
-        bpy.ops.amagate.scene_atmo_add(undo=False)  # type: ignore
-        idx, atmo = L3D_data.get_atmo_by_id(scene_data, 2)
-        atmo.item_name = "ext"
+        atmo = OT_Scene_Atmo_Add.add(context)
+        atmo["_item_name"] = "ext"
         atmo["_color"] = (0.39, 0.45, 0.56, 0.015)
+        # 内部大气
+        atmo = OT_Scene_Atmo_Add.add(context)
+        atmo["_item_name"] = "int"
+        atmo["_color"] = (0.0, 0.0, 0.0, 0.018)
+        #
         bpy.ops.amagate.scene_external_add(undo=False)  # type: ignore
-        ## 创建节点
-        L3D_data.ensure_node()
-        ## 设置渲染引擎
-        scene.render.engine = "BLENDER_EEVEE_NEXT"
-        scene.eevee.taa_samples = 4
-        scene.eevee.use_shadows = True
-        scene.view_settings.view_transform = "Standard"  # type: ignore
-        ## 设置世界环境
-        world = bpy.data.worlds.new("")
-        world.rename("BWorld", mode="ALWAYS")
-        world.use_nodes = True
-        Background = next(
-            n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
-        )
-        Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
-        Background.inputs[1].default_value = 0.0  # type: ignore
-        scene.world = world
-        ##
-        scene.tool_settings.use_snap = True  # 吸附开关
-        scene.tool_settings.snap_elements_base = {
-            "EDGE",
-            "VERTEX",
-            "GRID",
-            "FACE",
-        }  # 吸附对象
-        ##
-        scene_data.init()
+    ##
+    scene_data.init()
+    scene_data.is_blade = True
 
-        ## 分割编辑器
-        split_editor(context)
-        scene_data.is_blade = True
+    if is_import:
+        from . import L3D_imp_operator as OP_L3D_IMP
 
-        L3D_data.load_post()
+        # 保存当前文件
+        save_filepath = imp_filepath.with_suffix(".blend")
+        if save_filepath.exists():
+            stem = save_filepath.stem
+            counter = 1
 
+            while True:
+                save_filepath = save_filepath.with_stem(f"{stem}_{counter}")
+                if not save_filepath.exists():
+                    break
+                counter += 1
+
+        #
+        bpy.ops.wm.save_mainfile(filepath=str(save_filepath))
+
+        logger.info("Start import map...")
+        OP_L3D_IMP.import_map(str(imp_filepath))
+        sec = scene_data["SectorManage"]["sectors"]["1"]["obj"]
+        sec.select_set(True)
+        bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+        sec.select_set(False)
+        scene.camera.matrix_world.translation = sec.location
+        with context.temp_override(
+            area=main_area,
+            region=next(r for r in main_area.regions if r.type == "WINDOW"),
+        ):
+            bpy.ops.view3d.view_all(center=True)
+        logger.info("Import Map Done")
+        #
+
+    L3D_data.load_post()
+
+    if is_import:
+        bpy.ops.ed.undo_push(message="Import Map")
+    else:
         bpy.ops.ed.undo_push(message="Initialize Scene")
-        return {"FINISHED"}
 
 
-def split_editor(context: Context):
+def split_editor(context: Context, is_import):
     scene_data = context.scene.amagate_data
-    area_index, area = next(
+    area_index, main_area = next(
         ((i, a) for i, a in enumerate(context.screen.areas) if a.type == "VIEW_3D"),
         (-1, None),
     )
-    if not area:
-        return
+    # if not main_area:
+    #     return
 
     scene_data.areas_show_hud.add().value = area_index
 
-    region = next(r for r in area.regions if r.type == "WINDOW")
+    region = next(r for r in main_area.regions if r.type == "WINDOW")
     rv3d = region.data  # type: bpy.types.RegionView3D
     rv3d.view_rotation = Euler((math.pi / 3, 0.0, 0.0)).to_quaternion()
 
-    with context.temp_override(area=area):
+    with context.temp_override(area=main_area):
         bpy.ops.screen.area_split(direction="VERTICAL", factor=0.4)
         # 调整工作区域属性
-        area.spaces[0].overlay.normals_length = 0.5  # 法线长度 # type: ignore
-        area.spaces[0].shading.type = "MATERIAL"  # type: ignore
-        area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
-        # area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
-        area.spaces[0].shading.render_pass = (  # type: ignore
+        main_area.spaces[0].overlay.normals_length = 0.5  # 法线长度 # type: ignore
+        main_area.spaces[0].shading.type = "WIREFRAME" if is_import else "MATERIAL"  # type: ignore
+        main_area.spaces[0].overlay.show_extra_edge_length = True  # 边长 # type: ignore
+        # main_area.spaces[0].overlay.show_extra_edge_angle = True  # 边夹角 # type: ignore
+        main_area.spaces[0].shading.render_pass = (  # type: ignore
             "EMISSION"  # "DIFFUSE_COLOR"  # 渲染通道
         )
-        area.spaces[0].shading.studiolight_intensity = 0.2  # 灯光强度 # type: ignore
-        with contextlib.redirect_stdout(StringIO()):
-            bpy.ops.view3d.toggle_xray()  # 透视模式
+        main_area.spaces[0].shading.studiolight_intensity = (  # type: ignore
+            0.2  # 灯光强度
+        )
+        if is_import:
+            bpy.app.timers.register(set_view(main_area, "TOP"), first_interval=0.08)
+        else:
+            with contextlib.redirect_stdout(StringIO()):
+                bpy.ops.view3d.toggle_xray()  # 透视模式
 
     # 渲染区域
     render_area = next(
-        a for a in context.screen.areas if a != area and a.type == "VIEW_3D"
+        a for a in context.screen.areas if a != main_area and a.type == "VIEW_3D"
     )
+
     """
     if data.DEBUG:
         # For DEBUG
@@ -1267,7 +1317,7 @@ def split_editor(context: Context):
     """
 
     # 调整渲染区域属性
-    render_area.spaces[0].shading.type = "RENDERED"  # type: ignore
+    render_area.spaces[0].shading.type = "WIREFRAME" if is_import else "RENDERED"  # type: ignore
     render_area.spaces[0].overlay.show_extras = False  # type: ignore
     render_area.spaces[0].overlay.show_floor = False  # type: ignore
     render_area.spaces[0].overlay.show_axis_x = False  # type: ignore
@@ -1289,7 +1339,7 @@ def split_editor(context: Context):
     front_area = next(
         a
         for a in context.screen.areas
-        if a not in (area, render_area) and a.type == "VIEW_3D"
+        if a not in (main_area, render_area) and a.type == "VIEW_3D"
     )
     front_area.spaces[0].shading.type = "WIREFRAME"  # type: ignore
     front_area.spaces[0].overlay.show_floor = True  # type: ignore
@@ -1305,13 +1355,14 @@ def split_editor(context: Context):
     #     bpy.ops.view3d.view_axis(type="FRONT")  # 前视图
 
     # 激活面板
-    with context.temp_override(area=area, space_data=area.spaces[0]):
+    with context.temp_override(area=main_area, space_data=main_area.spaces[0]):
         bpy.ops.wm.context_toggle(data_path="space_data.show_region_ui")
 
-    region = next(r for r in area.regions if r.type == "UI")
+    region = next(r for r in main_area.regions if r.type == "UI")
     bpy.app.timers.register(
         data.active_panel_category(region, "Amagate"), first_interval=0.05
     )
+    return main_area, render_area, front_area
 
 
 def set_view(area, view_type):

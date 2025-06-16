@@ -77,8 +77,8 @@ def verify_bw(bw_file):
 
 
 # 分割洞
-def hole_split(sec_bm, face, tangent_data):
-    geom = list(face.verts) + list(face.edges) + [face]
+def hole_split(sec_bm, inner_face, tangent_data):
+    geom = list(inner_face.verts) + list(inner_face.edges) + [inner_face]
     while tangent_data:
         plane_no, plane_co = tangent_data.pop()
         result = bmesh.ops.bisect_plane(
@@ -94,6 +94,9 @@ def hole_split(sec_bm, face, tangent_data):
         cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
         cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
         edge = cut_edges[0]
+        if len(edge.link_faces) == 1:
+            return None
+
         face1, face2 = edge.link_faces
         co = next((v.co for v in face1.verts if v not in cut_verts), None)
         dir = (co - edge.verts[0].co).normalized()  # type: ignore
@@ -167,7 +170,8 @@ def flat_split(sec_bm, face, cut_data, layers):
                 # 有洞，需要分割
                 if tangent_data:
                     inner_face = hole_split(sec_bm, inner_face, tangent_data)
-                    inner_face[layers["connected"]] = conn_sid
+                    if inner_face is not None:
+                        inner_face[layers["connected"]] = conn_sid
                 # 有洞，无需分割
                 elif conn_sid:
                     inner_face[layers["connected"]] = conn_sid
@@ -204,6 +208,7 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         vector_map = -x_axis.copy()
     else:
         vector_map = (normal.to_track_quat("-Y", "Z") @ x_axis).normalized()
+    tex_vx.normalize()
     axis = tex_vx.cross(vector_map).normalized()  # type: Vector
     dot2 = tex_vx.dot(vector_map)
     if dot2 > epsilon2:
@@ -223,17 +228,17 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         tex_type = "Wall"
 
     #
-    tex_data = global_texture_map.get(texture_name)
-    if tex_data is None:
+    img_data = global_texture_map.get(texture_name)
+    if img_data is None:
         filepath = os.path.join(data.ADDON_PATH, "textures", "test.bmp")
-        tex_data = OP_L3D.OT_Texture_Add.load_image(filepath, texture_name)
-        tex_data.id_data.filepath = f"//textures/{texture_name}.bmp"
-        global_texture_map[texture_name] = tex_data
-    tex_id = tex_data.id
-    slot_index = sec_mesh.materials.find(tex_data.mat_obj.name)
+        img_data = OP_L3D.OT_Texture_Add.load_image(filepath, texture_name)
+        img_data.id_data.filepath = f"//textures/{texture_name}.bmp"
+        global_texture_map[texture_name] = img_data
+    tex_id = img_data.id
+    slot_index = sec_mesh.materials.find(img_data.mat_obj.name)
     if slot_index == -1:
-        sec_mesh.materials.append(tex_data.mat_obj)
-        slot_index = sec_mesh.materials.find(tex_data.mat_obj.name)
+        sec_mesh.materials.append(img_data.mat_obj)
+        slot_index = sec_mesh.materials.find(img_data.mat_obj.name)
     # 设置扇区预设纹理
     tex_prop = sec_data.textures.get(tex_type)
     if not tex_prop:
@@ -279,13 +284,17 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
 
 # 导入地图
 def import_map(bw_file):
-    scene_data = bpy.context.scene.amagate_data
+    scene = bpy.context.scene
+    scene_data = scene.amagate_data
     # 全局数据索引
     global_vertex_count = 0
     global_vertex_map = {}  # {global_index: tuple(co)}
     global_atmo_map = {}
     global_texture_map = {}
     atmos_name_len = []
+    #
+    abnormal_sec = []
+    fix_sec = []
     #
     v_factor = 0.86264  # 明度系数
     #
@@ -302,9 +311,12 @@ def import_map(bw_file):
             name = unpack(f"{name_len}s", f)
             rgb = unpack("<BBB", f)
             a = unpack("<f", f)[0]
+            if name.startswith("Metadata:"):
+                continue
+
             item = OP_L3D.OT_Scene_Atmo_Add.add(context)
             item["_item_name"] = name
-            item.color = (*[i / 255 for i in rgb], a)
+            item["_color"] = (*[i / 255 for i in rgb], a)
             global_atmo_map[name] = item.id
             atmos_name_len.append(name_len)
 
@@ -319,17 +331,15 @@ def import_map(bw_file):
 
         # 扇区
         sector_num = unpack("<I", f)[0]
-        for i in range(sector_num):
-            # 扇区ID # XXX
-            sid = i + 1
+        for sector_id in range(1, sector_num + 1):
             #
-            sec_mesh = bpy.data.meshes.new(f"Sector{sid}")
+            sec_mesh = bpy.data.meshes.new(f"Sector{sector_id}")
             sec = bpy.data.objects.new(
-                f"Sector{sid}", sec_mesh
+                f"Sector{sector_id}", sec_mesh
             )  # type: Object # type: ignore
             sec.amagate_data.set_sector_data()
             sec_data = sec.amagate_data.get_sector_data()
-            sec_data.id = sid
+            sec_data.id = sector_id
             sec_vertex_map = {}
 
             #
@@ -402,7 +412,45 @@ def import_map(bw_file):
                     # sec_bm.to_mesh(sec_mesh)
                     # 跳过天空面
                     if face_type == 7005:
-                        face[layers["tex_id"]] = -1
+                        tex_id = -1
+                        dot = normal.dot(z_axis)
+                        # 判断纹理类型
+                        if dot > epsilon:
+                            tex_type = "Floor"
+                        elif dot < -epsilon:
+                            tex_type = "Ceiling"
+                        else:
+                            tex_type = "Wall"
+
+                        # 设置扇区预设纹理
+                        tex_prop = sec_data.textures.get(tex_type)
+                        if not tex_prop:
+                            tex_prop = sec_data.textures.add()
+                            tex_prop.target = "Sector"
+                            tex_prop.name = tex_type
+                            tex_prop["id"] = tex_id
+                            tex_prop["xpos"] = 0
+                            tex_prop["ypos"] = 0
+                            tex_prop["angle"] = 0
+                            tex_prop["xzoom"] = 20
+                            tex_prop["yzoom"] = 20
+                        else:
+                            tex_type = "Custom"
+
+                        img = scene_data.ensure_null_tex  # type: Image
+                        img_data = img.amagate_data
+                        slot_index = sec_mesh.materials.find(img_data.mat_obj.name)
+                        if slot_index == -1:
+                            sec_mesh.materials.append(img_data.mat_obj)
+                            slot_index = sec_mesh.materials.find(img_data.mat_obj.name)
+                        face[layers["flag"]] = L3D_data.FACE_FLAG[tex_type]
+                        face.material_index = slot_index
+                        face[layers["tex_id"]] = tex_id
+                        face[layers["tex_xpos"]] = 0
+                        face[layers["tex_ypos"]] = 0
+                        face[layers["tex_angle"]] = 0
+                        face[layers["tex_xzoom"]] = 20
+                        face[layers["tex_yzoom"]] = 20
                         continue
                     # 设置连接面
                     sec_data.connect_num += 1
@@ -517,9 +565,9 @@ def import_map(bw_file):
                             block_mark_num += 1
                         elif mark == 8003:
                             tangent_data = conn_sid = None
-                            holes_idx_data = []
-                            holes_num = unpack("<I", f)[0]
-                            for i in range(holes_num):
+                            # holes_idx_data = []
+                            holes_idx_num = unpack("<I", f)[0]
+                            for i in range(holes_idx_num):
                                 hole_idx = unpack("<I", f)[0]
                                 tangent_num = unpack("<I", f)[0]
                                 tangent_data = [
@@ -527,10 +575,11 @@ def import_map(bw_file):
                                     for i in range(tangent_num)
                                 ]
                                 conn_sid = holes_data[hole_idx][1]
-                                holes_idx_data.append((tangent_data, conn_sid))
+                                # holes_idx_data.append((tangent_data, conn_sid))
                             cut_data.append((mark, tangent_data, conn_sid))
-                            if holes_num > 1:
-                                logger.debug(f"Multi-hole cut: {holes_idx_data}")
+                            if holes_idx_num > 1:
+                                # 添加到异常扇区
+                                abnormal_sec.append(sec)
                         # elif mark in (7001, 7002, 7003, 7004, 7005):
                         #     f.seek(-4, 1)  # back 4
                         #     break
@@ -569,8 +618,8 @@ def import_map(bw_file):
                             cut_num += 1
                     # 退化为7003
                     if cut_num == 0 and block_mark == 8003:
-                        holes_num = unpack("<I", f)[0]
-                        for i in range(holes_num):
+                        holes_idx_num = unpack("<I", f)[0]
+                        for i in range(holes_idx_num):
                             hole_idx = unpack("<I", f)[0]
                             tangent_num = unpack("<I", f)[0]
                             tangent_data = [
@@ -580,6 +629,7 @@ def import_map(bw_file):
                             conn_sid = holes_data[hole_idx][1]
                             # inner_face = hole_split(sec_bm, face, tangent_data)
                             # inner_face[layers["connected"]] = holes_data[hole_idx][1]
+                        if holes_idx_num != 0:
                             hole_split_list.append((face, tangent_data, conn_sid))
                             sec_data.connect_num += 1
                     # 切割
@@ -588,20 +638,12 @@ def import_map(bw_file):
                         # flat_split(sec_bm, face, cut_data, layers)
 
             # 切割
-            # for face, tangent_data, conn_sid in hole_split_list:
-            #     try:
-            #         inner_face = hole_split(sec_bm, face, tangent_data.copy())
-            #         inner_face[layers["connected"]] = conn_sid
-            #     except:
-            #         if len(tangent_data) > 1:
-            #             logger.error(
-            #                 f"Hole Split Error: {len(tangent_data)}, {sec_data.id}"
-            #             )
-            # for face, cut_data in flat_split_list:
-            #     try:
-            #         flat_split(sec_bm, face, cut_data, layers)
-            #     except:
-            #         logger.error(f"Flat Split Error: {cut_data}, {sec_data.id}")
+            for face, tangent_data, conn_sid in hole_split_list:
+                inner_face = hole_split(sec_bm, face, tangent_data.copy())
+                if inner_face is not None:
+                    inner_face[layers["connected"]] = conn_sid
+            for face, cut_data in flat_split_list:
+                flat_split(sec_bm, face, cut_data, layers)
             #
             for tex_type in ("Floor", "Ceiling", "Wall"):
                 tex_prop = sec_data.textures.get(tex_type)
@@ -617,6 +659,9 @@ def import_map(bw_file):
                     tex_prop["yzoom"] = 20
             ############################
             # sec_mesh.clear_geometry()
+            # vertices = [v.co for v in sec_bm.verts]
+            # center = sum(vertices, Vector()) / len(vertices)
+            # sec.location = center
             sec_bm.to_mesh(sec_mesh)
             sec_bm.free()
             # 有限融并
@@ -625,7 +670,7 @@ def import_map(bw_file):
             modifier = sec.modifiers.new("", type="NODES")
             modifier.node_group = scene_data.sec_node  # type: ignore
             # 添加到扇区管理字典
-            scene_data["SectorManage"]["sectors"][str(sid)] = {
+            scene_data["SectorManage"]["sectors"][str(sector_id)] = {
                 "obj": sec,
                 "atmo_id": 0,
                 "external_id": 0,
@@ -638,8 +683,36 @@ def import_map(bw_file):
             sec_data.is_convex = ag_utils.is_convex(sec)
             sec.amagate_data.is_sector = True
             #
-            coll = L3D_data.ensure_collection(L3D_data.S_COLL)
-            data.link2coll(sec, coll)
+            sec_coll = L3D_data.ensure_collection(L3D_data.S_COLL)
+            if not sec_data.is_2d_sphere:
+                fix_sec.append(sec)
+                coll_name = "Need Fix"
+                coll = bpy.data.collections.get(coll_name)
+                if not coll:
+                    coll = bpy.data.collections.new(coll_name)
+                    sec_coll.children.link(coll)
+                data.link2coll(sec, coll)
+            elif sec in abnormal_sec:
+                coll_name = "Abnormal"
+                coll = bpy.data.collections.get(coll_name)
+                if not coll:
+                    coll = bpy.data.collections.new(coll_name)
+                    sec_coll.children.link(coll)
+                data.link2coll(sec, coll)
+            else:
+                data.link2coll(sec, sec_coll)
+            # 平面光设置
+            if flat_vector.length != 0:
+                dot_list = [
+                    (f.index, f.normal.dot(flat_vector)) for f in sec_mesh.polygons
+                ]
+                dot_list.sort(key=lambda x: x[1])
+                sec_mesh.attributes["amagate_flat_light"].data[dot_list[0][0]].value = 1  # type: ignore
+
+            # 耗时操作
+            # sec.select_set(True)
+            # bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
+            # sec.select_set(False)
 
         # 外部光和灯泡数据
         light_num = unpack("<I", f)[0]
@@ -704,28 +777,12 @@ def import_map(bw_file):
             sec.data.rename(name, mode="ALWAYS")
 
     ############################
-    logger.debug("Import Map Done")
     return True
 
 
 ############################
 ############################ 导入地图操作
 ############################
-
-
-def draw_dirty(self, context: Context):
-    layout = self.layout  # type: bpy.types.UILayout
-    # layout.use_property_decorate = True
-    scene_data = context.scene.amagate_data
-
-    row = layout.row()
-    row.label(text="Save changes before closing?")
-
-    row = layout.row()
-    op = row.operator(OT_ImportMap.bl_idname, text="Save")
-    op.execute_type = 1  # type: ignore
-    row.operator(OT_ImportMap.bl_idname, text="Don't Save").execute_type = 2  # type: ignore
-    row.operator(OT_ImportMap.bl_idname, text="Cancel").execute_type = 3  # type: ignore
 
 
 class OT_ImportMap(bpy.types.Operator):
@@ -740,13 +797,13 @@ class OT_ImportMap(bpy.types.Operator):
     filter_glob: StringProperty(default="*.bw", options={"HIDDEN"})  # type: ignore
 
     # 相对路径
-    relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
+    # relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: StringProperty()  # type: ignore
     directory: StringProperty()  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
-    # execute_type: IntProperty(default=0)  # type: ignore
+    execute_type: IntProperty(default=0, options={"HIDDEN"})  # type: ignore
 
     # @classmethod
     # def poll(cls, context: Context):
@@ -761,32 +818,48 @@ class OT_ImportMap(bpy.types.Operator):
             return {"CANCELLED"}
 
         filepath = os.path.join(self.directory, file_name)
-        import_map(filepath)
+        L3D_data.LOAD_POST_CALLBACK = (OP_L3D.InitMap, (filepath,))
+        bpy.ops.wm.read_homefile(app_template="")
 
-        # bpy.ops.wm.read_homefile(app_template="")
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        # if self.execute_type == 0:
-        #     if bpy.data.is_dirty:
-        #         context.window_manager.popup_menu(draw_dirty)
-        #         return {"FINISHED"}
-        # elif self.execute_type == 1:  # Save
-        #     logger.debug("Save")
-        #     # ag_utils.simulate_keypress(27)
-        #     ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
-        #     if ret != {"FINISHED"}:
-        #         return ret
-        # elif self.execute_type == 2:  # Don't Save
-        #     # ag_utils.simulate_keypress(27)
-        #     pass
-        # elif self.execute_type == 3:  # Cancel
-        #     ag_utils.simulate_keypress(27)
-        #     return {"CANCELLED"}
+        if self.execute_type == 0:
+            if bpy.data.is_dirty:
+                return context.window_manager.invoke_popup(self)
+            else:
+                self.execute_type = 2
+        elif self.execute_type == 1:  # Save
+            # ag_utils.simulate_keypress(27)
+            ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
+            if ret != {"FINISHED"}:
+                return ret
+        elif self.execute_type == 2:  # Don't Save
+            # ag_utils.simulate_keypress(27)
+            pass
+        elif self.execute_type == 3:  # Cancel
+            ag_utils.simulate_keypress(27)
+            return {"CANCELLED"}
 
         self.filepath = "//"
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
+
+    def draw(self, context: Context):
+        if self.execute_type != 0:
+            return
+
+        layout = self.layout  # type: bpy.types.UILayout
+        # layout.use_property_decorate = True
+        scene_data = context.scene.amagate_data
+
+        row = layout.row()
+        row.label(text="Save changes before closing?")
+
+        row = layout.row()
+        op = row.operator(OT_ImportMap.bl_idname, text="Save").execute_type = 1  # type: ignore
+        row.operator(OT_ImportMap.bl_idname, text="Don't Save").execute_type = 2  # type: ignore
+        row.operator(OT_ImportMap.bl_idname, text="Cancel").execute_type = 3  # type: ignore
 
 
 ############################

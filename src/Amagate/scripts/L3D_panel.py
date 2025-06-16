@@ -127,19 +127,23 @@ class AMAGATE_PT_Scene_Properties(L3D_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         scene_data = context.scene.amagate_data
-        col = layout.column()
+        column = layout.column()
 
-        row = col.row(align=True)
-        row.alignment = "LEFT"
-        area_index = next(
-            i for i, a in enumerate(context.screen.areas) if a == context.area
-        )
-        icon = (
-            "CHECKBOX_HLT"
-            if scene_data.areas_show_hud.get(str(area_index))
-            else "CHECKBOX_DEHLT"
-        )
-        row.operator(OP_L3D.OT_Scene_Props_HUD.bl_idname, emboss=False, icon=icon)
+        # HUD开关
+        # row = column.row(align=True)
+        # row.alignment = "LEFT"
+        # area_index = next(
+        #     i for i, a in enumerate(context.screen.areas) if a == context.area
+        # )
+        # icon = (
+        #     "CHECKBOX_HLT"
+        #     if scene_data.areas_show_hud.get(str(area_index))
+        #     else "CHECKBOX_DEHLT"
+        # )
+        # row.operator(OP_L3D.OT_Scene_Props_HUD.bl_idname, emboss=False, icon=icon)
+        column.prop(scene_data, "hud_enable", text="Show HUD")
+        # 体积开关
+        # column.prop(scene_data, "volume_enable", text="Volume")
 
 
 # 场景面板 -> 大气面板
@@ -1300,7 +1304,7 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
             # text="Import Map",
             icon_value=data.ICONS["blade"].icon_id,
         )
-        # op.execute_type = 0  # type: ignore
+        op.execute_type = 0  # type: ignore
 
 
 ############################

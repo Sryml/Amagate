@@ -33,7 +33,7 @@
     ("*", "Successfully installed!"): "安装成功!",
     ("Operator", "Install Python Packages"): "安装Python包",
     # 场景属性面板
-    ("Operator", "Show HUD"): "显示 HUD",
+    ("*", "Show HUD"): "显示 HUD",
     # 大气面板
     ("*", "Atmosphere"): "大气",
     ("*", "Atmospheres"): "大气数量",
@@ -211,6 +211,7 @@
     ("*", "Compile Success"): "编译成功",
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
+    ("Operator", "Import Map"): "导入地图",
     # 坐标转换
     ("*", "Coord Conver"): "坐标转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",
