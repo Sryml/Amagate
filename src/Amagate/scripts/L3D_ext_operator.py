@@ -493,7 +493,12 @@ def copy_flat(matrix_world, global_sector_map, group_faces, layer_list, conn_lay
 
 
 #
-def export_map(this: bpy.types.Operator, context: Context, with_run_script=False):
+def export_map(
+    this: bpy.types.Operator,
+    context: Context,
+    visible_only=False,
+    with_run_script=False,
+):
     scene_data = context.scene.amagate_data
     # 检查是否为无标题文件
     if not bpy.data.filepath:
@@ -514,7 +519,7 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
     sector_ids = [
         int(k)
         for k in sectors_dict
-        if sectors_dict[k]["obj"].visible_get()
+        if (not visible_only or sectors_dict[k]["obj"].visible_get())
         and sectors_dict[k]["obj"].amagate_data.get_sector_data().is_convex
     ]
 
@@ -1075,6 +1080,16 @@ def export_map(this: bpy.types.Operator, context: Context, with_run_script=False
 ############################
 ############################ 导出地图操作
 ############################
+class OT_ExportMapOnlyVisible(bpy.types.Operator):
+    bl_idname = "amagate.exportmap_visible"
+    bl_label = "Compile to bw (Visible Only)"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        return export_map(self, context, visible_only=True)
+
+
 class OT_ExportMapWithRunScript(bpy.types.Operator):
     bl_idname = "amagate.exportmap2"
     bl_label = "Compile to bw (with Run Script)"
@@ -1100,8 +1115,9 @@ class OT_ExportMap(bpy.types.Operator):
 
     def draw(self, context):
         layout = self.layout
-        col = layout.column()
-        col.operator(OT_ExportMapWithRunScript.bl_idname)
+        column = layout.column()
+        column.operator(OT_ExportMapOnlyVisible.bl_idname)
+        column.operator(OT_ExportMapWithRunScript.bl_idname)
 
     def execute(self, context: Context):
         return export_map(self, context)

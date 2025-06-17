@@ -206,6 +206,7 @@
     ("Operator", "Export Ghost Sector"): "导出虚拟扇区",
     ("*", "No export, ensure that the mesh of the Ghost sector has only one face with its normal parallel to the Z-axis"): "无导出，请确保虚拟扇区的网格只有一个面，且法线与 Z 轴平行",
     ("*", "The number of Ghost sector exports"): "虚拟扇区导出数量",
+    ("Operator", "Compile to bw (Visible Only)"): "编译为bw (仅可见的)",
     ("Operator", "Compile to bw (with Run Script)"): "编译为bw (带运行脚本)",
     ("*", "Compile to bw"): "编译为bw",
     ("*", "Compile Success"): "编译成功",
