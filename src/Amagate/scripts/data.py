@@ -196,8 +196,11 @@ def to_primitive(obj):
 
     if isinstance(obj, (int, float, str, bool)):
         return obj
-    if hasattr(obj, "type") and obj.type == "FRAME":
-        return obj.name
+    if hasattr(obj, "type"):
+        if obj.type == "FRAME":
+            return obj.name
+        elif obj.type == "GEOMETRY":
+            return obj.name
 
     try:
         return tuple(obj)
@@ -268,7 +271,9 @@ def deserialize_node(nodes, node_data):
     node.name = node_data["name"]
     # node.location = tuple(node_data["location"])
     for prop, value in node_data["properties"].items():
-        if prop != "parent":
+        if prop == "node_tree":
+            setattr(node, prop, bpy.data.node_groups.get(value))
+        elif prop != "parent":
             setattr(node, prop, value)
 
     for input_data in node_data.get("inputs", []):
@@ -298,7 +303,7 @@ def export_nodes(target):
     temp_nodes = {}
 
     # 存储节点和连接的字典
-    nodes_data = {"nodes": [], "links": []}
+    nodes_data = {"nodes": [], "links": [], "socket": []}
     for node in list(nodes):
         temp_node_data = {"bl_idname": node.bl_idname}
         dynamic_props = ("input_type", "data_type", "mode", "operation", "domain")
@@ -331,6 +336,19 @@ def export_nodes(target):
         }
         nodes_data["links"].append(link_data)
 
+    # 保存接口
+    if hasattr(target, "type") and target.type == "GEOMETRY":
+        for item in target.interface.items_tree:
+            item_data = {
+                "name": item.name,
+                "socket_type": item.socket_type,
+                "in_out": item.in_out if hasattr(item, "in_out") else "NONE",
+                # "item_type": item.item_type,
+                # "description": item.description,
+                # "position": item.position,
+            }
+            nodes_data["socket"].append(item_data)
+
     print("导出成功")
     return nodes_data
 
@@ -346,6 +364,15 @@ def import_nodes(target, nodes_data):
 
     # 清空默认节点
     nodes.clear()
+
+    # 导入接口
+    if hasattr(target, "type") and target.type == "GEOMETRY":
+        for item_data in nodes_data["socket"]:
+            socket = target.interface.new_socket(
+                name=item_data["name"],
+                socket_type=item_data["socket_type"],
+                in_out=item_data["in_out"],
+            )
 
     node_map = {}
     for node_data in nodes_data["nodes"]:

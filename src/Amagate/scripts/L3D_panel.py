@@ -143,7 +143,7 @@ class AMAGATE_PT_Scene_Properties(L3D_Panel, bpy.types.Panel):
         # row.operator(OP_L3D.OT_Scene_Props_HUD.bl_idname, emboss=False, icon=icon)
         column.prop(scene_data, "hud_enable", text="Show HUD")
         # 体积开关
-        # column.prop(scene_data, "volume_enable", text="Volume")
+        column.prop(scene_data, "volume_enable", text="Volume")
 
 
 # 场景面板 -> 大气面板

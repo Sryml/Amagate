@@ -65,6 +65,10 @@ logger = data.logger
 LAST_SENT_TIME = 0  # 上次发送时间
 SYNC_INTERVAL = ag_service.SYNC_INTERVAL
 
+# 大气切换
+LAST_ATMO_SWITCH = 0
+ATMO_SWITCH_INTERVAL = 0.5
+
 AG_COLL = "Amagate Auto Generated"
 S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
@@ -84,6 +88,7 @@ S_COLL_OBJECTS = 0
 OPERATOR_POINTER = None
 draw_handler = None
 LOAD_POST_CALLBACK = None
+SAVE_POST_CALLBACK = None
 #
 SELECTED_FACES = (
     []
@@ -288,12 +293,12 @@ def ensure_node():
     NodeTree = scene_data.eval_node
     if not NodeTree:
         NodeTree = bpy.data.node_groups.new("Amagate Eval", "GeometryNodeTree")  # type: ignore
-        NodeTree.interface.new_socket(
-            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
-        )
-        NodeTree.interface.new_socket(
-            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
-        )
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        # )
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        # )
 
     data.import_nodes(NodeTree, nodes_data["Amagate Eval"])
     NodeTree.use_fake_user = True
@@ -301,34 +306,42 @@ def ensure_node():
     NodeTree.is_type_mesh = True  # type: ignore
     scene_data.eval_node = NodeTree
     #
+    NodeTree = bpy.data.node_groups.get("AG.FrustumCulling")
+    if not NodeTree:
+        NodeTree = bpy.data.node_groups.new("AG.FrustumCulling", "GeometryNodeTree")  # type: ignore
+    data.import_nodes(NodeTree, nodes_data["AG.FrustumCulling"])
+    NodeTree.use_fake_user = True
+    NodeTree.is_tool = True  # type: ignore
+    NodeTree.is_type_mesh = True  # type: ignore
+    #
     NodeTree = scene_data.sec_node
     if not NodeTree:
         NodeTree = bpy.data.node_groups.new("AG.SectorNodes", "GeometryNodeTree")  # type: ignore
-        NodeTree.interface.new_socket(
-            "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
-        )
-        NodeTree.interface.new_socket(
-            "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
-        )
-    NodeTree.nodes.clear()
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="INPUT", socket_type="NodeSocketGeometry"
+        # )
+        # NodeTree.interface.new_socket(
+        #     "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
+        # )
+    data.import_nodes(NodeTree, nodes_data["AG.SectorNodes"])
+    # NodeTree.nodes.clear()
 
-    input_node = NodeTree.nodes.new("NodeGroupInput")
-    input_node.select = False
-    input_node.location.x = -200 - input_node.width
+    # input_node = NodeTree.nodes.new("NodeGroupInput")
+    # input_node.select = False
+    # input_node.location.x = -200 - input_node.width
 
-    output_node = NodeTree.nodes.new("NodeGroupOutput")
-    output_node.is_active_output = True  # type: ignore
-    output_node.select = False
-    output_node.location.x = 200
+    # output_node = NodeTree.nodes.new("NodeGroupOutput")
+    # output_node.is_active_output = True  # type: ignore
+    # output_node.select = False
+    # output_node.location.x = 200
 
-    group = NodeTree.nodes.new(type="GeometryNodeGroup")
-    group.location.x = -group.width / 2
-    group.select = False
-    group.node_tree = scene_data.eval_node  # type: ignore
+    # group = NodeTree.nodes.new(type="GeometryNodeGroup")
+    # group.location.x = -group.width / 2
+    # group.select = False
+    # group.node_tree = scene_data.eval_node  # type: ignore
 
-    # NodeTree.links.new(input_node.outputs[0], output_node.inputs[0])
-    NodeTree.links.new(input_node.outputs[0], group.inputs[0])
-    NodeTree.links.new(group.outputs[0], output_node.inputs[0])
+    # NodeTree.links.new(input_node.outputs[0], group.inputs[0])
+    # NodeTree.links.new(group.outputs[0], output_node.inputs[0])
 
     NodeTree.use_fake_user = True
     NodeTree.is_modifier = True  # type: ignore
@@ -580,17 +593,22 @@ def check_sector_select():
     context = bpy.context
     scene_data = context.scene.amagate_data
     selected_sectors, active_sector = ag_utils.get_selected_sectors()
-    # 显示活动扇区的外部光
     if active_sector:
+        sec_data = active_sector.amagate_data.get_sector_data()
+        # 显示活动扇区的外部光
         externals = scene_data.externals
         if len(externals) > 1:
-            sec_data = active_sector.amagate_data.get_sector_data()
             idx, item = get_external_by_id(scene_data, sec_data.external_id)
-            if item:
+            if item and item.obj.hide_viewport:
                 item.obj.hide_viewport = False
                 for item_2 in externals:
                     if item_2 != item:
                         item_2.obj.hide_viewport = True
+        # 显示活动扇区的大气
+        idx, item = get_atmo_by_id(scene_data, sec_data.atmo_id)
+        id_key = item.name
+        if scene_data.atmo_id_key != id_key:
+            scene_data.atmo_id_key = id_key
 
 
 def geometry_modify_post(
@@ -637,7 +655,7 @@ def geometry_modify_post(
 
 # @bpy.app.handlers.persistent
 def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
-    global OPERATOR_POINTER, S_COLL_OBJECTS, LAST_SENT_TIME
+    global OPERATOR_POINTER, S_COLL_OBJECTS, LAST_SENT_TIME, LAST_ATMO_SWITCH
     scene_data = scene.amagate_data
     if not scene_data.is_blade:
         return
@@ -650,6 +668,44 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
 
     #
     current_time = time.time()
+    #
+    for update in depsgraph.updates:
+        obj = update.id
+        if not isinstance(update.id, bpy.types.Object):
+            continue
+        if not update.is_updated_transform:
+            continue
+        if scene.camera and scene.camera.name == obj.name:
+            if current_time - LAST_ATMO_SWITCH > ATMO_SWITCH_INTERVAL:
+                LAST_ATMO_SWITCH = current_time
+                origin = scene.camera.matrix_world.to_translation()
+                hit_obj = None  # type: Object # type: ignore
+                result, location, normal, index, hit_obj, matrix = scene.ray_cast(
+                    context.evaluated_depsgraph_get(), origin, direction=(1, 0, 0)
+                )
+                # logger.debug(f"hit_obj: {hit_obj}")
+                if hit_obj:
+                    sec_data = hit_obj.amagate_data.get_sector_data()
+                    if sec_data:
+                        # 切换大气
+                        idx, item = get_atmo_by_id(scene_data, sec_data.atmo_id)
+                        id_key = item.name
+                        if scene_data.atmo_id_key != id_key:
+                            scene_data.atmo_id_key = id_key
+                        # 切换外部光
+                        externals = scene_data.externals
+                        if len(externals) > 1:
+                            idx, item = get_external_by_id(
+                                scene_data, sec_data.external_id
+                            )
+                            if item and item.obj.hide_viewport:
+                                item.obj.hide_viewport = False
+                                for item_2 in externals:
+                                    if item_2 != item:
+                                        item_2.obj.hide_viewport = True
+            #
+            break
+    #
     server_thread = ag_service.server_thread
     if (
         server_thread
@@ -664,18 +720,16 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             if not update.is_updated_transform:
                 continue
             # logger.debug(update.id)
-            if (
-                scene_data.operator_props.camera_sync
-                and scene.camera
-                and scene.camera.name == obj.name
-            ):
-                # logger.debug("camera_sync")
-                cam_pos, target_pos = ag_utils.get_camera_transform(obj)  # type: ignore
-                ag_service.set_attr_send(
-                    protocol.T_ENTITY,
-                    "Camera",
-                    {protocol.A_POSITION: cam_pos, protocol.A_TPOS: target_pos},
-                )
+            if scene.camera and scene.camera.name == obj.name:
+                # 同步活动摄像机
+                if scene_data.operator_props.camera_sync:
+                    # logger.debug("camera_sync")
+                    cam_pos, target_pos = ag_utils.get_camera_transform(obj)  # type: ignore
+                    ag_service.set_attr_send(
+                        protocol.T_ENTITY,
+                        "Camera",
+                        {protocol.A_POSITION: cam_pos, protocol.A_TPOS: target_pos},
+                    )
     #
 
     s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
@@ -910,6 +964,15 @@ def draw_callback_3d():
         blf.draw(font_id, text)
 
     # print("draw_callback_3d")
+
+
+# 保存后回调
+@bpy.app.handlers.persistent
+def save_post(filepath=""):
+    global SAVE_POST_CALLBACK
+    if SAVE_POST_CALLBACK is not None:
+        SAVE_POST_CALLBACK[0](*SAVE_POST_CALLBACK[1])  # type: ignore
+        SAVE_POST_CALLBACK = None
 
 
 # 加载后回调
@@ -1332,10 +1395,17 @@ class AtmosphereProperty(bpy.types.PropertyGroup):
             return
 
         self["_color"] = value
-        for user in self.users_obj:
-            obj = user.obj  # type: Object
-            obj.amagate_data.get_sector_data().update_atmo(self)
-        data.area_redraw("VIEW_3D")
+        scene = bpy.context.scene
+        scene_data = scene.amagate_data
+        if scene_data.atmo_id_key == self.name:
+            scene_data.update_atmo_id_key(bpy.context)
+        #     scene_data.atmo_color = value[:3]
+        #     scene_data.atmo_density = value[-1]
+        #     scene.update_tag()
+        # for user in self.users_obj:
+        #     obj = user.obj  # type: Object
+        #     obj.amagate_data.get_sector_data().update_atmo(self)
+        # data.area_redraw("VIEW_3D")
 
 
 # 外部光属性
@@ -1641,10 +1711,15 @@ class SceneProperty(bpy.types.PropertyGroup):
     # HUD开关
     hud_enable: BoolProperty(name="HUD", default=True, get=lambda self: self.get_hud_enable(), set=lambda self, value: self.set_hud_enable(value))  # type: ignore
     # 体积雾开关
-    # volume_enable: BoolProperty(name="Volume Fog", default=False, update=lambda self, context: self.update_volume_enable(context))  # type: ignore
+    volume_enable: BoolProperty(name="Volume Fog", default=True, update=lambda self, context: self.update_volume_enable(context))  # type: ignore
 
     # 灯光链接管理器
     light_link_manager: CollectionProperty(type=data.ObjectCollection)  # type: ignore
+
+    # 世界大气
+    atmo_id_key: StringProperty(update=lambda self, context: self.update_atmo_id_key(context))  # type: ignore
+    atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
+    atmo_density: FloatProperty(name="Density", default=0.02, min=0.0, soft_max=1.0)  # type: ignore
 
     # Amagate版本
     # version: StringProperty()  # type: ignore
@@ -1840,29 +1915,44 @@ class SceneProperty(bpy.types.PropertyGroup):
         data.area_redraw("VIEW_3D")
 
     ############################
-    # def update_volume_enable(self, context):
-    #     scene = self.id_data  # type: Scene
-    #     for i in bpy.data.images:
-    #         img_data = i.amagate_data
-    #         if img_data.id > 0:
-    #             mat = img_data.mat_obj  # type: bpy.types.Material
-    #             if not mat:
-    #                 continue
-    #             nodes = mat.node_tree.nodes  # type: bpy.types.Nodes
-    #             links = mat.node_tree.links  # type: bpy.types.NodeLinks
-    #             from_node = nodes["Add Shader - Volume"]
-    #             to_node = nodes["Material Output"]
+    def update_volume_enable(self, context):
+        scene = self.id_data  # type: Scene
+        world = scene.world
+        nodes = world.node_tree.nodes  # type: bpy.types.Nodes
+        links = world.node_tree.links  # type: bpy.types.NodeLinks
+        from_node = nodes["Principled Volume"]
+        to_node = nodes["World Output"]
 
-    #             if self.volume_enable:
-    #                 from_socket = from_node.outputs[0]
-    #                 to_socket = to_node.inputs[1]
-    #                 links.new(from_socket, to_socket)
-    #             else:
-    #                 for link in links:
-    #                     if link.from_node == from_node and link.to_node == to_node:
-    #                         links.remove(link)
+        if self.volume_enable:
+            from_socket = from_node.outputs[0]
+            to_socket = to_node.inputs[1]
+            links.new(from_socket, to_socket)
+        else:
+            for link in links:
+                if link.from_node == from_node and link.to_node == to_node:
+                    links.remove(link)
 
-    #     scene.update_tag()
+        # for i in bpy.data.images:
+        #     img_data = i.amagate_data
+        #     if img_data.id > 0:
+        #         mat = img_data.mat_obj  # type: bpy.types.Material
+        #         if not mat:
+        #             continue
+        #         nodes = mat.node_tree.nodes  # type: bpy.types.Nodes
+        #         links = mat.node_tree.links  # type: bpy.types.NodeLinks
+        #         from_node = nodes["Add Shader - Volume"]
+        #         to_node = nodes["Material Output"]
+
+        #         if self.volume_enable:
+        #             from_socket = from_node.outputs[0]
+        #             to_socket = to_node.inputs[1]
+        #             links.new(from_socket, to_socket)
+        #         else:
+        #             for link in links:
+        #                 if link.from_node == from_node and link.to_node == to_node:
+        #                     links.remove(link)
+
+        # scene.update_tag()
 
     def get_hud_enable(self):
         context = bpy.context
@@ -1883,6 +1973,15 @@ class SceneProperty(bpy.types.PropertyGroup):
         else:
             self.areas_show_hud.add().value = area_index
         data.region_redraw("WINDOW")
+
+    ############################
+    def update_atmo_id_key(self, context: Context):
+        atmo = self.atmospheres[self.atmo_id_key]
+        self.atmo_color = atmo.color[:3]
+        self.atmo_density = atmo.color[-1]
+        world = context.scene.world
+        world.node_tree.nodes["Principled Volume"].inputs[2].default_value = self.atmo_density if self.atmo_color.v == 0 else 0  # type: ignore
+        # data.area_redraw("VIEW_3D")
 
     ############################
     def init(self):
@@ -1954,6 +2053,7 @@ def register():
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
 
     # 注册回调函数
+    bpy.app.handlers.save_post.append(save_post)
     bpy.app.handlers.load_post.append(load_post)  # type: ignore
     bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
 
@@ -1967,6 +2067,8 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
     # 注销回调函数
+    if save_post in bpy.app.handlers.save_post:
+        bpy.app.handlers.save_post.remove(save_post)  # type: ignore
     if load_post in bpy.app.handlers.load_post:
         bpy.app.handlers.load_post.remove(load_post)  # type: ignore
     if check_before_save in bpy.app.handlers.save_pre:

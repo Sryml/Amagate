@@ -806,7 +806,8 @@ class SectorProperty(bpy.types.PropertyGroup):
             self["_atmo_id"] = value
             return
 
-        scene_data = bpy.context.scene.amagate_data
+        scene = bpy.context.scene
+        scene_data = scene.amagate_data
         obj = self.id_data
         atmo = L3D_data.get_atmo_by_id(scene_data, value)[1]
         if not atmo:
@@ -822,15 +823,19 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         self["_atmo_id"] = value
         scene_data["SectorManage"]["sectors"][str(self.id)]["atmo_id"] = value
-        self.update_atmo(atmo)
+        #
+        id_key = atmo.name
+        if scene_data.atmo_id_key != id_key:
+            scene_data.atmo_id_key = id_key
+        # self.update_atmo(atmo)
 
-    def update_atmo(self, atmo):
-        self.atmo_color = atmo.color[:3]
-        f = 1.0
-        if tuple(self.atmo_color) == (0.0, 0.0, 0.0):
-            f = 2.0
-        self.atmo_density = atmo.color[-1] * f
-        self.id_data.update_tag(refresh={"OBJECT"})
+    # def update_atmo(self, atmo):
+    #     self.atmo_color = atmo.color[:3]
+    #     f = 1.0
+    #     if tuple(self.atmo_color) == (0.0, 0.0, 0.0):
+    #         f = 2.0
+    #     self.atmo_density = atmo.color[-1] * f
+    #     self.id_data.update_tag(refresh={"OBJECT"})
 
     ############################
     def get_external_id(self):
@@ -862,6 +867,15 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         self["_external_id"] = value
         scene_data["SectorManage"]["sectors"][str(self.id)]["external_id"] = value
+        # 显示外部光
+        externals = scene_data.externals
+        if len(externals) > 1:
+            idx, item = L3D_data.get_external_by_id(scene_data, self.external_id)
+            if item and item.obj.hide_viewport:
+                item.obj.hide_viewport = False
+                for item_2 in externals:
+                    if item_2 != item:
+                        item_2.obj.hide_viewport = True
         # self.update_external(external)
 
     # def update_external(self, external, rotation_euler=None):

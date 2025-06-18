@@ -50,6 +50,8 @@ if TYPE_CHECKING:
 
 
 ############################
+logger = data.logger
+
 epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
 
@@ -2004,29 +2006,34 @@ class OT_Bulb_Render(bpy.types.Operator):
         origin = co_list[0]
         direction = item.vector
         sectors = {active_sector}
+        stack = {active_sector}
         depth = 0
-        while sectors and depth < 3:
-            sec = sectors.pop()
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            for attr in mesh.attributes["amagate_connected"].data:  # type: ignore
-                conn_sid = attr.value
-                # 如果没有连接，跳过
-                if conn_sid == 0:
-                    continue
+        while depth < 5:
+            sub_stack = set()
+            for sec in stack:
+                mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                for attr in mesh.attributes["amagate_connected"].data:  # type: ignore
+                    conn_sid = attr.value
+                    # 如果没有连接，跳过
+                    if conn_sid == 0:
+                        continue
 
-                conn_sec = L3D_data.get_sector_by_id(scene_data, conn_sid)
-                has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
-                # 如果是天空扇区，跳过
-                if has_sky:
-                    continue
+                    conn_sec = L3D_data.get_sector_by_id(scene_data, conn_sid)
+                    has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
+                    # 如果是天空扇区，跳过
+                    if has_sky:
+                        continue
 
-                for v in conn_sec.data.vertices:  # type: ignore
-                    co = conn_sec.matrix_world @ v.co
-                    # 只要有1个顶点在光源的正方向，添加
-                    if (co - origin).normalized().dot(direction) > epsilon:
-                        sectors.add(conn_sec)
-                        break
-
+                    for v in conn_sec.data.vertices:  # type: ignore
+                        co = conn_sec.matrix_world @ v.co
+                        # 只要有1个顶点在光源的正方向，添加
+                        if (co - origin).normalized().dot(direction) > epsilon:
+                            if conn_sec not in sectors:
+                                sectors.add(conn_sec)
+                                sub_stack.add(conn_sec)
+                            break
+            #
+            stack = sub_stack
             depth += 1
         for sec in sectors:
             data.link2coll(sec, light_link)

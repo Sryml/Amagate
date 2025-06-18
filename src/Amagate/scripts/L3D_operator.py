@@ -157,7 +157,10 @@ class OT_Scene_Atmo_Remove(bpy.types.Operator):
             return {"CANCELLED"}
 
         # bpy.data.objects.remove(atmo.obj)
+        id_key = atmo.name
         scene_data.atmospheres.remove(active_atmo)
+        if scene_data.atmo_id_key == id_key:
+            scene_data.atmo_id_key = scene_data.atmospheres[0].name
 
         if active_atmo >= len(scene_data.atmospheres):
             scene_data.active_atmosphere = len(scene_data.atmospheres) - 1
@@ -617,26 +620,29 @@ class OT_Texture_Reload(bpy.types.Operator):
     bl_description = "Hold shift to reload all texture"
     bl_options = {"INTERNAL"}
 
-    reload_all: BoolProperty(name="Reload All", default=False)  # type: ignore
+    # reload_all: BoolProperty(name="Reload All", default=False)  # type: ignore
+
+    @staticmethod
+    def reload_all():
+        for img in bpy.data.images:  # type: ignore
+            if img.amagate_data.id:
+                img.reload()
 
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
-        if self.reload_all:
-            for img in bpy.data.images:  # type: ignore
-                if img.amagate_data.id:
-                    img.reload()
-        else:
-            idx = scene_data.active_texture
-            if idx >= len(bpy.data.images):
-                return {"CANCELLED"}
+        idx = scene_data.active_texture
+        if idx >= len(bpy.data.images):
+            return {"CANCELLED"}
 
-            img: Image = bpy.data.images[idx]
-            if img and img.amagate_data.id:
-                img.reload()
+        img: Image = bpy.data.images[idx]
+        if img and img.amagate_data.id:
+            img.reload()
         return {"FINISHED"}
 
     def invoke(self, context: Context, event):
-        self.reload_all = event.shift
+        if event.shift:
+            self.reload_all()
+            return {"FINISHED"}
         return self.execute(context)
 
 
@@ -1179,14 +1185,17 @@ def InitMap(imp_filepath=""):
     scene.eevee.use_shadows = True
     scene.view_settings.view_transform = "Standard"  # type: ignore
     ## 设置世界环境
+    filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+    nodes_data = pickle.load(open(filepath, "rb"))
     world = bpy.data.worlds.new("")
     world.rename("BWorld", mode="ALWAYS")
-    world.use_nodes = True
-    Background = next(
-        n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
-    )
-    Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
-    Background.inputs[1].default_value = 0.0  # type: ignore
+    data.import_nodes(world, nodes_data["BWorld"])
+    # world.use_nodes = True
+    # Background = next(
+    #     n for n in world.node_tree.nodes if n.bl_idname == "ShaderNodeBackground"
+    # )
+    # Background.inputs[0].default_value = (1.0, 1.0, 1.0, 1.0)  # type: ignore
+    # Background.inputs[1].default_value = 0.0  # type: ignore
     scene.world = world
     ##
     scene.tool_settings.use_snap = True  # 吸附开关
@@ -1238,7 +1247,7 @@ def InitMap(imp_filepath=""):
                 counter += 1
 
         #
-        bpy.ops.wm.save_mainfile(filepath=str(save_filepath))
+        # bpy.ops.wm.save_mainfile(filepath=str(save_filepath))
 
         logger.info("Start import map...")
         OP_L3D_IMP.import_map(str(imp_filepath))
@@ -1254,11 +1263,13 @@ def InitMap(imp_filepath=""):
             bpy.ops.view3d.view_all(center=True)
         logger.info("Import Map Done")
         #
-
+    scene_data.atmo_id_key = "1"
     L3D_data.load_post()
 
     if is_import:
         bpy.ops.ed.undo_push(message="Import Map")
+        L3D_data.SAVE_POST_CALLBACK = (OT_Texture_Reload.reload_all, ())
+        bpy.ops.wm.save_mainfile("INVOKE_DEFAULT", filepath=str(save_filepath))  # type: ignore
     else:
         bpy.ops.ed.undo_push(message="Initialize Scene")
 

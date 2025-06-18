@@ -446,17 +446,27 @@ class OT_ExportNode(bpy.types.Operator):
         filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
         # nodes_data = {}
-        # 导出节点
+        # 材质节点
         for name in ("AG.Mat1", "AG.Mat-1", "AG.Cubemap"):
             mat = bpy.data.materials.get(name)
             if mat:
                 nodes_data[name] = data.export_nodes(mat)
+        # 几何节点
         nodes_data["Amagate Eval"] = data.export_nodes(
             bpy.data.node_groups["Amagate Eval"]
         )
+        nodes_data["AG.FrustumCulling"] = data.export_nodes(
+            bpy.data.node_groups["AG.FrustumCulling"]
+        )
+        nodes_data["AG.SectorNodes"] = data.export_nodes(
+            bpy.data.node_groups["AG.SectorNodes"]
+        )
+        # 世界节点
+        nodes_data["BWorld"] = data.export_nodes(bpy.data.worlds["BWorld"])
         # nodes_data["AG.SectorNodes"] = data.export_nodes(
         #     bpy.data.node_groups["AG.SectorNodes"]
         # )
+        print(f"节点数量: {len(nodes_data)}")
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
         with open(filepath + ".tmp", "w", encoding="utf-8") as file:
