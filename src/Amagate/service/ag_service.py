@@ -372,7 +372,7 @@ class AsyncServerThread(threading.Thread):
         self.loop.run_until_complete(self.create_server())
         self.loop.close()
         # self.loop.run_forever()
-        self.on_exit()
+        # self.on_exit()
         logger.debug(f"Server thread stopped")
 
     # 服务器退出时调用
@@ -404,4 +404,6 @@ def stop_server():
 
         # server_thread.loop.call_soon_threadsafe(lambda: asyncio.create_task(shutdown()))
         logger.debug(f"Server thread stopping...")
-        asyncio.run_coroutine_threadsafe(shutdown(), server_thread.loop).result()
+        run_coroutine_threadsafe(shutdown(), server_thread.loop)
+        server_thread.join()
+        server_thread = None

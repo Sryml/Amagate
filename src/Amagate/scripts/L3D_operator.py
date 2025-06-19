@@ -1272,6 +1272,10 @@ def InitMap(imp_filepath=""):
         bpy.ops.wm.save_mainfile("INVOKE_DEFAULT", filepath=str(save_filepath))  # type: ignore
     else:
         bpy.ops.ed.undo_push(message="Initialize Scene")
+    # 启动异步线程
+    if not L3D_data.ASYNC_THREAD:
+        L3D_data.ASYNC_THREAD = L3D_data.AsyncThread()
+        L3D_data.ASYNC_THREAD.start()
 
 
 def split_editor(context: Context, is_import):

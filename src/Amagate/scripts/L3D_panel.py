@@ -144,6 +144,8 @@ class AMAGATE_PT_Scene_Properties(L3D_Panel, bpy.types.Panel):
         column.prop(scene_data, "hud_enable", text="Show HUD")
         # 体积开关
         column.prop(scene_data, "volume_enable", text="Volume")
+        # 视锥裁剪
+        column.prop(scene_data, "frustum_culling", text="Frustum Culling")
 
 
 # 场景面板 -> 大气面板
@@ -999,6 +1001,7 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
+        top_column = layout.column()
         scene_data = context.scene.amagate_data
         L3D_data.SELECTED_FACES = []
         edit_sectors = [
@@ -1031,7 +1034,9 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
                     if sid != 0:
                         sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
                         connected_sector = sec.name
-            layout.label(text=f"{pgettext('Connected Sector')}: {connected_sector}")
+            top_column.label(text=f"{pgettext('Connected Sector')}: {connected_sector}")
+            # 显示连接面
+            top_column.prop(scene_data, "show_connected_sw", text="Show Connected Face")
 
             layout.separator(factor=1, type="LINE")
 

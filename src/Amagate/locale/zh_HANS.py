@@ -34,6 +34,7 @@
     ("Operator", "Install Python Packages"): "安装Python包",
     # 场景属性面板
     ("*", "Show HUD"): "显示 HUD",
+    ("*", "Frustum Culling"): "视锥裁剪",
     # 大气面板
     ("*", "Atmosphere"): "大气",
     ("*", "Atmospheres"): "大气数量",
@@ -182,6 +183,7 @@
     ("*", "Face Properties"): "面属性",
     ("*", "Connected Sector"): "连接的扇区",
     ("*", "Texture type"): "纹理类型",
+    ("*", "Show Connected Face"): "显示连接面",
     #
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",

@@ -14,8 +14,9 @@ import threading
 import contextlib
 import ast
 import time
-from pathlib import Path
+import asyncio
 
+from pathlib import Path
 from asyncio import run_coroutine_threadsafe
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -68,6 +69,12 @@ SYNC_INTERVAL = ag_service.SYNC_INTERVAL
 # 大气切换
 LAST_ATMO_SWITCH = 0
 ATMO_SWITCH_INTERVAL = 0.5
+
+#
+ASYNC_THREAD = None  # type: AsyncThread | None
+
+# 当前视角所在扇区
+# CURRENT_SECTOR = None # type: Object  # type: ignore
 
 AG_COLL = "Amagate Auto Generated"
 S_COLL = "Sector Collection"
@@ -352,7 +359,122 @@ def update_scene_edit_mode():
     context = bpy.context
     scene_data = context.scene.amagate_data
     scene_data.is_edit_mode = context.mode != "OBJECT"
+    scene_data.show_connected = scene_data.is_edit_mode and scene_data.show_connected_sw
     context.scene.update_tag()
+
+
+############################
+############################ 异步线程
+############################
+
+
+class AsyncThread(threading.Thread):
+    def __init__(self):
+        super().__init__(daemon=True)
+        self.loop = asyncio.new_event_loop()
+        self.frustum_culling_event: asyncio.Event  # 视锥裁剪事件
+        self.frustum_culling_args = ()  # type: tuple[Scene, Vector, Vector, int, int] # type: ignore
+
+    def set_hide_viewport(self, queue):
+        # type: (list[tuple[Object, bool]]) -> Callable[[], None]
+        def func():
+            for sec, hide_viewport in queue:
+                if sec.hide_viewport != hide_viewport:
+                    sec.hide_viewport = hide_viewport
+            queue.clear()
+
+        return func
+
+    async def frustum_culling(self):
+        try:
+            while True:
+                await self.frustum_culling_event.wait()
+                #
+                scene, origin, direction, front_id, back_id = self.frustum_culling_args
+                SectorManage = scene.amagate_data["SectorManage"]
+                max_id = SectorManage["max_id"]
+                queue = []
+                #
+                while front_id <= max_id or back_id >= 1:
+                    # if len(queue) > 10:
+                    #     bpy.app.timers.register(self.set_hide_viewport(queue.copy()), first_interval=0.01)
+                    #     queue.clear()
+                    #
+                    if front_id <= max_id:
+                        sec = SectorManage["sectors"].get(str(front_id), {"obj": None})[
+                            "obj"
+                        ]  # type: Object
+                        if sec:
+                            bbox_corners = [
+                                sec.matrix_world @ Vector(corner)
+                                for corner in sec.bound_box
+                            ]
+                            center = sum(bbox_corners, Vector()) / 8
+                            vector = (center - origin).normalized()
+                            distance = (center - origin).length
+                            if distance < 40:
+                                hide_viewport = False
+                            elif distance < 600 and vector.dot(direction) > 0.68:
+                                hide_viewport = False
+                            else:
+                                hide_viewport = True
+                            queue.append((sec, hide_viewport))
+                        #
+                        front_id += 1
+                    #
+                    if back_id >= 1:
+                        sec = SectorManage["sectors"].get(str(back_id), {"obj": None})[
+                            "obj"
+                        ]  # type: Object
+                        if sec:
+                            bbox_corners = [
+                                sec.matrix_world @ Vector(corner)
+                                for corner in sec.bound_box
+                            ]
+                            center = sum(bbox_corners, Vector()) / 8
+                            vector = (center - origin).normalized()
+                            distance = (center - origin).length
+                            if distance < 40:
+                                hide_viewport = False
+                            elif distance < 600 and vector.dot(direction) > 0.68:
+                                hide_viewport = False
+                            else:
+                                hide_viewport = True
+                            queue.append((sec, hide_viewport))
+                        #
+                        back_id -= 1
+                #
+                # logger.debug(f"len(queue) :{len(queue)}")
+                if len(queue) > 0:
+                    bpy.app.timers.register(
+                        self.set_hide_viewport(queue), first_interval=0.0
+                    )
+                #
+                await asyncio.sleep(6)
+                self.frustum_culling_event.clear()
+        except asyncio.CancelledError:
+            pass
+
+    #
+    async def stop(self):
+        for task in asyncio.all_tasks(self.loop):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+        self.loop.stop()
+
+    #
+    def run(self):
+        logger.debug("AsyncThread start")
+        self.frustum_culling_event = asyncio.Event()
+        asyncio.set_event_loop(self.loop)
+        # self.loop.run_until_complete(self.frustum_culling())
+        self.loop.create_task(self.frustum_culling())
+        self.loop.run_forever()
+        self.loop.close()
+        logger.debug("AsyncThread closed")
 
 
 ############################
@@ -676,12 +798,47 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         if not update.is_updated_transform:
             continue
         if scene.camera and scene.camera.name == obj.name:
-            if current_time - LAST_ATMO_SWITCH > ATMO_SWITCH_INTERVAL:
-                LAST_ATMO_SWITCH = current_time
-                origin = scene.camera.matrix_world.to_translation()
+            cam = scene.camera
+            #
+            if (
+                scene_data.frustum_culling
+                and ASYNC_THREAD
+                and not ASYNC_THREAD.frustum_culling_event.is_set()
+            ):
+                # logger.debug("frustum_culling_event.set")
+                front_id = scene_data["SectorManage"]["max_id"] // 2
+                back_id = front_id - 1
+                origin = cam.matrix_world.to_translation()
+                direction = cam.matrix_world.to_quaternion() @ Vector((0, 0, -1))
+                direction.normalize()
                 hit_obj = None  # type: Object # type: ignore
                 result, location, normal, index, hit_obj, matrix = scene.ray_cast(
-                    context.evaluated_depsgraph_get(), origin, direction=(1, 0, 0)
+                    bpy.context.evaluated_depsgraph_get(),
+                    origin,
+                    direction=(0, 0, 1),
+                )
+                if hit_obj:
+                    sec_data = hit_obj.amagate_data.get_sector_data()
+                    if sec_data:
+                        front_id = sec_data.id
+                        back_id = front_id - 1
+                ASYNC_THREAD.frustum_culling_args = (
+                    scene,
+                    origin,
+                    direction,
+                    front_id,
+                    back_id,
+                )
+                ASYNC_THREAD.loop.call_soon_threadsafe(
+                    ASYNC_THREAD.frustum_culling_event.set
+                )
+            if current_time - LAST_ATMO_SWITCH > ATMO_SWITCH_INTERVAL:
+                LAST_ATMO_SWITCH = current_time
+                #
+                origin = cam.matrix_world.to_translation()
+                hit_obj = None  # type: Object # type: ignore
+                result, location, normal, index, hit_obj, matrix = scene.ray_cast(
+                    context.evaluated_depsgraph_get(), origin, direction=(0, 0, 1)
                 )
                 # logger.debug(f"hit_obj: {hit_obj}")
                 if hit_obj:
@@ -748,8 +905,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         bl_idname = context.window_manager.operators[-1].bl_idname
         # print(bl_idname)
         if bl_idname == "OBJECT_OT_editmode_toggle":
-            scene_data.is_edit_mode = context.mode != "OBJECT"
-            scene.update_tag()
+            update_scene_edit_mode()
             # 从编辑模式切换到物体模式的回调
             if context.mode == "OBJECT":
                 geometry_modify_post()
@@ -816,9 +972,12 @@ def check_before_save(filepath):
     if not scene_data.is_blade:
         return
 
+    #
     render_view_index = next((i for i, a in enumerate(bpy.context.screen.areas) if a.type == "VIEW_3D" and a.spaces[0].shading.type == "RENDERED"), -1)  # type: ignore
     scene_data.render_view_index = render_view_index  # 记录渲染区域索引
-
+    # 写入版本信息
+    scene_data.version = data.VERSION
+    #
     scene_data.ensure_coll.values()
     for i in [
         scene_data.ensure_null_obj,
@@ -978,7 +1137,7 @@ def save_post(filepath=""):
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
-    global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK
+    global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK, ASYNC_THREAD
     context = bpy.context
     scene_data = context.scene.amagate_data
     if scene_data.is_blade:
@@ -1002,6 +1161,10 @@ def load_post(filepath=""):
             if context.window_manager.operators
             else None
         )
+        # 启动异步线程
+        if not ASYNC_THREAD:
+            ASYNC_THREAD = AsyncThread()
+            ASYNC_THREAD.start()
     else:
         if draw_handler is not None:
             bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
@@ -1720,9 +1883,14 @@ class SceneProperty(bpy.types.PropertyGroup):
     atmo_id_key: StringProperty(update=lambda self, context: self.update_atmo_id_key(context))  # type: ignore
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
     atmo_density: FloatProperty(name="Density", default=0.02, min=0.0, soft_max=1.0)  # type: ignore
+    # 视锥裁剪
+    frustum_culling: BoolProperty(name="Frustum Culling", default=True, update=lambda self, context: self.update_frustum_culling(context))  # type: ignore
+    # 显示连接面
+    show_connected: BoolProperty(default=False)  # type: ignore
+    show_connected_sw: BoolProperty(name="Show Connected Face", default=False, update=lambda self, context: self.update_show_connected_sw(context))  # type: ignore
 
     # Amagate版本
-    # version: StringProperty()  # type: ignore
+    version: StringProperty()  # type: ignore
 
     ############################
 
@@ -1983,10 +2151,18 @@ class SceneProperty(bpy.types.PropertyGroup):
         world.node_tree.nodes["Principled Volume"].inputs[2].default_value = self.atmo_density if self.atmo_color.v == 0 else 0  # type: ignore
         # data.area_redraw("VIEW_3D")
 
+    def update_frustum_culling(self, context: Context):
+        if not self.frustum_culling:
+            for k in self["SectorManage"]["sectors"]:
+                sec = self["SectorManage"]["sectors"][k]["obj"]
+                sec.hide_viewport = False
+
+    def update_show_connected_sw(self, context: Context):
+        update_scene_edit_mode()
+
     ############################
     def init(self):
         #
-        # self.version = data.VERSION
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults
 
@@ -2080,3 +2256,7 @@ def unregister():
         draw_handler = None
     # 关闭服务器
     ag_service.stop_server()
+    # 关闭线程
+    if ASYNC_THREAD:
+        run_coroutine_threadsafe(ASYNC_THREAD.stop(), ASYNC_THREAD.loop)
+        ASYNC_THREAD.join()
