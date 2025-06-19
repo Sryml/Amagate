@@ -197,8 +197,18 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
     tex_xpos = unpack("<f", f)[0]
     tex_ypos = unpack("<f", f)[0]
     #
-    tex_xzoom = 1 / tex_vx.length
-    tex_yzoom = 1 / tex_vy.length
+    tex_vx_len = tex_vx.length
+    tex_vy_len = tex_vy.length
+    if math.isnan(tex_vx_len):
+        tex_vx_len = 0.05
+        tex_vx = Vector((0, 0, 0))
+        # logger.debug(f"isnan: {f.tell()}")
+    if math.isnan(tex_vy_len):
+        tex_vy_len = 0.05
+        tex_vy = Vector((0, 0, 0))
+        # logger.debug(f"isnan: {f.tell()}")
+    tex_xzoom = 1 / tex_vx_len
+    tex_yzoom = 1 / tex_vy_len
     tex_xpos *= 0.001 * tex_xzoom
     tex_ypos *= 0.001 * tex_yzoom
 
@@ -331,6 +341,7 @@ def import_map(bw_file):
 
         # 扇区
         sector_num = unpack("<I", f)[0]
+        scene_data["SectorManage"]["max_id"] = sector_num
         for sector_id in range(1, sector_num + 1):
             #
             sec_mesh = bpy.data.meshes.new(f"Sector{sector_id}")
