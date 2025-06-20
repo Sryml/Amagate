@@ -2236,6 +2236,14 @@ def register():
 
 def unregister():
     global draw_handler
+    #
+    # 关闭服务器
+    ag_service.stop_server()
+    # 关闭线程
+    if ASYNC_THREAD:
+        run_coroutine_threadsafe(ASYNC_THREAD.stop(), ASYNC_THREAD.loop)
+        ASYNC_THREAD.join()
+    #
     del bpy.types.Scene.amagate_data  # type: ignore
     del bpy.types.Image.amagate_data  # type: ignore
 
@@ -2254,9 +2262,3 @@ def unregister():
     if draw_handler is not None:
         bpy.types.SpaceView3D.draw_handler_remove(draw_handler, "WINDOW")
         draw_handler = None
-    # 关闭服务器
-    ag_service.stop_server()
-    # 关闭线程
-    if ASYNC_THREAD:
-        run_coroutine_threadsafe(ASYNC_THREAD.stop(), ASYNC_THREAD.loop)
-        ASYNC_THREAD.join()

@@ -208,28 +208,18 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         tex_vy_len = 0.05
         tex_vy = Vector((0, 0, 0))
         # logger.debug(f"isnan: {f.tell()}")
-    tex_xzoom = 1 / tex_vx_len
-    tex_yzoom = 1 / tex_vy_len
-    tex_xpos *= 0.001 * tex_xzoom
-    tex_ypos *= 0.001 * tex_yzoom
 
     dot = normal.dot(z_axis)
-    # 计算纹理角度
-    if dot > epsilon2 or dot < -epsilon2:
-        vector_map = -x_axis.copy()
+    # 计算纹理初始映射
+    if dot > epsilon2:
+        vx_map = -x_axis
+        vy_map = y_axis
+    elif dot < -epsilon2:
+        vx_map = -x_axis
+        vy_map = -y_axis
     else:
-        vector_map = (normal.to_track_quat("-Y", "Z") @ x_axis).normalized()
-    tex_vx.normalize()
-    axis = tex_vx.cross(vector_map).normalized()  # type: Vector
-    dot2 = tex_vx.dot(vector_map)
-    if dot2 > epsilon2:
-        tex_angle = 0
-    elif dot2 < -epsilon2:
-        tex_angle = math.pi
-    else:
-        tex_angle = math.acos(dot2)
-    if axis.dot(normal) < -epsilon:
-        tex_angle = -tex_angle
+        vx_map = (normal.to_track_quat("-Y", "Z") @ x_axis).normalized()
+        vy_map = (normal.to_track_quat("-Y", "Z") @ -z_axis).normalized()
     # 判断纹理类型
     if dot > epsilon:
         tex_type = "Floor"
@@ -237,6 +227,40 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         tex_type = "Ceiling"
     else:
         tex_type = "Wall"
+
+    tex_vx.normalize()
+    tex_vy.normalize()
+    #
+    axis = tex_vx.cross(vx_map).normalized()  # type: Vector
+    dot = tex_vx.dot(vx_map)
+    dot = max(-1.0, min(1.0, dot))
+    vx_angle = math.acos(dot)
+    if axis.dot(normal) < 0:
+        vx_angle = math.pi * 2 - vx_angle
+    #
+    axis = tex_vy.cross(vy_map).normalized()  # type: Vector
+    dot = tex_vy.dot(vy_map)
+    dot = max(-1.0, min(1.0, dot))
+    vy_angle = math.acos(dot)
+    if axis.dot(normal) < 0:
+        vy_angle = math.pi * 2 - vy_angle
+    # 计算缩放
+    tex_xzoom = 1 / tex_vx_len
+    tex_yzoom = 1 / tex_vy_len
+
+    # 镜像纹理
+    if abs(vx_angle - vy_angle) > 0.002:
+        if vx_angle < vy_angle:
+            tex_angle = vx_angle
+            tex_yzoom = -tex_yzoom
+        else:
+            tex_angle = vy_angle
+            tex_xzoom = -tex_xzoom
+    else:
+        tex_angle = vx_angle
+    # 计算位置
+    tex_xpos *= 0.001 * tex_xzoom
+    tex_ypos *= 0.001 * tex_yzoom
 
     #
     img_data = global_texture_map.get(texture_name)

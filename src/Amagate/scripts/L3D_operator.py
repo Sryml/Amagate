@@ -1375,6 +1375,9 @@ def split_editor(context: Context, is_import):
     # new_area.spaces[0].overlay.show_overlays = False  # 叠加层  # type: ignore
     render_area.spaces[0].show_region_toolbar = False  # 工具栏 # type: ignore
     render_area.spaces[0].show_region_tool_header = False  # 工具设置 # type: ignore
+    render_area.spaces[0].overlay.show_relationship_lines = (  # type: ignore
+        False  # 关系线
+    )
     region = next(r for r in render_area.regions if r.type == "WINDOW")
     rv3d = region.data
     rv3d.view_perspective = "CAMERA"
