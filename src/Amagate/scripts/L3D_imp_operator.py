@@ -9,6 +9,7 @@ from __future__ import annotations
 import struct
 import math
 import os
+import time
 import contextlib
 
 from io import StringIO, BytesIO
@@ -340,9 +341,22 @@ def import_map(bw_file):
             global_vertex_count += 1
 
         # 扇区
-        sector_num = unpack("<I", f)[0]
-        scene_data["SectorManage"]["max_id"] = sector_num
-        for sector_id in range(1, sector_num + 1):
+        sec_total = unpack("<I", f)[0]
+        scene_data["SectorManage"]["max_id"] = sec_total
+        #
+        start_time = time.time()
+        bar_length = 20  # 进度条长度
+        for sector_id in range(1, sec_total + 1):
+            # 进度条
+            i = sector_id
+            percent = i / sec_total
+            filled = int(bar_length * percent)
+            bar = ("█" * filled).ljust(bar_length, "-")
+            print(
+                f"\rSector Importing: |{bar}| {percent*100:.1f}% | {i} of {sec_total}",
+                end="",
+                flush=True,
+            )
             #
             sec_mesh = bpy.data.meshes.new(f"Sector{sector_id}")
             sec = bpy.data.objects.new(
@@ -407,6 +421,8 @@ def import_map(bw_file):
                 normal.yz = normal.z, -normal.y
                 # 距离
                 distance = unpack("<d", f)[0]  # XXX 是否需要？
+                # if sector_id == 2048:
+                #     logger.debug(f"normal: {normal}, face_type: {face_type}")
 
                 # 完全连接或天空面的情况
                 if face_type in (7002, 7005):
@@ -676,7 +692,7 @@ def import_map(bw_file):
             sec_bm.to_mesh(sec_mesh)
             sec_bm.free()
             # 有限融并
-            # ag_utils.dissolve_limit_sectors([sec], check_convex=False)
+            ag_utils.dissolve_limit_sectors([sec], check_convex=False)
             # 添加修改器
             modifier = sec.modifiers.new("", type="NODES")
             modifier.node_group = scene_data.sec_node  # type: ignore
@@ -773,19 +789,21 @@ def import_map(bw_file):
         # 跳过未知数据 (ddd, ddd)
         f.seek(48, 1)
         # 组数据
-        for sid in range(1, sector_num + 1):
+        for sid in range(1, sec_total + 1):
             sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
             sec_data = sec.amagate_data.get_sector_data()
             group = unpack("<i", f)[0]  # 有符号整数
             sec_data.group = group
         # 扇区名称数据
-        sector_num = unpack("<I", f)[0]
-        for sid in range(1, sector_num + 1):
+        sec_total = unpack("<I", f)[0]
+        for sid in range(1, sec_total + 1):
             sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
             name_len = unpack("<I", f)[0]
             name = unpack(f"{name_len}s", f)
             sec.rename(name, mode="ALWAYS")
             sec.data.rename(name, mode="ALWAYS")
+    #
+    print(f", Done in {time.time() - start_time:.2f}s")
 
     ############################
     return True

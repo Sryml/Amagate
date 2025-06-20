@@ -321,7 +321,7 @@ def get_sub_verts_along_line(vert, dir):
                     v3 = edge2.other_vert(v2)  # type: bmesh.types.BMVert
                     dir2 = (v2.co - v3.co).normalized()
                     # 如果连接边等于2且另一条边不共线，说明是端点
-                    if abs(dir2.dot(dir)) < epsilon2:
+                    if abs(dir2.dot(dir)) < 0.999999:
                         endpoint = v
                         continue
 
@@ -692,8 +692,10 @@ def is_convex(obj: Object):
     # vert_map = {v.co.to_tuple(4): i for i, v in enumerate(sec_bm.verts)}
 
     # 融并内插面
-    # bmesh.ops.dissolve_limit(bm, angle_limit=0.001, verts=bm.verts, edges=bm.edges)
+    # bmesh.ops.dissolve_limit(bm, angle_limit=0.002, verts=bm.verts, edges=bm.edges)
     # 融并面及反细分边
+    # bmesh.ops.dissolve_limit(bm_convex, angle_limit=0.002, edges=bm_convex.edges) # type: ignore # verts=bm_convex.verts
+    # unsubdivide(bm_convex)
     dissolve_unsubdivide(bm_convex)
     # 创建物体
     # convex_mesh = bpy.data.meshes.new("AG.convex_obj")
@@ -1174,7 +1176,7 @@ def unsubdivide(bm: bmesh.types.BMesh):
             dir1 = (v.link_edges[0].other_vert(v).co - v.co).normalized()
             dir2 = (v.link_edges[1].other_vert(v).co - v.co).normalized()
             # 如果该顶点只连接两条边且共线，则为子顶点
-            if dir1.dot(dir2) < -epsilon2:
+            if dir1.dot(dir2) < -0.999999:
                 verts, endpoint = get_sub_verts_along_line(v, dir1)
                 # verts = [bm.verts[i] for i in verts_index]
                 verts_lst.append((verts, endpoint))
@@ -1205,6 +1207,7 @@ def dissolve_unsubdivide(bm: bmesh.types.BMesh, del_connected=False):
 
     layer = bm.faces.layers.int.get("amagate_connected")
     for faces in faces_lst:
+        faces = [f for f in faces if f.is_valid]  # XXX 未知问题，会包含被删除的面
         if del_connected:
             for f in faces:
                 if f[layer] != 0:
