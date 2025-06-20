@@ -569,6 +569,8 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         col.operator(OP_L3D.OT_PolyPath.bl_idname, icon="CURVE_PATH")
         # 创建虚拟扇区
         col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname)
+        # 选择连接扇区
+        col.operator(OP_L3D.OT_SelectConnected.bl_idname)
 
         #
         box = layout.box()

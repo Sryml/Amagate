@@ -961,6 +961,38 @@ class OT_PolyPath(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 选择连接的扇区
+class OT_SelectConnected(bpy.types.Operator):
+    bl_idname = "amagate.select_conn_sec"
+    bl_label = "Select Connected"
+    bl_description = ""
+    bl_options = {"INTERNAL", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return (
+            context.scene.amagate_data.is_blade
+            and context.area.type == "VIEW_3D"
+            and context.mode == "OBJECT"
+        )
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        selected_sectors = L3D_data.SELECTED_SECTORS.copy()
+
+        for sec in selected_sectors:
+            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            for d in mesh.attributes["amagate_connected"].data:  # type: ignore
+                conn_sid = d.value
+                if conn_sid != 0:
+                    conn_sec = scene_data["SectorManage"]["sectors"][str(conn_sid)][
+                        "obj"
+                    ]
+                    conn_sec.select_set(True)
+
+        return {"FINISHED"}
+
+
 ############################
 ############################ 服务器
 ############################
@@ -1249,7 +1281,7 @@ def InitMap(imp_filepath=""):
         #
         # bpy.ops.wm.save_mainfile(filepath=str(save_filepath))
 
-        logger.info("Start import map...")
+        # logger.info("Start import map...")
         OP_L3D_IMP.import_map(str(imp_filepath))
         sec = scene_data["SectorManage"]["sectors"]["1"]["obj"]
         sec.select_set(True)
@@ -1261,7 +1293,7 @@ def InitMap(imp_filepath=""):
             region=next(r for r in main_area.regions if r.type == "WINDOW"),
         ):
             bpy.ops.view3d.view_all(center=True)
-        logger.info("Import Map Done")
+        # logger.info("Import Map Done")
         #
     scene_data.atmo_id_key = "1"
     L3D_data.load_post()
