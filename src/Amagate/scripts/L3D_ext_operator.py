@@ -49,6 +49,7 @@ if TYPE_CHECKING:
 
 
 ############################
+logger = data.logger
 
 epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
@@ -107,7 +108,13 @@ for pos in steep_no:
 def bisect_plane(bm, plane_no, plane_co):
     # type: (bmesh.types.BMesh, Vector, Vector) -> tuple[bmesh.types.BMesh, bmesh.types.BMesh]
     # amagate_hole
-    # ag_utils.debugprint(f"plane_no: {plane_no}, plane_co: {plane_co}")
+    #
+    # bm_mesh = bpy.data.meshes.new(f"AG.split")
+    # bm.to_mesh(bm_mesh)
+    # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+    # data.link2coll(bm_obj, bpy.context.scene.collection)
+    # logger.debug(f"bisect_plane: {plane_no}, {plane_co}")
+    #
     layers_1 = [
         bm.faces.layers.int.get("amagate_connected"),
         bm.faces.layers.int.get("amagate_tex_id"),
@@ -115,6 +122,8 @@ def bisect_plane(bm, plane_no, plane_co):
         bm.faces.layers.float_vector.get("amagate_tex_vy"),
         bm.faces.layers.float.get("amagate_tex_xpos"),
         bm.faces.layers.float.get("amagate_tex_ypos"),
+        bm.faces.layers.float.get("amagate_tex_xzoom"),
+        bm.faces.layers.float.get("amagate_tex_yzoom"),
     ]
     result = bmesh.ops.bisect_plane(
         bm,
@@ -128,7 +137,30 @@ def bisect_plane(bm, plane_no, plane_co):
     # 获取外部面
     cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
     cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+    #
+    if not cut_edges:
+        print(f"\nNo cut edges")
+        #
+        # bm_mesh = bpy.data.meshes.new(f"AG.split")
+        # bm.to_mesh(bm_mesh)
+        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+        # data.link2coll(bm_obj, bpy.context.scene.collection)
+        # logger.debug(f"bisect_plane: {plane_no}, {plane_co}")
+        #
+        return bm, None  # type: ignore
+
     edge = cut_edges[0]
+    if len(edge.link_faces) != 2:
+        print(f"\nLink faces != 2, index: {edge.link_faces[0].index}")
+        #
+        # bm_mesh = bpy.data.meshes.new(f"AG.split")
+        # bm.to_mesh(bm_mesh)
+        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+        # data.link2coll(bm_obj, bpy.context.scene.collection)
+        print(f"bisect_plane: {plane_no}, {plane_co}")
+        #
+        return bm, None  # type: ignore
+
     face1, face2 = edge.link_faces
     co = next((v.co for v in face1.verts if v not in cut_verts), None)
     dir = (co - edge.verts[0].co).normalized()  # type: ignore
@@ -147,6 +179,8 @@ def bisect_plane(bm, plane_no, plane_co):
         outer_bm.faces.layers.float_vector.new("amagate_tex_vy"),
         outer_bm.faces.layers.float.new("amagate_tex_xpos"),
         outer_bm.faces.layers.float.new("amagate_tex_ypos"),
+        outer_bm.faces.layers.float.new("amagate_tex_xzoom"),
+        outer_bm.faces.layers.float.new("amagate_tex_yzoom"),
     ]
     verts_map = {}
     exist_edges = []
@@ -170,9 +204,10 @@ def bisect_plane(bm, plane_no, plane_co):
 
 
 # 平展面分割
-def flat_split(bm, hole_dict):
-    # type: (bmesh.types.BMesh, dict[Any, Any]) -> Any
+def flat_split(sec, bm, hole_dict):
+    # type: (Object, bmesh.types.BMesh, dict[Any, Any]) -> Any
     # cut_data_list = []
+    #
     cut_data_buffer = []
     #
     stack = [(bm, [], -1)]
@@ -186,6 +221,8 @@ def flat_split(bm, hole_dict):
             bm.faces.layers.float_vector.get("amagate_tex_vy"),
             bm.faces.layers.float.get("amagate_tex_xpos"),
             bm.faces.layers.float.get("amagate_tex_ypos"),
+            bm.faces.layers.float.get("amagate_tex_xzoom"),
+            bm.faces.layers.float.get("amagate_tex_yzoom"),
         ]
 
         hole = next((f for f in bm.faces if f[conn_layer] != 0), None)  # type: ignore
@@ -233,16 +270,17 @@ def flat_split(bm, hole_dict):
                         polluted_hole.add(conn_sid_2)
                 if clean_hole or polluted_hole:
                     tangent_data.append(
-                        [edge.verts[0].co, tangent, dist, clean_hole, polluted_hole]
+                        [v1.co.copy(), tangent, dist, clean_hole, polluted_hole]
                     )
             ####
             # 切割平面
+            clear_mark = True
             inner_cut = False
             while tangent_data:
                 bm.faces.ensure_lookup_table()
                 # 判断纹理一致性
                 face = bm.faces[0]
-                for layer in layer_list:
+                for layer in layer_list[:-2]:
                     if layer.name[-6:] in ("tex_vx", "tex_vy"):
                         val_1 = face[layer].to_tuple(5)  # type: ignore
                         is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
@@ -258,6 +296,11 @@ def flat_split(bm, hole_dict):
                 #
                 plane_co, tangent, dist, clean_hole, polluted_hole = tangent_data[0]
                 bm, outer_bm = bisect_plane(bm, tangent, plane_co)
+                if outer_bm is None:
+                    print(f"bisect_plane failed: {sec.name}")
+                    if not inner_cut:
+                        clear_mark = False
+                    break
                 cut_data_buffer.append(
                     struct.pack("<dddd", tangent[0], -tangent[2], tangent[1], dist)
                 )
@@ -270,6 +313,8 @@ def flat_split(bm, hole_dict):
                     stack.append((outer_bm, block_mark, cut_data_idx))
                 if not is_tex_uniform:
                     cut_data_idx = len(cut_data_buffer) - 1
+                else:
+                    cut_data_idx = -1
                 # cut_data.append(((tangent[0], -tangent[2], tangent[1]), dist))
                 #
                 for i in range(len(tangent_data) - 1, 0, -1):
@@ -287,12 +332,16 @@ def flat_split(bm, hole_dict):
                     bm.faces.layers.float_vector.get("amagate_tex_vy"),
                     bm.faces.layers.float.get("amagate_tex_xpos"),
                     bm.faces.layers.float.get("amagate_tex_ypos"),
+                    bm.faces.layers.float.get("amagate_tex_xzoom"),
+                    bm.faces.layers.float.get("amagate_tex_yzoom"),
                 ]
-            block_mark = []
+            #
+            if clear_mark:
+                block_mark = []
         ####
         bm.faces.ensure_lookup_table()
         face = bm.faces[0]
-        for layer in layer_list:
+        for layer in layer_list[:-2]:
             if layer.name[-6:] in ("tex_vx", "tex_vy"):
                 val_1 = face[layer].to_tuple(5)  # type: ignore
                 is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
@@ -303,7 +352,7 @@ def flat_split(bm, hole_dict):
                 break
         #
         if not is_tex_uniform:
-            # ag_utils.debugprint(layer.name)
+            # logger.debug(layer.name)
             faces_dict = {}
             for f in bm.faces:
                 if layer.name[-6:] in ("tex_vx", "tex_vy"):
@@ -352,6 +401,9 @@ def flat_split(bm, hole_dict):
                     )
                     if is_polluted:
                         inner_bm, outer_bm = bisect_plane(bm, tangent, v1.co)
+                        if outer_bm is None:
+                            logger.error(f"bisect_plane failed: {sec.name}")
+                            break
                         cut_data_buffer.append(
                             struct.pack(
                                 "<dddd", tangent[0], -tangent[2], tangent[1], dist
@@ -392,11 +444,12 @@ def flat_split(bm, hole_dict):
                             "<ddddddff",
                             *tex_vx,
                             *tex_vy,
-                            face[layer_list[3]] / (0.001 * (1 / tex_vx.length)),
-                            face[layer_list[4]] / (0.001 * (1 / tex_vy.length)),
+                            face[layer_list[3]] / (0.001 * (1 / face[layer_list[5]])),
+                            face[layer_list[4]] / (0.001 * (1 / face[layer_list[6]])),
                         ),
                     )
                 )
+                # 如果不是最后一个块
                 if cut_data_idx != -1:
                     buffer = b"".join(
                         (
@@ -474,6 +527,8 @@ def copy_flat(matrix_world, global_sector_map, group_faces, layer_list, conn_lay
         bm_flat.faces.layers.float_vector.new("amagate_tex_vy"),
         bm_flat.faces.layers.float.new("amagate_tex_xpos"),
         bm_flat.faces.layers.float.new("amagate_tex_ypos"),
+        bm_flat.faces.layers.float.new("amagate_tex_xzoom"),
+        bm_flat.faces.layers.float.new("amagate_tex_yzoom"),
     ]
     verts_map = {}
     for face in group_faces:
@@ -530,6 +585,9 @@ def export_map(
 
     # 导出扇区
     ## blender坐标转换到blade: x,-z,y
+    start_time = time.time()
+    sec_total = len(sector_ids)
+    bar_length = 20  # 进度条长度
 
     bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
     global_face_count = 0
@@ -592,15 +650,27 @@ def export_map(
         steep_auto = []  # 自动陡峭
         steep_yes = []
         steep_no = []
-        f.write(struct.pack("<I", len(sector_ids)))
-        for sector_id in sector_ids:
+        f.write(struct.pack("<I", sec_total))
+        depsgraph = bpy.context.evaluated_depsgraph_get()
+        for progress, sector_id in enumerate(sector_ids):
+            # 进度条
+            i = progress + 1
+            percent = i / sec_total
+            filled = int(bar_length * percent)
+            bar = ("█" * filled).ljust(bar_length, "-")
+            print(
+                f"\rSector Compiling: |{bar}| {percent*100:.1f}% | {i} of {sec_total}",
+                end="",
+                flush=True,
+            )
+            #
+
             sec = sectors_dict[str(sector_id)]["obj"]  # type: Object
             sec_data = sec.amagate_data.get_sector_data()
             matrix_world = sec.matrix_world
             sec_mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             #
             sec_vertex_indices = sector_vertex_indices[sec_data.id]
-            depsgraph = bpy.context.evaluated_depsgraph_get()
             evaluated_obj = sec.evaluated_get(depsgraph)
             mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
             sec_bm = bmesh.new()
@@ -620,6 +690,8 @@ def export_map(
                 tex_vy_layer,
                 xpos_layer,
                 ypos_layer,
+                sec_bm.faces.layers.float.get("amagate_tex_xzoom"),
+                sec_bm.faces.layers.float.get("amagate_tex_yzoom"),
             ]
 
             # 灯泡
@@ -744,7 +816,7 @@ def export_map(
                     # 连接数量是0或1，判断纹理一致性
                     if conn_face_num < 2:
                         face = group_faces[0]
-                        for layer in layer_list:
+                        for layer in layer_list[:-2]:
                             if layer.name[-6:] in ("tex_vx", "tex_vy"):
                                 val_1 = face[layer].to_tuple(5)  # type: ignore
                                 is_tex_uniform = next((0 for f in group_faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
@@ -761,7 +833,7 @@ def export_map(
                                     layer_list,
                                     conn_layer,
                                 )
-                                connect_data = flat_split(bm_flat, hole_dict)
+                                connect_data = flat_split(sec, bm_flat, hole_dict)
                                 break
                         # 没有发生break，纹理是一致的
                         else:
@@ -810,18 +882,21 @@ def export_map(
                             layer_list,
                             conn_layer,
                         )
-                        connect_data = flat_split(bm_flat, hole_dict)
+                        connect_data = flat_split(sec, bm_flat, hole_dict)
                 # 获取凸壳顶点
-                group_faces_idx = [f.index for f in group_faces]
                 bm_convex = sec_bm.copy()
+                group_faces_idx = [f.index for f in group_faces]
                 bmesh.ops.delete(
                     bm_convex,
                     geom=[f for f in bm_convex.faces if f.index not in group_faces_idx],
                     context="FACES",
                 )  # 删除非组面
-                bmesh.ops.dissolve_faces(
-                    bm_convex, faces=list(bm_convex.faces), use_verts=False
-                )  # 合并组面
+                if len(group_faces) > 1:
+                    bmesh.ops.dissolve_faces(
+                        bm_convex, faces=list(bm_convex.faces), use_verts=False
+                    )  # 合并组面
+                # if len(bm_convex.faces) == 0:
+                # logger.error(f"{sec.name}: {len(bm_convex.faces)}")
                 ag_utils.unsubdivide(bm_convex)  # 反细分
                 bm_convex.faces.ensure_lookup_table()
                 verts_idx = [
@@ -999,7 +1074,7 @@ def export_map(
         group_buffer.close()
 
         # 写入扇区名称数据
-        f.write(struct.pack("<I", len(sector_ids)))
+        f.write(struct.pack("<I", sec_total))
         f.write(sec_name_buffer.getvalue())
         sec_name_buffer.close()
 
@@ -1070,9 +1145,11 @@ def export_map(
         # ag_utils.debugprint("Compile to bw (with Run Script)")
 
     # self.report({'WARNING'}, "Compile to bw Failed")
+
+    print(f", Done in {time.time() - start_time:.2f}s")
     this.report(
         {"INFO"},
-        f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {len(sector_ids)} {pgettext('Sectors')}",
+        f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {sec_total} {pgettext('Sectors')}",
     )
     return {"FINISHED"}
 
