@@ -1134,10 +1134,11 @@ class SectorProperty(bpy.types.PropertyGroup):
         # 命名并链接到扇区集合
         name = f"Sector{self.id}"
         obj.rename(name, mode="ALWAYS")
-        if not post_copy:
-            obj.data.rename(name, mode="ALWAYS")
-        elif obj.data.users == 1:
-            obj.data.rename(name, mode="ALWAYS")
+        if post_copy:
+            self.mesh_unique()
+        obj.data.rename(name, mode="ALWAYS")
+        # elif obj.data.users == 1:
+        #     obj.data.rename(name, mode="ALWAYS")
         coll = L3D_data.ensure_collection(L3D_data.S_COLL)
         if coll not in obj.users_collection:
             # 清除集合
@@ -1226,9 +1227,23 @@ class SectorProperty(bpy.types.PropertyGroup):
             self.atmo_id = self.atmo_id
             self.external_id = self.external_id
             # self.ambient_color = self.ambient_color
-            self.bulb_light.clear()
+            # self.bulb_light.clear()
             self.bulb_light_link = None
             self.bulb_shadow_link = None
+            for item in self.bulb_light:
+                item.set_id()
+                light_name = f"AG.{self.id}.Light"
+                light = item.light_obj  # type: Object
+                light_data = light.data.copy()
+                light = light.copy()
+                light.data = light_data
+                light.rename(light_name, mode="SAME_ROOT")
+                light_data.rename(light.name, mode="ALWAYS")
+                #
+                data.link2coll(light, L3D_data.ensure_collection(L3D_data.S_COLL))
+                light.parent = obj
+                #
+                item.light_obj = light
 
         obj.amagate_data.is_sector = True
 

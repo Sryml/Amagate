@@ -663,10 +663,23 @@ def check_sector_duplicate():
     if not dup_sectors:
         return
 
+    sector_id_map = {}
     for sec in dup_sectors:
         sec_data = sec.amagate_data.get_sector_data()
+        old_id = sec_data.id
         sec_data.init(post_copy=True)
-    ag_utils.disconnect(None, context, dup_sectors, dis_target=False)
+        sector_id_map[old_id] = sec_data.id
+    for sec in dup_sectors:
+        sec_data = sec.amagate_data.get_sector_data()
+        mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        conn_count = 0
+        for d in mesh.attributes["amagate_connected"].data:  # type: ignore
+            conn_sid = sector_id_map.get(d.value, 0)
+            if conn_sid != 0:
+                conn_count += 1
+            d.value = conn_sid
+        sec_data.connect_num = conn_count
+    ag_utils.dissolve_limit_sectors(dup_sectors)
 
     # XXX 待优化。取消用户的操作选项
     context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
