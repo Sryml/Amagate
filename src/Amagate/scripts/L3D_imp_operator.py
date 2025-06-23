@@ -317,6 +317,116 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
     )
 
 
+# 顶点匹配连接
+def connect_vm(sec_bm, link_face, sid, layers, conn_sec):
+    # type: (bmesh.types.BMesh, bmesh.types.BMFace, int, dict, Object) -> bool
+    conn_sec_data = conn_sec.amagate_data.get_sector_data()
+    conn_sec_mesh = conn_sec.data  # type: bpy.types.Mesh # type: ignore
+    conn_sec_bm = bmesh.new()
+    conn_sec_bm.from_mesh(conn_sec_mesh)
+    #
+    verts_dict_1 = {v.co.to_tuple(3): v for v in sec_bm.verts}
+    verts_dict_2 = {v.co.to_tuple(3): v for v in conn_sec_bm.verts}
+    intersection = set(verts_dict_1.keys()).intersection(set(verts_dict_2.keys()))
+    # if sid == 1446:
+    #     logger.debug(f"intersection: {len(intersection)} {conn_sec_data.id}")
+    #     if conn_sec_data.id == 1447:
+    #         print(f"verts_dict_2: {len(verts_dict_2)}")
+    if len(intersection) < 3:
+        conn_sec_bm.free()
+        return False
+    #
+    verts_set = [verts_dict_1[k] for k in intersection]
+    center = sum([v.co for v in verts_set], Vector((0, 0, 0))) / len(verts_set)
+    start_edge = next(
+        (e for e in sec_bm.edges if set(e.verts).issubset(verts_set)), None
+    )
+    normal = link_face.normal.copy()
+    v_a, v_b = start_edge.verts
+    cross = (v_a.co - center).cross(v_b.co - center).normalized()
+    if cross.dot(normal) < 0:
+        v_a, v_b = v_b, v_a
+    #
+    convex_hull = []  # type: list[bmesh.types.BMVert]
+    # 初始化凸包, v_a -> v_b
+    convex_hull.append(v_a)
+    convex_hull.append(v_b)
+    remaining_verts = [v for v in verts_set if v not in convex_hull]
+
+    while remaining_verts:
+        edge_vec = (v_a.co - v_b.co).normalized()
+        remaining_verts_len = len(remaining_verts)
+        if remaining_verts_len == 1:
+            next_vert = remaining_verts[0]
+        else:
+            point_lst = []
+            for v in remaining_verts:
+                # 计算向量 v_b -> v
+                point_vec = v.co - v_b.co
+                point_lst.append(
+                    (v, point_vec.length, point_vec.normalized().dot(edge_vec))
+                )
+
+            point_lst.sort(key=lambda x: x[1])
+            point_lst.sort(key=lambda x: x[2])
+            next_vert = point_lst[0][0]
+
+        # 更新当前边
+        v_a, v_b = v_b, next_vert
+        edge_vec = v_a.co - v_b.co
+        length = edge_vec.length
+        edge_vec.normalize()
+        # 加入边内点
+        inners = []
+        for v in sec_bm.verts:
+            if v in convex_hull or v in remaining_verts:
+                continue
+            vec = v.co - v_b.co
+            length2 = vec.length
+            if vec.normalized().dot(edge_vec) > epsilon2 and length2 < length:
+                inners.append((v, length2))
+        inners.sort(key=lambda x: x[1])
+        inners = [v for v, _ in inners]
+        convex_hull.extend(inners)
+        # 更新凸包和剩余顶点
+        convex_hull.append(next_vert)
+        remaining_verts.remove(next_vert)
+    #
+    v_a, v_b = convex_hull[0], convex_hull[-1]
+    edge_vec = v_a.co - v_b.co
+    length = edge_vec.length
+    edge_vec.normalize()
+    # 加入边内点
+    inners = []
+    for v in sec_bm.verts:
+        if v in convex_hull:
+            continue
+        vec = v.co - v_b.co
+        length2 = vec.length
+        dot = vec.normalized().dot(edge_vec)
+        # if conn_sec_data.id == 2011:
+        #     logger.debug(f"dot: {dot}")
+        if dot > epsilon2 and length2 < length:
+            inners.append((v, length2))
+    inners.sort(key=lambda x: x[1])
+    inners = [v for v, _ in inners]
+    convex_hull.extend(inners)
+    # if conn_sec_data.id == 2011:
+    #     logger.debug(f"convex_hull: {[v.index for v in convex_hull]}")
+    #
+    face = sec_bm.faces.new(convex_hull)
+
+    # 设置层属性
+    for key in layers:
+        if key == "connected":
+            face[layers[key]] = conn_sec_data.id
+        else:
+            face[layers[key]] = link_face[layers[key]]
+    #
+    conn_sec_bm.free()
+    return True
+
+
 # 导入地图
 def import_map(bw_file):
     scene = bpy.context.scene
@@ -358,9 +468,8 @@ def import_map(bw_file):
         # 全局顶点映射
         vertex_num = unpack("<I", f)[0]
         for i in range(vertex_num):
-            vert = unpack("<ddd", f)
-            vert = [i / 1000 for i in vert]
-            vert = vert[0], vert[2], -vert[1]
+            vert = Vector(unpack("<ddd", f)) / 1000
+            vert.yz = vert.z, -vert.y
             global_vertex_map[global_vertex_count] = vert
             global_vertex_count += 1
 
@@ -394,6 +503,7 @@ def import_map(bw_file):
             #
             hole_split_list = []
             flat_split_list = []
+            need_fix = False
             #
             sec_bm = bmesh.new()
             layers = {
@@ -444,9 +554,10 @@ def import_map(bw_file):
                 normal = Vector(unpack("<ddd", f))
                 normal.yz = normal.z, -normal.y
                 # 距离
-                distance = unpack("<d", f)[0]  # XXX 是否需要？
+                distance = unpack("<d", f)[0]
                 # if sector_id == 2048:
                 #     logger.debug(f"normal: {normal}, face_type: {face_type}")
+                # edges_dict = {}
 
                 # 完全连接或天空面的情况
                 if face_type in (7002, 7005):
@@ -456,10 +567,33 @@ def import_map(bw_file):
                         verts_idx = unpack("<I", f)[0]
                         vert = sec_vertex_map.get(verts_idx)
                         if vert is None:
-                            vert = sec_bm.verts.new(global_vertex_map[verts_idx])
+                            co1 = global_vertex_map[verts_idx]
+                            # 是否在现有边内部
+                            # for dir2, len2, vert, edge in edges_dict.values():
+                            #     dir1 = (co1 - vert.co)
+                            #     len1 = dir1.length
+                            #     dir1.normalize()
+                            #     dot = dir1.dot(dir2)
+                            #     # 共线
+                            #     if abs(dot) > epsilon2:
+                            #         # 在边内
+                            #         if len1 < len2 and dot > epsilon2:
+                            #             new_edge, new_vert = bmesh.utils.edge_split(edge, vert, 0.5)
+                            #             new_vert.co = co1
+                            #             vert = new_vert
+                            #             # bmesh.ops.subdivide_edges
+                            #         # 在边外
+                            #         else:
+                            #             vert = sec_bm.verts.new(co1)
+                            #         break
+                            # 如果没有发生break，则创建新的顶点
+                            vert = sec_bm.verts.new(co1)
                             sec_vertex_map[verts_idx] = vert
+                        #
                         verts_list.append(vert)
                     face = sec_bm.faces.new(verts_list)
+                    # for edge in face.edges:
+                    #     edges_dict.setdefault(edge, ((edge.verts[1].co - edge.verts[0].co).normalized(), edge.calc_length(), edge.verts[0], edge))
                     # sec_bm.to_mesh(sec_mesh)
                     # 跳过天空面
                     if face_type == 7005:
@@ -688,13 +822,84 @@ def import_map(bw_file):
                         flat_split_list.append((face, cut_data))
                         # flat_split(sec_bm, face, cut_data, layers)
 
+            # if sector_id == 1447:
+            #     logger.debug(flat_split_list)
+
+            # 处理非连续边
+            edges_list = []  # type: list[tuple[Vector, float, bmesh.types.BMEdge]]
+            for e in sec_bm.edges:
+                if len(e.link_faces) == 1:
+                    vector = e.verts[1].co - e.verts[0].co
+                    edges_list.append((vector.normalized(), vector.length, e))
+            need_fix = len(edges_list) > 0
+            # logger.debug(f"edges_list: {len(edges_list)}")
+            #
+            while edges_list:
+                dir1, len1, e1 = edges_list.pop()
+                # logger.debug(f"dir: {dir1.to_tuple()}, len: {len1}")
+                for idx, (dir2, len2, e2) in enumerate(edges_list):
+                    if abs(dir1.dot(dir2)) < epsilon2:
+                        continue
+
+                    vert = e2.verts[1] if e2.verts[0] in e1.verts else e2.verts[0]
+                    vector = vert.co - e1.verts[0].co
+                    # logger.debug(f"intersection: {set(e2.verts).intersection(set(e1.verts))}")
+                    direction = vector.normalized()
+                    dot = dir1.dot(direction)
+                    # 不共线，跳过
+                    if abs(dot) < epsilon2:
+                        continue
+
+                    edges_list.pop(idx)
+                    edges = ((dir1, len1, e1), (dir2, len2, e2))
+                    for i in (0, 1):
+                        dir1, len1, e1 = edges[i]
+                        dir2, len2, e2 = edges[1 - i]
+                        for vert in e2.verts:
+                            if vert in e1.verts:
+                                continue
+
+                            vector = vert.co - e1.verts[0].co
+                            direction = vector.normalized()
+                            dot = dir1.dot(direction)
+                            # 点不在e1上，跳过
+                            if dir1.dot(direction) < epsilon2 or vector.length > len1:
+                                continue
+                            #
+                            new_edge, new_vert = bmesh.utils.edge_split(
+                                e1, e1.verts[0], 0.5
+                            )
+                            new_vert.co = vert.co
+                    # 存在边内顶点
+                    break
+
+            # 按距离合并顶点
+            bmesh.ops.remove_doubles(sec_bm, verts=sec_bm.verts, dist=0.0001)  # type: ignore
             # 切割
-            for face, tangent_data, conn_sid in hole_split_list:
-                inner_face = hole_split(sec_bm, face, tangent_data.copy())
-                if inner_face is not None:
-                    inner_face[layers["connected"]] = conn_sid
-            for face, cut_data in flat_split_list:
-                flat_split(sec_bm, face, cut_data, layers)
+            if not need_fix:
+                for face, tangent_data, conn_sid in hole_split_list:
+                    inner_face = hole_split(sec_bm, face, tangent_data)
+                    if inner_face is not None:
+                        inner_face[layers["connected"]] = conn_sid
+                for face, cut_data in flat_split_list:
+                    flat_split(sec_bm, face, cut_data, layers)
+                #
+                sec_bm.to_mesh(sec_mesh)
+                sec_bm.free()
+                # 有限融并
+                ag_utils.dissolve_limit_sectors([sec], check_convex=False)
+                sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
+                sec_data.is_convex = ag_utils.is_convex(sec)
+            else:
+                sec_bm.to_mesh(sec_mesh)
+                for idx, (face, tangent_data, conn_sid) in enumerate(hole_split_list):
+                    hole_split_list[idx] = (face.index, tangent_data, conn_sid)
+                for idx, (face, cut_data) in enumerate(flat_split_list):
+                    flat_split_list[idx] = (face.index, cut_data)
+                #
+                fix_sec.append((sec, hole_split_list, flat_split_list))
+                sec_bm.free()
+
             #
             for tex_type in ("Floor", "Ceiling", "Wall"):
                 tex_prop = sec_data.textures.get(tex_type)
@@ -713,10 +918,7 @@ def import_map(bw_file):
             # vertices = [v.co for v in sec_bm.verts]
             # center = sum(vertices, Vector()) / len(vertices)
             # sec.location = center
-            sec_bm.to_mesh(sec_mesh)
-            sec_bm.free()
-            # 有限融并
-            ag_utils.dissolve_limit_sectors([sec], check_convex=False)
+
             # 添加修改器
             modifier = sec.modifiers.new("", type="NODES")
             modifier.node_group = scene_data.sec_node  # type: ignore
@@ -730,19 +932,11 @@ def import_map(bw_file):
             sec_data.atmo_id = global_atmo_map[atmo_name]
             sec_data.ambient_color = ambient_color
             sec_data.flat_light.color = flat_color
-            sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
-            sec_data.is_convex = ag_utils.is_convex(sec)
             sec.amagate_data.is_sector = True
             #
             sec_coll = L3D_data.ensure_collection(L3D_data.S_COLL)
-            if not sec_data.is_2d_sphere:
-                fix_sec.append(sec)
-                coll_name = "Need Fix"
-                coll = bpy.data.collections.get(coll_name)
-                if not coll:
-                    coll = bpy.data.collections.new(coll_name)
-                    sec_coll.children.link(coll)
-                data.link2coll(sec, coll)
+            if need_fix:
+                pass
             elif sec in abnormal_sec:
                 coll_name = "Abnormal"
                 coll = bpy.data.collections.get(coll_name)
@@ -764,6 +958,91 @@ def import_map(bw_file):
             # sec.select_set(True)
             # bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY', center='MEDIAN')
             # sec.select_set(False)
+
+        # 修复扇区
+        for sec, hole_split_list, flat_split_list in fix_sec:
+            # sec_data = sec.amagate_data.get_sector_data()
+            sec_mesh = sec.data  # type: bpy.types.Mesh  # type: ignore
+            sec_bm = bmesh.new()
+            sec_bm.from_mesh(sec_mesh)
+            layers = {
+                "connected": sec_bm.faces.layers.int.get("amagate_connected"),
+                "flag": sec_bm.faces.layers.int.get("amagate_flag"),
+                "flat_light": sec_bm.faces.layers.int.get("amagate_flat_light"),
+                "tex_id": sec_bm.faces.layers.int.get("amagate_tex_id"),
+                "tex_xpos": sec_bm.faces.layers.float.get("amagate_tex_xpos"),
+                "tex_ypos": sec_bm.faces.layers.float.get("amagate_tex_ypos"),
+                "tex_angle": sec_bm.faces.layers.float.get("amagate_tex_angle"),
+                "tex_xzoom": sec_bm.faces.layers.float.get("amagate_tex_xzoom"),
+                "tex_yzoom": sec_bm.faces.layers.float.get("amagate_tex_yzoom"),
+            }
+            # 切割
+            for idx in range(len(hole_split_list) - 1, -1, -1):
+                face_idx, tangent_data, conn_sid = hole_split_list[idx]
+                if len(tangent_data) == 1:
+                    continue
+
+                hole_split_list.pop(idx)
+                sec_bm.faces.ensure_lookup_table()
+                face = sec_bm.faces[face_idx]
+                inner_face = hole_split(sec_bm, face, tangent_data)
+                if inner_face is not None:
+                    inner_face[layers["connected"]] = conn_sid
+            for face_idx, cut_data in flat_split_list:
+                sec_bm.faces.ensure_lookup_table()
+                face = sec_bm.faces[face_idx]
+                flat_split(sec_bm, face, cut_data, layers)
+            #
+            sec_bm.to_mesh(sec_mesh)
+            sec_bm.free()
+            # 有限融并
+            ag_utils.dissolve_limit_sectors([sec], check_convex=False)
+        # 顶点匹配连接
+        for sec, hole_split_list, flat_split_list in fix_sec:
+            sec_data = sec.amagate_data.get_sector_data()
+            sec_mesh = sec.data  # type: bpy.types.Mesh  # type: ignore
+            sec_bm = bmesh.new()
+            sec_bm.from_mesh(sec_mesh)
+            layers = {
+                "connected": sec_bm.faces.layers.int.get("amagate_connected"),
+                "flag": sec_bm.faces.layers.int.get("amagate_flag"),
+                "flat_light": sec_bm.faces.layers.int.get("amagate_flat_light"),
+                "tex_id": sec_bm.faces.layers.int.get("amagate_tex_id"),
+                "tex_xpos": sec_bm.faces.layers.float.get("amagate_tex_xpos"),
+                "tex_ypos": sec_bm.faces.layers.float.get("amagate_tex_ypos"),
+                "tex_angle": sec_bm.faces.layers.float.get("amagate_tex_angle"),
+                "tex_xzoom": sec_bm.faces.layers.float.get("amagate_tex_xzoom"),
+                "tex_yzoom": sec_bm.faces.layers.float.get("amagate_tex_yzoom"),
+            }
+            for idx in range(len(hole_split_list) - 1, -1, -1):
+                face_idx, tangent_data, conn_sid = hole_split_list[idx]
+                if len(tangent_data) == 1:
+                    conn_sec = scene_data["SectorManage"]["sectors"][str(conn_sid)][
+                        "obj"
+                    ]
+                    sec_bm.faces.ensure_lookup_table()
+                    face = sec_bm.faces[face_idx]
+                    result = connect_vm(sec_bm, face, sec_data.id, layers, conn_sec)
+                    # logger.debug(f"connect_vm: {result}")
+                    # if result:
+                    #     hole_split_list.pop(idx)
+            #
+            sec_bm.to_mesh(sec_mesh)
+            sec_bm.free()
+            # 有限融并
+            # ag_utils.dissolve_limit_sectors([sec], check_convex=False)
+            sec_data.is_2d_sphere = ag_utils.is_2d_sphere(sec)
+            sec_data.is_convex = ag_utils.is_convex(sec)
+            #
+            if not sec_data.is_2d_sphere:
+                coll_name = "Need Fix"
+                coll = bpy.data.collections.get(coll_name)
+                if not coll:
+                    coll = bpy.data.collections.new(coll_name)
+                    sec_coll.children.link(coll)
+                data.link2coll(sec, coll)
+            else:
+                data.link2coll(sec, sec_coll)
 
         # 外部光和灯泡数据
         light_num = unpack("<I", f)[0]

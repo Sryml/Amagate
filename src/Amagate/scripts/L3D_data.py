@@ -1884,7 +1884,7 @@ class SceneProperty(bpy.types.PropertyGroup):
     atmo_color: FloatVectorProperty(name="Color", description="", subtype="COLOR", size=3, min=0.0, max=1.0, default=(0.0, 0.0, 0.0))  # type: ignore
     atmo_density: FloatProperty(name="Density", default=0.02, min=0.0, soft_max=1.0)  # type: ignore
     # 视锥裁剪
-    frustum_culling: BoolProperty(name="Frustum Culling", default=True, update=lambda self, context: self.update_frustum_culling(context))  # type: ignore
+    frustum_culling: BoolProperty(name="Frustum Culling", default=False, update=lambda self, context: self.update_frustum_culling(context))  # type: ignore
     # 显示连接面
     show_connected: BoolProperty(default=False)  # type: ignore
     show_connected_sw: BoolProperty(name="Show Connected Face", default=False, update=lambda self, context: self.update_show_connected_sw(context))  # type: ignore
