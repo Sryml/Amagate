@@ -1152,6 +1152,7 @@ class SectorProperty(bpy.types.PropertyGroup):
         self.is_2d_sphere = ag_utils.is_2d_sphere(obj)
         # 判断是否为凸物体
         self.is_convex = ag_utils.is_convex(obj)
+        ag_utils.steep_check(obj)
 
         # 非复制的情况
         if not post_copy:

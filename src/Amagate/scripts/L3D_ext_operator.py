@@ -844,16 +844,34 @@ def export_map(
                                 # 按照顶点顺序计算切线
                                 tangent_data = []  # 切线数据
                                 verts_sub_idx = [v.index for v in face_conn.verts]
-                                verts_sub_idx_num = len(verts_sub_idx)
-                                for i in range(verts_sub_idx_num):
-                                    j = (i + 1) % verts_sub_idx_num
+                                for idx, edge in enumerate(face_conn.edges):
+                                    # 跳过边界
+                                    if (
+                                        edge.link_faces[0].normal.dot(
+                                            edge.link_faces[1].normal
+                                        )
+                                        < epsilon2
+                                    ):
+                                        continue
 
-                                    co1 = (
-                                        matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
-                                    )
+                                    co1 = matrix_world @ face_conn.verts[idx].co
                                     co2 = (
-                                        matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
+                                        matrix_world
+                                        @ face_conn.verts[
+                                            (idx + 1) % len(face_conn.verts)
+                                        ].co
                                     )
+
+                                    # verts_sub_idx_num = len(verts_sub_idx)
+                                    # for i in range(verts_sub_idx_num):
+                                    #     j = (i + 1) % verts_sub_idx_num
+
+                                    #     co1 = (
+                                    #         matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
+                                    #     )
+                                    #     co2 = (
+                                    #         matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
+                                    #     )
                                     cross = (co2 - co1).cross(normal)  # type: Vector
                                     cross.normalize()
                                     dist = (-co1).dot(cross) * 1000
@@ -927,6 +945,7 @@ def export_map(
                         continue
                     if cos < 0.7665:
                         steep_auto.append(sec)
+                        break
             elif sec_data.steep == "1":
                 steep_yes.append(sec)
             elif sec_data.steep == "2":
@@ -1124,12 +1143,11 @@ def export_map(
         for key, code in coll:
             pos_list = []
             for sec in locals()[key]:
+                mesh = sec.data  # type: bpy.types.Mesh # type: ignore
                 matrix_world = sec.matrix_world
                 # 计算几何中心
-                bbox_corners = [
-                    matrix_world @ Vector(corner) for corner in sec.bound_box
-                ]
-                center = sum(bbox_corners, Vector()) / 8
+                faces_center = [matrix_world @ f.center for f in mesh.polygons]
+                center = sum(faces_center, Vector()) / len(faces_center)
                 center = (center * 1000).to_tuple(0)
                 pos_list.append((center[0], -center[2], center[1]))
             file.write(f"{key} = {pos_list}\n")
