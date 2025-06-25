@@ -78,7 +78,7 @@ def verify_bw(bw_file):
 
 
 # 分割洞
-def hole_split(sec_bm, inner_face, tangent_data):
+def hole_split(sec_bm, inner_face, tangent_data, sector_id):
     geom = list(inner_face.verts) + list(inner_face.edges) + [inner_face]
     while tangent_data:
         plane_no, plane_co = tangent_data.pop()
@@ -96,7 +96,16 @@ def hole_split(sec_bm, inner_face, tangent_data):
         cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
         edge = cut_edges[0]
         if len(edge.link_faces) == 1:
+            #
+            # bm_mesh = bpy.data.meshes.new(f"AG.split")
+            # sec_bm.to_mesh(bm_mesh)
+            # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+            # data.link2coll(bm_obj, bpy.context.scene.collection)
+            # logger.debug(f"bisect_plane: {plane_no}, {plane_co}")
+            #
             return None
+        if edge.link_faces[0].normal.dot(edge.link_faces[1].normal) < epsilon2:
+            continue
 
         face1, face2 = edge.link_faces
         co = next((v.co for v in face1.verts if v not in cut_verts), None)
@@ -110,7 +119,7 @@ def hole_split(sec_bm, inner_face, tangent_data):
 
 
 # 平展面分割
-def flat_split(sec_bm, face, cut_data, layers):
+def flat_split(sec_bm, face, cut_data, layers, sector_id):
     stack = [face]
     while stack:
         inner_face = stack.pop()
@@ -135,6 +144,14 @@ def flat_split(sec_bm, face, cut_data, layers):
                 cut_edges = [
                     g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)
                 ]
+                #
+                # if not cut_edges:
+                #     bm_mesh = bpy.data.meshes.new(f"AG.split")
+                #     sec_bm.to_mesh(bm_mesh)
+                #     bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+                #     data.link2coll(bm_obj, bpy.context.scene.collection)
+                #     logger.debug(f"bisect_plane: {plane_no}, {plane_co}")
+                #
                 edge = cut_edges[0]
                 face1, face2 = edge.link_faces
                 co = next((v.co for v in face1.verts if v not in cut_verts), None)
@@ -170,7 +187,7 @@ def flat_split(sec_bm, face, cut_data, layers):
                 _, tangent_data, conn_sid = tuple_data
                 # 有洞，需要分割
                 if tangent_data:
-                    inner_face = hole_split(sec_bm, inner_face, tangent_data)
+                    inner_face = hole_split(sec_bm, inner_face, tangent_data, sector_id)
                     if inner_face is not None:
                         inner_face[layers["connected"]] = conn_sid
                 # 有洞，无需分割
@@ -875,14 +892,24 @@ def import_map(bw_file):
 
             # 按距离合并顶点
             bmesh.ops.remove_doubles(sec_bm, verts=sec_bm.verts, dist=0.0001)  # type: ignore
+            mesh_tmp = bpy.data.meshes.new("")
+            sec_bm.to_mesh(mesh_tmp)
+            bpy.data.meshes.remove(mesh_tmp)
             # 切割
             if not need_fix:
+                # if sector_id == 6:
+                #     bm_mesh = bpy.data.meshes.new(f"AG.split")
+                #     sec_bm.to_mesh(bm_mesh)
+                #     bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+                #     data.link2coll(bm_obj, bpy.context.scene.collection)
                 for face, tangent_data, conn_sid in hole_split_list:
-                    inner_face = hole_split(sec_bm, face, tangent_data)
+                    # if sector_id == 6:
+                    #     logger.debug(f"face: {face.index}, tangent_data: {tangent_data}")
+                    inner_face = hole_split(sec_bm, face, tangent_data, sector_id)
                     if inner_face is not None:
                         inner_face[layers["connected"]] = conn_sid
                 for face, cut_data in flat_split_list:
-                    flat_split(sec_bm, face, cut_data, layers)
+                    flat_split(sec_bm, face, cut_data, layers, sector_id)
                 #
                 sec_bm.to_mesh(sec_mesh)
                 sec_bm.free()
@@ -985,13 +1012,13 @@ def import_map(bw_file):
                 hole_split_list.pop(idx)
                 sec_bm.faces.ensure_lookup_table()
                 face = sec_bm.faces[face_idx]
-                inner_face = hole_split(sec_bm, face, tangent_data)
+                inner_face = hole_split(sec_bm, face, tangent_data, sector_id)
                 if inner_face is not None:
                     inner_face[layers["connected"]] = conn_sid
             for face_idx, cut_data in flat_split_list:
                 sec_bm.faces.ensure_lookup_table()
                 face = sec_bm.faces[face_idx]
-                flat_split(sec_bm, face, cut_data, layers)
+                flat_split(sec_bm, face, cut_data, layers, sector_id)
             #
             sec_bm.to_mesh(sec_mesh)
             sec_bm.free()
@@ -1066,6 +1093,7 @@ def import_map(bw_file):
                 item.data.shadow_maximum_resolution = precision
                 # 使用该外部光的扇区
                 sec_num = unpack("<I", f)[0]
+                # logger.debug(f"External light: {sec_num}")
                 for i in range(sec_num):
                     sid = unpack("<I", f)[0] + 1
                     sec = scene_data["SectorManage"]["sectors"][str(sid)]["obj"]
