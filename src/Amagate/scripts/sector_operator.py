@@ -2019,9 +2019,14 @@ class OT_Bulb_Render(bpy.types.Operator):
                         continue
 
                     conn_sec = L3D_data.get_sector_by_id(scene_data, conn_sid)
+                    conn_sec_data = conn_sec.amagate_data.get_sector_data()
                     has_sky = next((1 for i in conn_sec.data.attributes["amagate_tex_id"].data if i.value == -1), 0)  # type: ignore
                     # 如果是天空扇区，跳过
                     if has_sky:
+                        continue
+                    # 如果有灯泡，添加为阴影并跳过
+                    if len(conn_sec_data.bulb_light) > 0:
+                        data.link2coll(conn_sec, shadow_link)
                         continue
 
                     for v in conn_sec.data.vertices:  # type: ignore

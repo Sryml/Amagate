@@ -54,6 +54,8 @@ logger = data.logger
 epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
 
+COMPILE_STATUS = False
+
 SKY_TEX_REFPATH = {
     "Casa": "../Casa/casa_d.mmp",
     "Kashgar": "../Barb_M1/barb_d.mmp",
@@ -118,12 +120,13 @@ def bisect_plane(bm, plane_no, plane_co):
     layers_1 = [
         bm.faces.layers.int.get("amagate_connected"),
         bm.faces.layers.int.get("amagate_tex_id"),
-        bm.faces.layers.float_vector.get("amagate_tex_vx"),
-        bm.faces.layers.float_vector.get("amagate_tex_vy"),
         bm.faces.layers.float.get("amagate_tex_xpos"),
         bm.faces.layers.float.get("amagate_tex_ypos"),
         bm.faces.layers.float.get("amagate_tex_xzoom"),
         bm.faces.layers.float.get("amagate_tex_yzoom"),
+        bm.faces.layers.float.get("amagate_tex_angle"),
+        bm.faces.layers.float_vector.get("amagate_tex_vx"),
+        bm.faces.layers.float_vector.get("amagate_tex_vy"),
     ]
     result = bmesh.ops.bisect_plane(
         bm,
@@ -175,12 +178,13 @@ def bisect_plane(bm, plane_no, plane_co):
     layers_2 = [
         outer_bm.faces.layers.int.new("amagate_connected"),
         outer_bm.faces.layers.int.new("amagate_tex_id"),
-        outer_bm.faces.layers.float_vector.new("amagate_tex_vx"),
-        outer_bm.faces.layers.float_vector.new("amagate_tex_vy"),
         outer_bm.faces.layers.float.new("amagate_tex_xpos"),
         outer_bm.faces.layers.float.new("amagate_tex_ypos"),
         outer_bm.faces.layers.float.new("amagate_tex_xzoom"),
         outer_bm.faces.layers.float.new("amagate_tex_yzoom"),
+        outer_bm.faces.layers.float.new("amagate_tex_angle"),
+        outer_bm.faces.layers.float_vector.new("amagate_tex_vx"),
+        outer_bm.faces.layers.float_vector.new("amagate_tex_vy"),
     ]
     verts_map = {}
     exist_edges = []
@@ -206,6 +210,7 @@ def bisect_plane(bm, plane_no, plane_co):
 # 平展面分割
 def flat_split(sec, bm, hole_dict):
     # type: (Object, bmesh.types.BMesh, dict[Any, Any]) -> Any
+    global COMPILE_STATUS
     # cut_data_list = []
     #
     cut_data_buffer = []
@@ -217,12 +222,13 @@ def flat_split(sec, bm, hole_dict):
         conn_layer = bm.faces.layers.int.get("amagate_connected")
         layer_list = [
             bm.faces.layers.int.get("amagate_tex_id"),
-            bm.faces.layers.float_vector.get("amagate_tex_vx"),
-            bm.faces.layers.float_vector.get("amagate_tex_vy"),
             bm.faces.layers.float.get("amagate_tex_xpos"),
             bm.faces.layers.float.get("amagate_tex_ypos"),
             bm.faces.layers.float.get("amagate_tex_xzoom"),
             bm.faces.layers.float.get("amagate_tex_yzoom"),
+            bm.faces.layers.float.get("amagate_tex_angle"),
+            bm.faces.layers.float_vector.get("amagate_tex_vx"),
+            bm.faces.layers.float_vector.get("amagate_tex_vy"),
         ]
 
         hole = next((f for f in bm.faces if f[conn_layer] != 0), None)  # type: ignore
@@ -281,9 +287,9 @@ def flat_split(sec, bm, hole_dict):
                 # 判断纹理一致性
                 face = bm.faces[0]
                 for layer in layer_list[:-2]:
-                    if layer.name[-6:] in ("tex_vx", "tex_vy"):
-                        val_1 = face[layer].to_tuple(5)  # type: ignore
-                        is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+                    if layer.name[12:] == "angle":
+                        val_1 = round(face[layer], 3)  # type: ignore
+                        is_tex_uniform = next((0 for f in bm.faces if round(f[layer], 3) != val_1), 1)  # type: ignore
                     else:
                         val_1 = face[layer]  # type: ignore
                         is_tex_uniform = next((0 for f in bm.faces if f[layer] != val_1), 1)  # type: ignore
@@ -297,6 +303,7 @@ def flat_split(sec, bm, hole_dict):
                 plane_co, tangent, dist, clean_hole, polluted_hole = tangent_data[0]
                 bm, outer_bm = bisect_plane(bm, tangent, plane_co)
                 if outer_bm is None:
+                    COMPILE_STATUS = False
                     print(f"bisect_plane failed: {sec.name}")
                     if not inner_cut:
                         clear_mark = False
@@ -328,12 +335,13 @@ def flat_split(sec, bm, hole_dict):
                 conn_layer = bm.faces.layers.int.get("amagate_connected")
                 layer_list = [
                     bm.faces.layers.int.get("amagate_tex_id"),
-                    bm.faces.layers.float_vector.get("amagate_tex_vx"),
-                    bm.faces.layers.float_vector.get("amagate_tex_vy"),
                     bm.faces.layers.float.get("amagate_tex_xpos"),
                     bm.faces.layers.float.get("amagate_tex_ypos"),
                     bm.faces.layers.float.get("amagate_tex_xzoom"),
                     bm.faces.layers.float.get("amagate_tex_yzoom"),
+                    bm.faces.layers.float.get("amagate_tex_angle"),
+                    bm.faces.layers.float_vector.get("amagate_tex_vx"),
+                    bm.faces.layers.float_vector.get("amagate_tex_vy"),
                 ]
             #
             if clear_mark:
@@ -342,9 +350,9 @@ def flat_split(sec, bm, hole_dict):
         bm.faces.ensure_lookup_table()
         face = bm.faces[0]
         for layer in layer_list[:-2]:
-            if layer.name[-6:] in ("tex_vx", "tex_vy"):
-                val_1 = face[layer].to_tuple(5)  # type: ignore
-                is_tex_uniform = next((0 for f in bm.faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+            if layer.name[12:] == "angle":
+                val_1 = round(face[layer], 3)  # type: ignore
+                is_tex_uniform = next((0 for f in bm.faces if round(f[layer], 3) != val_1), 1)  # type: ignore
             else:
                 val_1 = face[layer]  # type: ignore
                 is_tex_uniform = next((0 for f in bm.faces if f[layer] != val_1), 1)  # type: ignore
@@ -355,8 +363,8 @@ def flat_split(sec, bm, hole_dict):
             # logger.debug(layer.name)
             faces_dict = {}
             for f in bm.faces:
-                if layer.name[-6:] in ("tex_vx", "tex_vy"):
-                    faces_dict.setdefault(f[layer].to_tuple(5), []).append(f)  # type: ignore
+                if layer.name[12:] == "angle":
+                    faces_dict.setdefault(round(f[layer], 3), []).append(f)  # type: ignore
                 else:
                     faces_dict.setdefault(f[layer], []).append(f)  # type: ignore
             faces_list = [(k, list(v)) for k, v in faces_dict.items()]
@@ -385,8 +393,8 @@ def flat_split(sec, bm, hole_dict):
                 # ag_utils.debugprint(f"tangent: {tangent}")
                 #
                 for face2 in bm.faces:
-                    if layer.name[-6:] in ("tex_vx", "tex_vy"):
-                        val_2 = face2[layer].to_tuple(5)  # type: ignore
+                    if layer.name[12:] == "angle":
+                        val_2 = round(face2[layer], 3)  # type: ignore
                     else:
                         val_2 = face2[layer]  # type: ignore
                     if val_2 == val_1:
@@ -402,7 +410,8 @@ def flat_split(sec, bm, hole_dict):
                     if is_polluted:
                         inner_bm, outer_bm = bisect_plane(bm, tangent, v1.co)
                         if outer_bm is None:
-                            logger.error(f"bisect_plane failed: {sec.name}")
+                            COMPILE_STATUS = False
+                            logger.error(f"tex bisect_plane failed: {sec.name}")
                             break
                         cut_data_buffer.append(
                             struct.pack(
@@ -431,8 +440,8 @@ def flat_split(sec, bm, hole_dict):
                 tex_id = face[layer_list[0]]  # type: ignore
                 img = L3D_data.get_texture_by_id(tex_id)[1]
                 # tex_data = (img.name, face[layer_list[1]], face[layer_list[2]], face[layer_list[3]], face[layer_list[4]])  # type: ignore
-                tex_vx = face[layer_list[1]]
-                tex_vy = face[layer_list[2]]
+                tex_vx = face[layer_list[6]]
+                tex_vy = face[layer_list[7]]
                 tex_vx = Vector((tex_vx[0], -tex_vx[2], tex_vx[1]))
                 tex_vy = Vector((tex_vy[0], -tex_vy[2], tex_vy[1]))
                 name = img.name.encode("utf-8")
@@ -444,8 +453,8 @@ def flat_split(sec, bm, hole_dict):
                             "<ddddddff",
                             *tex_vx,
                             *tex_vy,
-                            face[layer_list[3]] / (0.001 * (1 / face[layer_list[5]])),
-                            face[layer_list[4]] / (0.001 * (1 / face[layer_list[6]])),
+                            face[layer_list[1]] / (0.001 * face[layer_list[3]]),
+                            face[layer_list[2]] / (0.001 * face[layer_list[4]]),
                         ),
                     )
                 )
@@ -523,12 +532,13 @@ def copy_flat(matrix_world, global_sector_map, group_faces, layer_list, conn_lay
     conn_layer_2 = bm_flat.faces.layers.int.new("amagate_connected")
     layer_list_2 = [
         bm_flat.faces.layers.int.new("amagate_tex_id"),
-        bm_flat.faces.layers.float_vector.new("amagate_tex_vx"),
-        bm_flat.faces.layers.float_vector.new("amagate_tex_vy"),
         bm_flat.faces.layers.float.new("amagate_tex_xpos"),
         bm_flat.faces.layers.float.new("amagate_tex_ypos"),
         bm_flat.faces.layers.float.new("amagate_tex_xzoom"),
         bm_flat.faces.layers.float.new("amagate_tex_yzoom"),
+        bm_flat.faces.layers.float.new("amagate_tex_angle"),
+        bm_flat.faces.layers.float_vector.new("amagate_tex_vx"),
+        bm_flat.faces.layers.float_vector.new("amagate_tex_vy"),
     ]
     verts_map = {}
     for face in group_faces:
@@ -554,6 +564,7 @@ def export_map(
     visible_only=False,
     with_run_script=False,
 ):
+    global COMPILE_STATUS
     scene_data = context.scene.amagate_data
     # 检查是否为无标题文件
     if not bpy.data.filepath:
@@ -585,6 +596,7 @@ def export_map(
 
     # 导出扇区
     ## blender坐标转换到blade: x,-z,y
+    COMPILE_STATUS = True
     start_time = time.time()
     sec_total = len(sector_ids)
     bar_length = 20  # 进度条长度
@@ -595,6 +607,9 @@ def export_map(
     global_vertex_map = {}  # {tuple(co): global_index}
     sector_vertex_indices = {}  # 每个扇区的全局顶点索引映射
     global_sector_map = {sid: i for i, sid in enumerate(sector_ids)}  # 全局扇区映射
+    #
+    verts_buffer = BytesIO()  # 缓存顶点数据
+    sec_buffer = BytesIO()  # 缓存扇区数据
     with open(bw_file, "wb") as f:
         # 写入大气数据
         f.write(struct.pack("<I", len(scene_data.atmospheres) + 1))
@@ -615,28 +630,28 @@ def export_map(
         f.write(b"\x00" * 7)
 
         # 写入顶点数据
-        number_pos = f.tell()
-        f.write(struct.pack("<I", 0))  # 占位
-        for i in sector_ids:
-            sec = sectors_dict[str(i)]["obj"]  # type: Object
-            sec_vertex_indices = []
-            sec_data = sec.amagate_data.get_sector_data()
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            matrix_world = sec.matrix_world
-            for v in mesh.vertices:
-                # 变换顶点坐标并转换为毫米单位
-                v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
-                if v_key not in global_vertex_map:
-                    global_vertex_map[v_key] = global_vertex_count
-                    global_vertex_count += 1
-                    f.write(struct.pack("<ddd", v_key[0], -v_key[2], v_key[1]))
-                sec_vertex_indices.append(global_vertex_map[v_key])
-            sector_vertex_indices[sec_data.id] = sec_vertex_indices
-        # 暂存当前流位置并更正顶点数量
-        stream_pos = f.tell()
-        f.seek(number_pos)
-        f.write(struct.pack("<I", global_vertex_count))
-        f.seek(stream_pos)
+        # number_pos = f.tell()
+        # f.write(struct.pack("<I", 0))  # 占位
+        # for i in sector_ids:
+        #     sec = sectors_dict[str(i)]["obj"]  # type: Object
+        #     sec_vertex_indices = []
+        #     sec_data = sec.amagate_data.get_sector_data()
+        #     mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+        #     matrix_world = sec.matrix_world
+        #     for v in mesh.vertices:
+        #         # 变换顶点坐标并转换为毫米单位
+        #         v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+        #         if v_key not in global_vertex_map:
+        #             global_vertex_map[v_key] = global_vertex_count
+        #             global_vertex_count += 1
+        #             f.write(struct.pack("<ddd", v_key[0], -v_key[2], v_key[1]))
+        #         sec_vertex_indices.append(global_vertex_map[v_key])
+        #     sector_vertex_indices[sec_data.id] = sec_vertex_indices
+        # # 暂存当前流位置并更正顶点数量
+        # stream_pos = f.tell()
+        # f.seek(number_pos)
+        # f.write(struct.pack("<I", global_vertex_count))
+        # f.seek(stream_pos)
 
         # 写入扇区数据
         # XXX 该明度系数只是近似效果，具体算法未知
@@ -650,7 +665,7 @@ def export_map(
         steep_auto = []  # 自动陡峭
         steep_yes = []
         steep_no = []
-        f.write(struct.pack("<I", sec_total))
+        sec_buffer.write(struct.pack("<I", sec_total))
         depsgraph = bpy.context.evaluated_depsgraph_get()
         for progress, sector_id in enumerate(sector_ids):
             # 进度条
@@ -670,7 +685,7 @@ def export_map(
             matrix_world = sec.matrix_world
             sec_mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             #
-            sec_vertex_indices = sector_vertex_indices[sec_data.id]
+            # sec_vertex_indices = sector_vertex_indices[sec_data.id]
             evaluated_obj = sec.evaluated_get(depsgraph)
             mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
             sec_bm = bmesh.new()
@@ -686,12 +701,13 @@ def export_map(
             ypos_layer = sec_bm.faces.layers.float.get("amagate_tex_ypos")
             layer_list = [
                 tex_id_layer,
-                tex_vx_layer,
-                tex_vy_layer,
                 xpos_layer,
                 ypos_layer,
                 sec_bm.faces.layers.float.get("amagate_tex_xzoom"),
                 sec_bm.faces.layers.float.get("amagate_tex_yzoom"),
+                sec_bm.faces.layers.float.get("amagate_tex_angle"),
+                tex_vx_layer,
+                tex_vy_layer,
             ]
 
             # 灯泡
@@ -729,17 +745,17 @@ def export_map(
                 1
             ].item_name
             buffer = atm_name.encode("utf-8")
-            f.write(struct.pack("<I", len(buffer)))
-            f.write(buffer)
+            sec_buffer.write(struct.pack("<I", len(buffer)))
+            sec_buffer.write(buffer)
 
             # 环境光
             color = sec_data.ambient_color
-            f.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
-            f.write(struct.pack("<f", color.v * v_factor))
-            f.write(ambient_light_p)
-            f.write(struct.pack("<ddd", 0, 0, 0))  # 未知用途 默认0
-            f.write(bytes.fromhex("CD" * 8))
-            f.write(struct.pack("<I", 0))
+            sec_buffer.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
+            sec_buffer.write(struct.pack("<f", color.v * v_factor))
+            sec_buffer.write(ambient_light_p)
+            sec_buffer.write(struct.pack("<ddd", 0, 0, 0))  # 未知用途 默认0
+            sec_buffer.write(bytes.fromhex("CD" * 8))
+            sec_buffer.write(struct.pack("<I", 0))
 
             # 平面光
             face = next((f for f in sec_bm.faces if f[flat_light_layer] == 1), None)  # type: ignore
@@ -749,14 +765,14 @@ def export_map(
             else:
                 vector = (0, 0, 0)
             color = sec_data.flat_light.color
-            f.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
-            f.write(struct.pack("<f", color.v * v_factor))
-            f.write(ambient_light_p)
-            f.write(struct.pack("<ddd", 0, 0, 0))  # # 未知用途 默认0
-            f.write(bytes.fromhex("CD" * 8))
-            f.write(struct.pack("<I", 0))
+            sec_buffer.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
+            sec_buffer.write(struct.pack("<f", color.v * v_factor))
+            sec_buffer.write(ambient_light_p)
+            sec_buffer.write(struct.pack("<ddd", 0, 0, 0))  # # 未知用途 默认0
+            sec_buffer.write(bytes.fromhex("CD" * 8))
+            sec_buffer.write(struct.pack("<I", 0))
             ## 平面光向量
-            f.write(struct.pack("<ddd", *vector))
+            sec_buffer.write(struct.pack("<ddd", *vector))
 
             # 面数据
             faces_sorted = []
@@ -804,8 +820,18 @@ def export_map(
                             continue
 
                         face_conn = face
-                        verts_sub_idx = [v.index for v in face_conn.verts]
-                        verts_sub_idx = [sec_vertex_indices[i] for i in verts_sub_idx]
+                        verts_sub_idx = []
+                        for v in face_conn.verts:
+                            v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+                            v_key = v_key[0], -v_key[2], v_key[1]
+                            vert_idx = global_vertex_map.get(v_key)
+                            if vert_idx is None:
+                                vert_idx = global_vertex_map.setdefault(
+                                    v_key, global_vertex_count
+                                )
+                                global_vertex_count += 1
+                                verts_buffer.write(struct.pack("<ddd", *v_key))
+                            verts_sub_idx.append(vert_idx)
                         hole_dict[conn_sid] = {
                             "index": conn_face_num,
                             "tangent": [],
@@ -817,9 +843,9 @@ def export_map(
                     if conn_face_num < 2:
                         face = group_faces[0]
                         for layer in layer_list[:-2]:
-                            if layer.name[-6:] in ("tex_vx", "tex_vy"):
-                                val_1 = face[layer].to_tuple(5)  # type: ignore
-                                is_tex_uniform = next((0 for f in group_faces if f[layer].to_tuple(5) != val_1), 1)  # type: ignore
+                            if layer.name[12:] == "angle":
+                                val_1 = round(face[layer], 3)  # type: ignore
+                                is_tex_uniform = next((0 for f in group_faces if round(f[layer], 3) != val_1), 1)  # type: ignore
                             else:
                                 val_1 = face[layer]  # type: ignore
                                 is_tex_uniform = next((0 for f in group_faces if f[layer] != val_1), 1)  # type: ignore
@@ -843,45 +869,35 @@ def export_map(
                                 #
                                 # 按照顶点顺序计算切线
                                 tangent_data = []  # 切线数据
-                                verts_sub_idx = [v.index for v in face_conn.verts]
-                                for idx, edge in enumerate(face_conn.edges):
-                                    # 跳过边界
-                                    if (
-                                        edge.link_faces[0].normal.dot(
-                                            edge.link_faces[1].normal
-                                        )
-                                        < epsilon2
-                                    ):
-                                        continue
+                                # for idx, edge in enumerate(face_conn.edges):
+                                #     # 跳过边界
+                                #     if (
+                                #         edge.link_faces[0].normal.dot(
+                                #             edge.link_faces[1].normal
+                                #         )
+                                #         < epsilon2
+                                #     ):
+                                #         continue
 
-                                    co1 = matrix_world @ face_conn.verts[idx].co
-                                    co2 = (
-                                        matrix_world
-                                        @ face_conn.verts[
-                                            (idx + 1) % len(face_conn.verts)
-                                        ].co
-                                    )
+                                #     co1 = matrix_world @ face_conn.verts[idx].co
+                                #     co2 = (
+                                #         matrix_world
+                                #         @ face_conn.verts[
+                                #             (idx + 1) % len(face_conn.verts)
+                                #         ].co
+                                #     )
 
-                                    # verts_sub_idx_num = len(verts_sub_idx)
-                                    # for i in range(verts_sub_idx_num):
-                                    #     j = (i + 1) % verts_sub_idx_num
+                                verts_sub_idx_num = len(verts_sub_idx)
+                                for i in range(verts_sub_idx_num):
+                                    j = (i + 1) % verts_sub_idx_num
 
-                                    #     co1 = (
-                                    #         matrix_world @ sec_bm.verts[verts_sub_idx[i]].co
-                                    #     )
-                                    #     co2 = (
-                                    #         matrix_world @ sec_bm.verts[verts_sub_idx[j]].co
-                                    #     )
+                                    co1 = matrix_world @ face_conn.verts[i].co
+                                    co2 = matrix_world @ face_conn.verts[j].co
                                     cross = (co2 - co1).cross(normal)  # type: Vector
                                     cross.normalize()
                                     dist = (-co1).dot(cross) * 1000
 
                                     tangent_data.append((dist, cross))
-
-                                # 转换为全局顶点索引
-                                verts_sub_idx = [
-                                    sec_vertex_indices[i] for i in verts_sub_idx
-                                ]
 
                                 connect_data = (face_conn[conn_layer], verts_sub_idx, tangent_data)  # type: ignore
                             # 如果连接数量是0
@@ -913,14 +929,27 @@ def export_map(
                     bmesh.ops.dissolve_faces(
                         bm_convex, faces=list(bm_convex.faces), use_verts=False
                     )  # 合并组面
-                # if len(bm_convex.faces) == 0:
-                # logger.error(f"{sec.name}: {len(bm_convex.faces)}")
                 ag_utils.unsubdivide(bm_convex)  # 反细分
+                if len(bm_convex.faces) == 0:
+                    bm_convex.free()
+                    continue
                 bm_convex.faces.ensure_lookup_table()
-                verts_idx = [
-                    global_vertex_map[((matrix_world @ v.co) * 1000).to_tuple(1)]
-                    for v in bm_convex.faces[0].verts
-                ]
+                # verts_idx = [
+                #     global_vertex_map[((matrix_world @ v.co) * 1000).to_tuple(1)]
+                #     for v in bm_convex.faces[0].verts
+                # ]
+                verts_idx = []
+                for v in bm_convex.faces[0].verts:
+                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+                    v_key = v_key[0], -v_key[2], v_key[1]
+                    vert_idx = global_vertex_map.get(v_key)
+                    if vert_idx is None:
+                        vert_idx = global_vertex_map.setdefault(
+                            v_key, global_vertex_count
+                        )
+                        global_vertex_count += 1
+                        verts_buffer.write(struct.pack("<ddd", *v_key))
+                    verts_idx.append(vert_idx)
                 # 清理
                 bm_convex.free()
 
@@ -952,7 +981,7 @@ def export_map(
                 steep_no.append(sec)
 
             global_face_count += len(faces_sorted)
-            f.write(struct.pack("<I", len(faces_sorted)))
+            sec_buffer.write(struct.pack("<I", len(faces_sorted)))
             for (
                 face_index,
                 verts_idx,
@@ -960,41 +989,49 @@ def export_map(
                 face_type,
                 connect_data,
             ) in faces_sorted:
-                f.write(struct.pack("<I", face_type))
+                sec_buffer.write(struct.pack("<I", face_type))
                 ## 法向
                 # normal = matrix_world.to_quaternion() @ face.normal
-                f.write(struct.pack("<ddd", normal[0], -normal[2], normal[1]))
-                f.write(struct.pack("<d", mesh.attributes["amagate_v_dist"].data[face_index].value))  # type: ignore
+                sec_buffer.write(struct.pack("<ddd", normal[0], -normal[2], normal[1]))
+                sec_buffer.write(struct.pack("<d", mesh.attributes["amagate_v_dist"].data[face_index].value))  # type: ignore
 
                 if face_type in (7002, 7005):
-                    f.write(struct.pack("<I", len(verts_idx)))
+                    sec_buffer.write(struct.pack("<I", len(verts_idx)))
                     for v_idx in verts_idx:
-                        f.write(struct.pack("<I", v_idx))
+                        sec_buffer.write(struct.pack("<I", v_idx))
                     if face_type == 7005:
                         continue
                     conn_sid = connect_data[0]
-                    f.write(struct.pack("<I", global_sector_map[conn_sid]))
+                    sec_buffer.write(struct.pack("<I", global_sector_map[conn_sid]))
                 ## 固定标识
-                f.write(struct.pack("<I", 3))
-                f.write(struct.pack("<I", 0))
+                sec_buffer.write(struct.pack("<I", 3))
+                sec_buffer.write(struct.pack("<I", 0))
 
                 # 写入纹理数据
                 if face_type == 7004:
                     tex_buffer = connect_data[2]
-                    f.write(tex_buffer)
+                    sec_buffer.write(tex_buffer)
                 else:
                     buffer = L3D_data.get_texture_by_id(mesh.attributes["amagate_tex_id"].data[face_index].value)[1].name.encode("utf-8")  # type: ignore
-                    f.write(struct.pack("<I", len(buffer)))
-                    f.write(buffer)
+                    sec_buffer.write(struct.pack("<I", len(buffer)))
+                    sec_buffer.write(buffer)
+                    # if face_index == 1:
+                    #     tex_vx = Vector((1, 0, 0)).normalized()/10
+                    #     tex_vy = Vector((0, 0, 1)).normalized()/10
+                    # else:
                     tex_vx = mesh.attributes["amagate_tex_vx"].data[face_index].vector  # type: ignore
-                    f.write(struct.pack("<ddd", tex_vx[0], -tex_vx[2], tex_vx[1]))
                     tex_vy = mesh.attributes["amagate_tex_vy"].data[face_index].vector  # type: ignore
-                    f.write(struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1]))
+                    sec_buffer.write(
+                        struct.pack("<ddd", tex_vx[0], -tex_vx[2], tex_vx[1])
+                    )
+                    sec_buffer.write(
+                        struct.pack("<ddd", tex_vy[0], -tex_vy[2], tex_vy[1])
+                    )
                     tex_xpos = mesh.attributes["amagate_tex_xpos"].data[face_index].value  # type: ignore
                     tex_ypos = mesh.attributes["amagate_tex_ypos"].data[face_index].value  # type: ignore
                     tex_xzoom = mesh.attributes["amagate_tex_xzoom"].data[face_index].value  # type: ignore
                     tex_yzoom = mesh.attributes["amagate_tex_yzoom"].data[face_index].value  # type: ignore
-                    f.write(
+                    sec_buffer.write(
                         struct.pack(
                             "<ff",
                             tex_xpos / (0.001 * tex_xzoom),
@@ -1002,49 +1039,51 @@ def export_map(
                         )
                     )
 
-                f.write(b"\x00" * 8)  # 0
+                sec_buffer.write(b"\x00" * 8)  # 0
                 #
                 if face_type == 7002:
                     continue
 
-                f.write(struct.pack("<I", len(verts_idx)))
+                sec_buffer.write(struct.pack("<I", len(verts_idx)))
                 for v_idx in verts_idx:
-                    f.write(struct.pack("<I", v_idx))
+                    sec_buffer.write(struct.pack("<I", v_idx))
                 #
                 if face_type == 7003:
                     conn_sid, verts_sub_idx, tangent_data = connect_data
-                    f.write(struct.pack("<I", len(verts_sub_idx)))
+                    sec_buffer.write(struct.pack("<I", len(verts_sub_idx)))
                     for v_idx in verts_sub_idx:
-                        f.write(struct.pack("<I", v_idx))
-                    f.write(struct.pack("<I", global_sector_map[conn_sid]))
+                        sec_buffer.write(struct.pack("<I", v_idx))
+                    sec_buffer.write(struct.pack("<I", global_sector_map[conn_sid]))
 
-                    f.write(struct.pack("<I", len(tangent_data)))
+                    sec_buffer.write(struct.pack("<I", len(tangent_data)))
                     for dist, cross in tangent_data:
-                        f.write(struct.pack("<ddd", cross[0], -cross[2], cross[1]))
-                        f.write(struct.pack("<d", dist))
+                        sec_buffer.write(
+                            struct.pack("<ddd", cross[0], -cross[2], cross[1])
+                        )
+                        sec_buffer.write(struct.pack("<d", dist))
                 #
                 elif face_type == 7004:
                     holes_data, cut_data_buff, _ = connect_data
-                    f.write(struct.pack("<I", len(holes_data)))
+                    sec_buffer.write(struct.pack("<I", len(holes_data)))
 
                     for _, tangent_data, verts_sub_idx, conn_sid in holes_data:
-                        f.write(struct.pack("<I", len(verts_sub_idx)))
+                        sec_buffer.write(struct.pack("<I", len(verts_sub_idx)))
                         for v_idx in verts_sub_idx:
-                            f.write(struct.pack("<I", v_idx))
-                        f.write(struct.pack("<I", global_sector_map[conn_sid]))
+                            sec_buffer.write(struct.pack("<I", v_idx))
+                        sec_buffer.write(struct.pack("<I", global_sector_map[conn_sid]))
 
-                        f.write(struct.pack("<I", len(tangent_data)))
+                        sec_buffer.write(struct.pack("<I", len(tangent_data)))
                         for tx, ty, tz, dist in tangent_data:
-                            f.write(struct.pack("<ddd", tx, ty, tz))
-                            f.write(struct.pack("<d", dist))
+                            sec_buffer.write(struct.pack("<ddd", tx, ty, tz))
+                            sec_buffer.write(struct.pack("<d", dist))
 
                     while cut_data_buff:
-                        f.write(cut_data_buff.pop())
+                        sec_buffer.write(cut_data_buff.pop())
 
         # 写入外部光和灯泡数据
         external_num = 0
-        number_pos = f.tell()
-        f.write(struct.pack("<I", 0))  # 占位
+        number_pos = sec_buffer.tell()
+        sec_buffer.write(struct.pack("<I", 0))  # 占位
         ## 外部光
         for ext in scene_data.externals:
             if not ext.users_obj:
@@ -1053,49 +1092,56 @@ def export_map(
             color = ext.color
             vector = ext.vector.normalized()
             precision = ext.data.shadow_maximum_resolution
-            f.write(struct.pack("<I", 15002))
-            f.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
-            f.write(struct.pack("<f", color.v * v_factor))
-            f.write(struct.pack("<f", precision))
-            f.write(struct.pack("<ddd", 0, 0, 0))
-            f.write(bytes.fromhex("CD" * 8))
-            f.write(struct.pack("<I", 0))
-            f.write(struct.pack("<ddd", vector[0], -vector[2], vector[1]))
+            sec_buffer.write(struct.pack("<I", 15002))
+            sec_buffer.write(struct.pack("<BBB", *(math.ceil(c * 255) for c in color)))
+            sec_buffer.write(struct.pack("<f", color.v * v_factor))
+            sec_buffer.write(struct.pack("<f", precision))
+            sec_buffer.write(struct.pack("<ddd", 0, 0, 0))
+            sec_buffer.write(bytes.fromhex("CD" * 8))
+            sec_buffer.write(struct.pack("<I", 0))
+            sec_buffer.write(struct.pack("<ddd", vector[0], -vector[2], vector[1]))
             ## 使用该外部光的扇区
             users_num = 0
-            number_pos_2 = f.tell()
-            f.write(struct.pack("<I", 0))  # 占位
+            number_pos_2 = sec_buffer.tell()
+            sec_buffer.write(struct.pack("<I", 0))  # 占位
             for i in ext.users_obj:
                 sid = i.obj.amagate_data.get_sector_data().id
                 # 如果扇区在导出列表中
                 if global_sector_map.get(sid) is not None:
                     users_num += 1
-                    f.write(struct.pack("<I", global_sector_map[sid]))
-            stream_pos = f.tell()
-            f.seek(number_pos_2)
-            f.write(struct.pack("<I", users_num))
-            f.seek(stream_pos)
+                    sec_buffer.write(struct.pack("<I", global_sector_map[sid]))
+            stream_pos = sec_buffer.tell()
+            sec_buffer.seek(number_pos_2)
+            sec_buffer.write(struct.pack("<I", users_num))
+            sec_buffer.seek(stream_pos)
             external_num += 1
         ## 灯泡
-        stream_pos = f.tell()
-        f.seek(number_pos)
-        f.write(struct.pack("<I", bulb_num + external_num))
-        f.seek(stream_pos)
-        f.write(bulb_buffer.getvalue())
+        stream_pos = sec_buffer.tell()
+        sec_buffer.seek(number_pos)
+        sec_buffer.write(struct.pack("<I", bulb_num + external_num))
+        sec_buffer.seek(stream_pos)
+        sec_buffer.write(bulb_buffer.getvalue())
         bulb_buffer.close()
 
         ## 未知数据 地图边界？
-        f.write(struct.pack("<ddd", 0, 0, 0))
-        f.write(struct.pack("<ddd", 0, 0, 0))
+        sec_buffer.write(struct.pack("<ddd", 0, 0, 0))
+        sec_buffer.write(struct.pack("<ddd", 0, 0, 0))
 
         # 写入组数据
-        f.write(group_buffer.getvalue())
+        sec_buffer.write(group_buffer.getvalue())
         group_buffer.close()
 
         # 写入扇区名称数据
-        f.write(struct.pack("<I", sec_total))
-        f.write(sec_name_buffer.getvalue())
+        sec_buffer.write(struct.pack("<I", sec_total))
+        sec_buffer.write(sec_name_buffer.getvalue())
         sec_name_buffer.close()
+
+        #
+        f.write(struct.pack("<I", global_vertex_count))
+        f.write(verts_buffer.getvalue())
+        f.write(sec_buffer.getvalue())
+        verts_buffer.close()
+        sec_buffer.close()
 
     # 地图数据脚本
     map_dir = os.path.dirname(bpy.data.filepath)
@@ -1165,10 +1211,13 @@ def export_map(
     # self.report({'WARNING'}, "Compile to bw Failed")
 
     print(f", Done in {time.time() - start_time:.2f}s")
-    this.report(
-        {"INFO"},
-        f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {sec_total} {pgettext('Sectors')}",
-    )
+    if COMPILE_STATUS:
+        this.report(
+            {"INFO"},
+            f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {sec_total} {pgettext('Sectors')}",
+        )
+    else:
+        this.report({"ERROR"}, f"{pgettext('Compile Failed')}")
     return {"FINISHED"}
 
 
