@@ -59,6 +59,17 @@ epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
 logger = data.logger
 
+# 面纹理属性储存
+FACE_PROPS = {
+    "amagate_flat_light": ["int", 0],
+    "amagate_tex_id": ["int", 1],
+    "amagate_tex_xpos": ["float", 0.0],
+    "amagate_tex_ypos": ["float", 0.0],
+    "amagate_tex_angle": ["float", 0.0],
+    "amagate_tex_xzoom": ["float", 20],
+    "amagate_tex_yzoom": ["float", 20],
+}
+
 ############################
 ############################ 场景面板 -> 属性面板
 ############################
@@ -989,6 +1000,84 @@ class OT_SelectConnected(bpy.types.Operator):
                         "obj"
                     ]
                     conn_sec.select_set(True)
+
+        return {"FINISHED"}
+
+
+# 复制面纹理设置
+class OT_CopyFaceTexture(bpy.types.Operator):
+    bl_idname = "amagate.copy_face_texture"
+    bl_label = "Copy Settings"
+    bl_description = ""
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return (
+            context.scene.amagate_data.is_blade
+            and context.area.type == "VIEW_3D"
+            and context.mode == "EDIT_MESH"
+        )
+
+    def execute(self, context: Context):
+        global FACE_PROPS
+        selected_faces = L3D_data.SELECTED_FACES
+        if not selected_faces:
+            self.report({"WARNING"}, "No face selected")
+            return {"CANCELLED"}
+
+        item = selected_faces[0]
+        bm = item[0]
+        face = item[1][0]
+        for k, v in FACE_PROPS.items():
+            layer = getattr(bm.faces.layers, v[0])[k]
+            v[1] = face[layer]
+
+        return {"FINISHED"}
+
+
+# 粘贴面纹理设置
+class OT_PasteFaceTexture(bpy.types.Operator):
+    bl_idname = "amagate.paste_face_texture"
+    bl_label = "Paste Settings"
+    bl_description = ""
+    bl_options = {"UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return (
+            context.scene.amagate_data.is_blade
+            and context.area.type == "VIEW_3D"
+            and context.mode == "EDIT_MESH"
+        )
+
+    def execute(self, context: Context):
+        global FACE_PROPS
+        selected_faces = L3D_data.SELECTED_FACES
+        if not selected_faces:
+            self.report({"WARNING"}, "No face selected")
+            return {"CANCELLED"}
+
+        tex_id = FACE_PROPS["amagate_tex_id"][1]
+        idx, img = L3D_data.get_texture_by_id(tex_id)
+        if img is None:
+            self.report({"ERROR"}, "No texture found")
+            return {"CANCELLED"}
+
+        mat = L3D_data.ensure_material(img)
+        for item in selected_faces:
+            bm = item[0]
+            sec = item[2]
+            sec_data = sec.amagate_data.get_sector_data()
+            faces = item[1]
+            for face in faces:
+                for k, v in FACE_PROPS.items():
+                    layer = getattr(bm.faces.layers, v[0])[k]
+                    face[layer] = v[1]
+            sec_data.set_matslot(mat, faces, bm)
+            sec.update_tag()
+        #
+        data.area_redraw("VIEW_3D")
 
         return {"FINISHED"}
 

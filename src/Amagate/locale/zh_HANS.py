@@ -184,6 +184,8 @@
     ("*", "Connected Sector"): "连接的扇区",
     ("*", "Texture type"): "纹理类型",
     ("*", "Show Connected Face"): "显示连接面",
+    ("Operator", "Paste Settings"): "粘贴设置",
+    ("*", "No texture found"): "未找到纹理",
     #
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",

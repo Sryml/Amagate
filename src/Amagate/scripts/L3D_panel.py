@@ -1165,40 +1165,44 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
                 col.label(icon_value=1)
             #
             row = column.row(align=True)
-            if 1:
-                x_text = "X" if attr_dict["xpos"]["is_uniform"] else "X *"
-                y_text = "Y" if attr_dict["ypos"]["is_uniform"] else "Y *"
-                row.prop(prop, "xpos", text=x_text)
-                row.prop(prop, "ypos", text=y_text)
+            x_text = "X" if attr_dict["xpos"]["is_uniform"] else "X *"
+            y_text = "Y" if attr_dict["ypos"]["is_uniform"] else "Y *"
+            row.prop(prop, "xpos", text=x_text)
+            row.prop(prop, "ypos", text=y_text)
 
-                row = column.row()
-                text = (
-                    "Angle"
-                    if attr_dict["angle"]["is_uniform"]
-                    else f"{pgettext('Angle')} *"
-                )
-                row.prop(prop, "angle", text=text)
+            row = column.row()
+            text = (
+                "Angle"
+                if attr_dict["angle"]["is_uniform"]
+                else f"{pgettext('Angle')} *"
+            )
+            row.prop(prop, "angle", text=text)
 
-                box2 = column.box()
-                row = box2.row()
-                col = row.column(align=True)
-                x_text = f"X {pgettext('Zoom')}"
-                if not attr_dict["xzoom"]["is_uniform"]:
-                    x_text = f"{x_text} *"
-                y_text = f"Y {pgettext('Zoom')}"
-                if not attr_dict["yzoom"]["is_uniform"]:
-                    y_text = f"{y_text} *"
-                col.prop(prop, "xzoom", text=x_text)
-                col.prop(prop, "yzoom", text=y_text)
-                col = row.column()
-                col.scale_y = 2
-                col.prop(
-                    prop,
-                    "zoom_constraint",
-                    text="",
-                    icon="LINKED" if prop.zoom_constraint else "UNLINKED",
-                    emboss=False,
-                )
+            box2 = column.box()
+            row = box2.row()
+            col = row.column(align=True)
+            x_text = f"X {pgettext('Zoom')}"
+            if not attr_dict["xzoom"]["is_uniform"]:
+                x_text = f"{x_text} *"
+            y_text = f"Y {pgettext('Zoom')}"
+            if not attr_dict["yzoom"]["is_uniform"]:
+                y_text = f"{y_text} *"
+            col.prop(prop, "xzoom", text=x_text)
+            col.prop(prop, "yzoom", text=y_text)
+            col = row.column()
+            col.scale_y = 2
+            col.prop(
+                prop,
+                "zoom_constraint",
+                text="",
+                icon="LINKED" if prop.zoom_constraint else "UNLINKED",
+                emboss=False,
+            )
+            # 复制/粘贴设置
+            column.separator(type="SPACE")
+            row = column.row()
+            row.operator(OP_L3D.OT_CopyFaceTexture.bl_idname)
+            row.operator(OP_L3D.OT_PasteFaceTexture.bl_idname)
             # 平面光
         except:
             pass
