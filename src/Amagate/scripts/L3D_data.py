@@ -1227,11 +1227,12 @@ class AMAGATE_UI_UL_StrList(bpy.types.UIList):
 class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
     def filter_items(self, context, data, propname):
         items = getattr(data, propname)
-        # 按A-Z排序 # FIXME 没有按照预期排序，不知道为什么
         if self.use_filter_sort_alpha:
-            flt_neworder = sorted(
-                range(len(items)), key=lambda i: items[i].item_name.lower()
-            )
+            # 按A-Z排序
+            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "item_name")
+            # flt_neworder = sorted(
+            #     range(len(items)), key=lambda i: items[i].item_name.lower()
+            # )
         else:
             flt_neworder = []
         # 按名称过滤
@@ -1292,9 +1293,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         items = getattr(data, propname)
         # 按A-Z排序
         if self.use_filter_sort_alpha:
-            flt_neworder = sorted(
-                range(len(items)), key=lambda i: items[i].item_name.lower()
-            )
+            flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "item_name")
         else:
             flt_neworder = []
         # 按名称过滤
@@ -1373,9 +1372,14 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         else:
             invisible = 0
         flt_flags = [self.bitflag_filter_item] * len(items)
-        # 天空纹理置顶 # FIXME 没有按照预期排序，不知道为什么
+        # 天空纹理置顶
         img_idx = items.find(img.name)
-        flt_neworder = [img_idx] + [i for i in range(len(items)) if i != img_idx]
+        if img_idx != -1:
+            flt_neworder = (
+                list(range(1, img_idx + 1)) + [0] + list(range(img_idx + 1, len(items)))
+            )
+        else:
+            flt_neworder = []
 
         # 按名称过滤
         regex = None
