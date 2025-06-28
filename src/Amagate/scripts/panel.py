@@ -145,7 +145,7 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         col = layout.column(align=True)
         col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
         col.operator(OP.OT_ExportNode.bl_idname)
-        col.operator(OP.OT_ImportNode.bl_idname)
+        # col.operator(OP.OT_ImportNode.bl_idname)
         col.operator(OP.OT_Test.bl_idname)
         #
         # col.operator(OP.OT_Test.bl_idname, icon="EMPTY_SINGLE_ARROW")
@@ -154,7 +154,6 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         # col.operator(OP.OT_Test.bl_idname, icon="EVENT_DOWN_ARROW")
         # col.operator(OP.OT_Test.bl_idname, icon="EVENT_DOWN_ARROW")
         # col.operator(OP.OT_Test.bl_idname, icon="EVENT_DOWN_ARROW")
-
 
 
 ############################

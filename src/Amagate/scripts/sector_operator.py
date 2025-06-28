@@ -903,8 +903,20 @@ class OT_Sector_Connect(bpy.types.Operator):
                         if isinstance(g, bmesh.types.BMVert)
                     ]
                     face1, face2 = edge.link_faces
-                    co = next(v.co for v in face1.verts if v not in cut_verts)
-                    dir = (co - edge.verts[0].co).normalized()  # type: ignore
+                    line_p1 = edge.verts[0].co.copy()
+                    line_p2 = edge.verts[1].co.copy()
+                    co = next(
+                        v.co.copy()
+                        for v in face1.verts
+                        if v not in cut_verts
+                        and (
+                            geometry.intersect_point_line(v.co, line_p1, line_p2)[0]
+                            - v.co
+                        ).length
+                        > 1e-4
+                    )
+                    pt, pct = geometry.intersect_point_line(co, line_p1, line_p2)
+                    dir = (co - pt).normalized()
                     if plane_no.dot(dir) < 0:
                         inner_face = face1
                     else:
@@ -927,108 +939,10 @@ class OT_Sector_Connect(bpy.types.Operator):
         knife_bm.free()
         return None
 
-        # 往投影法向移动5厘米, 再往反方向挤出10厘米
-        # matrix = Matrix.Translation(proj_normal * 0.05)
-        # bmesh.ops.transform(knife_bm, matrix=matrix, verts=list(verts_map.values()))  # type: ignore
-        # result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_faces)  # type: ignore
-        # matrix = Matrix.Translation(-proj_normal * 0.1)
-        # bmesh.ops.transform(
-        #     knife_bm,
-        #     matrix=matrix,
-        #     verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
-        # )
-        #
-
-        """ 
-        knife_mesh = bpy.data.meshes.new("AG.knife")
-        knife_bm.to_mesh(knife_mesh)
-        knife_bm.free()
-        #
-        knife = bpy.data.objects.new(
-            "AG.knife", knife_mesh
-        )  # type: Object #type: ignore
-        data.link2coll(knife, context.scene.collection)
-        #
-        ag_utils.select_active(context, knife)  # 单选并设为活动
-        bpy.ops.object.mode_set(mode="EDIT")  # 编辑模式
-        bpy.ops.mesh.select_mode(type="FACE")  # 切换面模式
-
-        bm_edit = bmesh.from_edit_mesh(knife_mesh)
-        # bm_edit.faces.ensure_lookup_table()
-        mark_layer = bm_edit.faces.layers.int.get("mark")
-
-        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        bpy.ops.mesh.normals_make_consistent(inside=False)  # 重新计算法向（外侧）
-        # 开始布尔交集
-        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        for face in bm_edit.faces:
-            if face[mark_layer] == 1:  # type: ignore
-                face.select_set(True)
-        bm_edit.select_flush_mode()  # 刷新选择
-        # return None, None  # type: ignore
-        with contextlib.redirect_stdout(StringIO()):
-            bpy.ops.mesh.intersect_boolean(
-                operation="INTERSECT", solver="EXACT"
-            )  # 布尔交集，准确模式
-        # 如果没有交集
-        if len(bm_edit.faces) == 0:
-            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-            bpy.data.meshes.remove(knife_mesh)  # 删除网格
-            # logger.debug("1 - no knife")
-            return None, None  # type: ignore
-
-        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        bpy.ops.mesh.normals_make_consistent(inside=True)  # 重新计算法向（内侧）
-        # 选择与投影法向相同的面
-        bpy.ops.mesh.select_all(action="DESELECT")  # 取消选择网格
-        for f in bm_edit.faces:
-            dot = f.normal.dot(proj_normal)
-            # ag_utils.debugprint(f"dot: {dot}")
-            if dot > 0.999:
-                f.select_set(True)
-                break
-        bm_edit.select_flush_mode()  # 刷新选择
-        bpy.ops.mesh.faces_select_linked_flat(sharpness=0.002)  # 选中相连的平展面
-
-        bpy.ops.mesh.select_all(action="INVERT")  # 反选
-        bpy.ops.mesh.delete(type="FACE")  # 删除面
-
-        # 简并融并，两次
-        bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
-        with contextlib.redirect_stdout(StringIO()):
-            bpy.ops.mesh.dissolve_degenerate()
-            bpy.ops.mesh.dissolve_degenerate()
-        # 再次判断是否有刀具
-        if len(bm_edit.faces) == 0:
-            bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-            bpy.data.meshes.remove(knife_mesh)  # 删除网格
-            # logger.debug("2 - no knife")
-            return None, None  # type: ignore
-        bmesh.ops.dissolve_faces(
-            bm_edit, faces=list(bm_edit.faces), use_verts=False
-        )  # 融并面
-        ag_utils.unsubdivide(bm_edit)  # 反细分边
-        bmesh.update_edit_mesh(knife_mesh)
-
-        bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
-
-        knife_bm = bmesh.new()
-        knife_bm.from_mesh(knife_mesh)
-        # 放大，再往投影法向移动1米
-        matrix = Matrix.Translation(proj_normal)
-        # matrix = Matrix.Scale(1.0001, 4)
-        # matrix.translation = proj_normal
-        bmesh.ops.transform(
-            knife_bm, matrix=matrix, verts=knife_bm.verts  # type: ignore
-        )
-        return knife_bm
-        """
-
     def cut_plane(
         self,
         context: Context,
         sec_info,
-        # knife: Object,
         knife_bm: bmesh.types.BMesh,
     ):
         success = self.success
@@ -1174,23 +1088,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                 for e in bm_tmp.edges
             ]
             bm_tmp.free()
-            # for e in f.edges:
-            #     if e.index in visited:
-            #         continue
-            #     visited.add(e.index)
-            #     for f2 in e.link_faces:
-            #         if f2 in flat_face:
-            #             continue
-            #         dot = f2.normal.dot(f.normal)
-            #         if abs(dot) > epsilon2:
-            #             continue
-            #         # 找到边界边
-            #         co1 = e.verts[0].co
-            #         co2 = e.verts[1].co
-            #         boundary.append(((co2 - co1).normalized(), co1.copy()))
             #
-            # for i in boundary:
-            #     ag_utils.debugprint(f"boundary: {i}")
             normal = matrix_inv.to_quaternion() @ knife_bm.faces[0].normal
             knife_face = knife_bm.faces[0]
             v_num = len(knife_face.verts)
@@ -1247,10 +1145,13 @@ class OT_Sector_Connect(bpy.types.Operator):
                     # logger.debug(f"no cut_edges: {sec.name} - {sec2.name}")
                     continue
 
+                # logger.debug(f"cut_edges: {len(cut_edges)}")
                 for e in cut_edges:
                     e[cut_layer] = 1  # type: ignore
                     med_point2 = (e.verts[0].co + e.verts[1].co) / 2.0
                     length = (med_point - med_point2).length
+                    # if sec_data_2.id == 12:
+                    # logger.debug(f"cut_edges: {e.index}, length: {length}")
                     if length < min_len:
                         min_len = length
                         edge = e
@@ -1262,15 +1163,28 @@ class OT_Sector_Connect(bpy.types.Operator):
                 if face1.normal.dot(face2.normal) < epsilon2:
                     continue
                 #
-                co = next(v.co for v in face1.verts if v not in cut_verts)
-                dir = (co - edge.verts[0].co).normalized()
+                line_p1 = edge.verts[0].co.copy()
+                line_p2 = edge.verts[1].co.copy()
+                co = next(
+                    v.co.copy()
+                    for v in face1.verts
+                    if v not in cut_verts
+                    and (
+                        geometry.intersect_point_line(v.co, line_p1, line_p2)[0] - v.co
+                    ).length
+                    > 1e-4
+                )
+                pt, pct = geometry.intersect_point_line(co, line_p1, line_p2)
+                dir = (co - pt).normalized()
+                if sec_data_2.id == 249:
+                    logger.debug(f"length: {(co - pt).length}")
                 if plane_no.dot(dir) < 0:
                     inner_face = face1
                 else:
                     inner_face = face2
                 inner_faces = self.get_linked_flat(inner_face, cut_layer, conn_layer)
                 ###################### XXX 临时代码
-                # if sec_data_2.id == 237:
+                # if sec_data_2.id == 249:
                 #     bm_tmp = bmesh.new()
                 #     verts_map_tmp = {}
                 #     for f in inner_faces:
@@ -1297,6 +1211,20 @@ class OT_Sector_Connect(bpy.types.Operator):
             # sec_bm.to_mesh(mesh)
             # return
             if len(inner_faces) != 1:
+                #
+                # logger.debug(f"connect sec: {sec2.name}")
+                # bm_tmp = bmesh.new()
+                # verts_map_tmp = {}
+                # for f in inner_faces:
+                #     for v in f.verts:
+                #         if v.index not in verts_map_tmp:
+                #             verts_map_tmp[v.index] = bm_tmp.verts.new(matrix @ v.co)
+                #     bm_tmp.faces.new([verts_map_tmp[v.index] for v in f.verts])
+                # mesh_tmp = bpy.data.meshes.new("")
+                # bm_tmp.to_mesh(mesh_tmp)
+                # obj_tmp = bpy.data.objects.new("AG.tmp", mesh_tmp)
+                # data.link2coll(obj_tmp, context.scene.collection)
+                #
                 result = bmesh.ops.dissolve_faces(
                     sec_bm, faces=inner_faces, use_verts=False
                 )  # 融并面 # type: ignore

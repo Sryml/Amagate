@@ -214,6 +214,7 @@
     ("Operator", "Compile to bw (with Run Script)"): "编译为bw (带运行脚本)",
     ("*", "Compile to bw"): "编译为bw",
     ("*", "Compile Success"): "编译成功",
+    ("*", "Compile Exception"): "编译异常",
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
     ("Operator", "Import Map"): "导入地图",

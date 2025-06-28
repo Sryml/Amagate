@@ -953,7 +953,7 @@ class OT_PolyPath(bpy.types.Operator):
         curve_data = bpy.data.curves.new(
             "PolyPath", type="CURVE"
         )  # type: bpy.types.Curve
-        curve_data.dimensions = "3D"
+        curve_data.dimensions = "2D"
         curve_data.splines.new("POLY")
 
         curve = bpy.data.objects.new(

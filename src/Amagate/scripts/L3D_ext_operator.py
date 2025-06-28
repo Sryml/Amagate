@@ -109,14 +109,6 @@ for pos in steep_no:
 # 切割平面
 def bisect_plane(bm, plane_no, plane_co):
     # type: (bmesh.types.BMesh, Vector, Vector) -> tuple[bmesh.types.BMesh, bmesh.types.BMesh]
-    # amagate_hole
-    #
-    # bm_mesh = bpy.data.meshes.new(f"AG.split")
-    # bm.to_mesh(bm_mesh)
-    # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
-    # data.link2coll(bm_obj, bpy.context.scene.collection)
-    # logger.debug(f"bisect_plane: {plane_no}, {plane_co}")
-    #
     layers_1 = [
         bm.faces.layers.int.get("amagate_connected"),
         bm.faces.layers.int.get("amagate_tex_id"),
@@ -160,13 +152,28 @@ def bisect_plane(bm, plane_no, plane_co):
         # bm.to_mesh(bm_mesh)
         # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
         # data.link2coll(bm_obj, bpy.context.scene.collection)
+        #
         print(f"bisect_plane: {plane_no}, {plane_co}")
         #
         return bm, None  # type: ignore
 
     face1, face2 = edge.link_faces
-    co = next((v.co for v in face1.verts if v not in cut_verts), None)
-    dir = (co - edge.verts[0].co).normalized()  # type: ignore
+    line_p1 = edge.verts[0].co.copy()
+    line_p2 = edge.verts[1].co.copy()
+    co = next(
+        (
+            v.co.copy()
+            for v in face1.verts
+            if v not in cut_verts
+            and (geometry.intersect_point_line(v.co, line_p1, line_p2)[0] - v.co).length
+            > 1e-4
+        ),
+        None,
+    )
+    if not co:
+        return bm, None  # type: ignore
+    pt, pct = geometry.intersect_point_line(co, line_p1, line_p2)
+    dir = (co - pt).normalized()
     if plane_no.dot(dir) > 0:
         outer_face = face1
     else:
@@ -1217,7 +1224,7 @@ def export_map(
             f"{pgettext('Compile Success')}:\n{global_vertex_count} {pgettext('Vertices')}, {global_face_count} {pgettext('Faces')}, {sec_total} {pgettext('Sectors')}",
         )
     else:
-        this.report({"ERROR"}, f"{pgettext('Compile Failed')}")
+        this.report({"WARNING"}, f"{pgettext('Compile Exception')}")
     return {"FINISHED"}
 
 

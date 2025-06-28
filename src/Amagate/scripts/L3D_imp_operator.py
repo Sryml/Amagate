@@ -94,6 +94,8 @@ def hole_split(sec_bm, inner_face, tangent_data, sector_id):
         # 获取内部面
         cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
         cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+        if not cut_edges:
+            continue
         edge = cut_edges[0]
         if len(edge.link_faces) == 1:
             #
@@ -108,8 +110,17 @@ def hole_split(sec_bm, inner_face, tangent_data, sector_id):
             continue
 
         face1, face2 = edge.link_faces
-        co = next((v.co for v in face1.verts if v not in cut_verts), None)
-        dir = (co - edge.verts[0].co).normalized()  # type: ignore
+        line_p1 = edge.verts[0].co.copy()
+        line_p2 = edge.verts[1].co.copy()
+        co = next(
+            v.co.copy()
+            for v in face1.verts
+            if v not in cut_verts
+            and (geometry.intersect_point_line(v.co, line_p1, line_p2)[0] - v.co).length
+            > 1e-4
+        )
+        pt, pct = geometry.intersect_point_line(co, line_p1, line_p2)
+        dir = (co - pt).normalized()
         if plane_no.dot(dir) < 0:
             inner_face = face1
         else:
@@ -154,8 +165,19 @@ def flat_split(sec_bm, face, cut_data, layers, sector_id):
                 #
                 edge = cut_edges[0]
                 face1, face2 = edge.link_faces
-                co = next((v.co for v in face1.verts if v not in cut_verts), None)
-                dir = (co - edge.verts[0].co).normalized()  # type: ignore
+                line_p1 = edge.verts[0].co.copy()
+                line_p2 = edge.verts[1].co.copy()
+                co = next(
+                    v.co.copy()
+                    for v in face1.verts
+                    if v not in cut_verts
+                    and (
+                        geometry.intersect_point_line(v.co, line_p1, line_p2)[0] - v.co
+                    ).length
+                    > 1e-4
+                )
+                pt, pct = geometry.intersect_point_line(co, line_p1, line_p2)
+                dir = (co - pt).normalized()
                 if plane_no.dot(dir) < 0:
                     inner_face = face1
                     outer_face = face2
