@@ -313,13 +313,13 @@ def ensure_node():
     NodeTree.is_type_mesh = True  # type: ignore
     scene_data.eval_node = NodeTree
     #
-    NodeTree = bpy.data.node_groups.get("AG.FrustumCulling")
-    if not NodeTree:
-        NodeTree = bpy.data.node_groups.new("AG.FrustumCulling", "GeometryNodeTree")  # type: ignore
-    data.import_nodes(NodeTree, nodes_data["AG.FrustumCulling"])
-    NodeTree.use_fake_user = True
-    NodeTree.is_tool = True  # type: ignore
-    NodeTree.is_type_mesh = True  # type: ignore
+    # NodeTree = bpy.data.node_groups.get("AG.FrustumCulling")
+    # if not NodeTree:
+    #     NodeTree = bpy.data.node_groups.new("AG.FrustumCulling", "GeometryNodeTree")  # type: ignore
+    # data.import_nodes(NodeTree, nodes_data["AG.FrustumCulling"])
+    # NodeTree.use_fake_user = True
+    # NodeTree.is_tool = True  # type: ignore
+    # NodeTree.is_type_mesh = True  # type: ignore
     #
     NodeTree = scene_data.sec_node
     if not NodeTree:
@@ -959,16 +959,20 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
     # else:
     #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":
     #         for update in depsgraph.updates:
-    #             if not update.is_updated_transform:
-    #                 break
+    #             # if update.is_updated_transform:
+    #             #     break
 
-    #             obj = update.id  # type: Object # type: ignore
+    #             obj = update.id
     #             if not isinstance(obj, bpy.types.Object):
     #                 break
 
-    #             sec_data = obj.amagate_data.get_sector_data()
+    #             sec_data = obj.amagate_data.get_sector_data() # type: ignore
     #             if sec_data is None:
     #                 continue
+
+    #             if scene_data["SectorManage"]["sectors"][str(sec_data.id)]["obj"] != obj:
+    #                 check_sector_duplicate(is_repeat=True)
+    #                 break
     #             if sec_data.connect_num != 0:
     #                 CONNECT_SECTORS.add(obj)
 
@@ -1159,6 +1163,12 @@ def load_post(filepath=""):
             prop = scene_data.sector_public.textures.add()
             prop.name = "Face"
             prop.target = "SectorPublic"
+        if scene_data.version == "":
+            from . import L3D_operator as OP_L3D
+
+            scene_data.atmo_id_key = scene_data.atmospheres[0].name
+            OP_L3D.OT_Node_Reset.reset_node()
+        #
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
             if hasattr(spaces, "shading"):
@@ -2175,6 +2185,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
     def init(self):
+        self.version = data.VERSION
         #
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         defaults = self.defaults

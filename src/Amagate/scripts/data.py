@@ -367,6 +367,7 @@ def import_nodes(target, nodes_data):
 
     # 导入接口
     if hasattr(target, "type") and target.type == "GEOMETRY":
+        target.interface.clear()
         for item_data in nodes_data["socket"]:
             socket = target.interface.new_socket(
                 name=item_data["name"],

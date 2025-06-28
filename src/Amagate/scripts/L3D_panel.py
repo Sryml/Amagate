@@ -1317,6 +1317,13 @@ class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
         )
         op.execute_type = 0  # type: ignore
 
+        column.separator(type="LINE")
+
+        # 重置节点
+        row = column.row()
+        row.enabled = scene_data.is_blade
+        row.operator(OP_L3D.OT_Node_Reset.bl_idname, icon="FILE_REFRESH")
+
 
 ############################
 ############################

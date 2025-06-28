@@ -1514,6 +1514,57 @@ def set_view(area, view_type):
     return warp
 
 
+# 重置节点
+class OT_Node_Reset(bpy.types.Operator):
+    bl_idname = "amagate.node_reset"
+    bl_label = "Reset Node"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        self.reset_node()
+        return {"FINISHED"}
+
+    @staticmethod
+    def reset_node():
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        # 世界环境
+        world = bpy.data.worlds.get("BWorld")
+        if not world:
+            world = bpy.data.worlds.new("")
+            world.rename("BWorld", mode="ALWAYS")
+        data.import_nodes(world, nodes_data["BWorld"])
+        # 解算节点
+        NodeTree = scene_data.eval_node
+        data.import_nodes(NodeTree, nodes_data["Amagate Eval"])
+        # 扇区节点
+        NodeTree = scene_data.sec_node
+        data.import_nodes(NodeTree, nodes_data["AG.SectorNodes"])
+        # 材质节点
+        for tex in bpy.data.images:
+            tex_data = tex.amagate_data
+            if tex_data.id == 0:
+                continue
+            #
+            name = f"AG.Mat{tex_data.id}"
+            mat = tex_data.mat_obj
+            if not mat:
+                mat = bpy.data.materials.new("")
+                mat.rename(name, mode="ALWAYS")
+                mat.use_fake_user = True
+                mat.use_backface_culling = True
+                tex_data.mat_obj = mat
+            if tex_data.id == -1:
+                data.import_nodes(mat, nodes_data["AG.Mat-1"])
+                mat.node_tree.nodes["Environment Texture"].image = tex  # type: ignore
+            else:
+                data.import_nodes(mat, nodes_data["AG.Mat1"])
+                mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+
+
 # 合并地图
 class OT_MergeMap(bpy.types.Operator):
     bl_idname = "amagate.mergemap"
