@@ -822,7 +822,7 @@ def export_map(
                         face_conn = face
                         verts_sub_idx = []
                         for v in face_conn.verts:
-                            v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+                            v_key = ((matrix_world @ v.co) * 1000).to_tuple(0)
                             v_key = v_key[0], -v_key[2], v_key[1]
                             vert_idx = global_vertex_map.get(v_key)
                             if vert_idx is None:
@@ -940,7 +940,7 @@ def export_map(
                 # ]
                 verts_idx = []
                 for v in bm_convex.faces[0].verts:
-                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(1)
+                    v_key = ((matrix_world @ v.co) * 1000).to_tuple(0)
                     v_key = v_key[0], -v_key[2], v_key[1]
                     vert_idx = global_vertex_map.get(v_key)
                     if vert_idx is None:

@@ -893,7 +893,10 @@ def disconnect(
             sec_data.mesh_unique()
             sec_bm.to_mesh(sec.data)  # type: ignore
         if isinstance(this, bpy.types.Operator):
-            sec_data.connect_num = 0
+            if edit_mode:
+                sec_data.connect_num -= dis_face_num
+            else:
+                sec_data.connect_num = 0
         else:
             sec_data.connect_num -= dis_face_num
         sec_bm.free()
@@ -968,39 +971,54 @@ def check_connect(sec, check_id=None):
                     dis_target_list.append((conn_sec, sec_bm_2, face_2))
                     sec_data.connect_num -= 1
                     # disconnect_face(faces, sec_bm_2, face_2, conn_layer_2, conn_sec_data, mesh_2)
+                    # logger.debug("normal not match")
                     break
 
                 # 获取面的顶点坐标
-                co1 = matrix_1 @ face_1.verts[0].co
-                co2 = matrix_2 @ face_2.verts[0].co
-                dir = (co2 - co1).normalized()
-                # 如果顶点不是在同一平面，断开连接
-                if abs(dir.dot(normal_1)) > epsilon:
-                    face_1[conn_layer] = 0  # type: ignore
-                    dis_face_list.append(face_1)
-                    dis_target_list.append((conn_sec, sec_bm_2, face_2))
-                    sec_data.connect_num -= 1
-                    break
+                # D = -(matrix_1 @ face_1.verts[0].co).dot(normal_1)
+                # co2 = matrix_2 @ face_2.verts[0].co
+                # dir = (co2 - co1).normalized()
+                # dot = dir.dot(normal_1)
+                # # 如果顶点不是在同一平面，断开连接
+                # if abs(dot) > 2e-5:
+                #     face_1[conn_layer] = 0  # type: ignore
+                #     dis_face_list.append(face_1)
+                #     dis_target_list.append((conn_sec, sec_bm_2, face_2))
+                #     sec_data.connect_num -= 1
+                #     logger.debug(f"vertex not on same plane: {dot}")
+                #     break
 
-                # 如果具有共面性，计算两个面顶点是否匹配
+                # 计算两个面顶点是否匹配
                 bm_cmp = bmesh.new()
-                for f, matrix in ((face_1, matrix_1), (face_2, matrix_2)):
-                    for v in f.verts:
-                        bm_cmp.verts.new(matrix @ v.co)
-                    bm_cmp.faces.new(bm_cmp.verts[-len(f.verts) :])
-                bm_cmp = ensure_lookup_table(bm_cmp)
-                unsubdivide(bm_cmp)  # 反细分边
-                bm_cmp.faces.ensure_lookup_table()
-                verts_set_1 = {v.co.to_tuple(3) for v in bm_cmp.faces[0].verts}
-                verts_set_2 = {v.co.to_tuple(3) for v in bm_cmp.faces[1].verts}
+                for v in face_1.verts:
+                    bm_cmp.verts.new(matrix_1 @ v.co)
+                bm_cmp.faces.new(bm_cmp.verts[-len(face_1.verts) :])
+                for v in face_2.verts:
+                    bm_cmp.verts.new(matrix_2 @ v.co)
+                bm_cmp.faces.new(bm_cmp.verts[-len(face_2.verts) :])
+                unsubdivide(bm_cmp)
+                verts_num = len(bm_cmp.verts) / 2
+                bmesh.ops.remove_doubles(bm_cmp, verts=bm_cmp.verts, dist=0.0015)  # type: ignore
+                verts_num_2 = len(bm_cmp.verts)
                 bm_cmp.free()
+                # for f, matrix in ((face_1, matrix_1), (face_2, matrix_2)):
+                #     for v in f.verts:
+                #         bm_cmp.verts.new(matrix @ v.co)
+                #     bm_cmp.faces.new(bm_cmp.verts[-len(f.verts) :])
+                # bm_cmp = ensure_lookup_table(bm_cmp)
+                # unsubdivide(bm_cmp)  # 反细分边
+                # bm_cmp.faces.ensure_lookup_table()
+                # verts_set_1 = {v.co.to_tuple(3) for v in bm_cmp.faces[0].verts}
+                # verts_set_2 = {v.co.to_tuple(3) for v in bm_cmp.faces[1].verts}
+                # bm_cmp.free()
 
                 # 如果连接面不匹配，断开连接
-                if verts_set_1 != verts_set_2:
+                if verts_num != verts_num_2:
                     face_1[conn_layer] = 0  # type: ignore
                     dis_face_list.append(face_1)
                     dis_target_list.append((conn_sec, sec_bm_2, face_2))
                     sec_data.connect_num -= 1
+                    # logger.debug(f"vertex not on same plane")
                 # 如果是匹配的
                 else:
                     # 纠正连接的扇区ID

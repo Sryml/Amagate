@@ -452,6 +452,7 @@ class OT_Sector_Convert(bpy.types.Operator):
         return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
         original_selection = (
             context.selected_objects
         )  # type: list[Object] # type: ignore
@@ -466,9 +467,39 @@ class OT_Sector_Convert(bpy.types.Operator):
             if obj.type == "MESH"
             and not (obj.amagate_data.is_sector or obj.amagate_data.is_gho_sector)
         ]  # type: list[Object] # type: ignore
-        if not mesh_objects:
+        sectors = [
+            obj
+            for obj in original_selection
+            if obj.type == "MESH" and obj.amagate_data.is_sector
+        ]
+        if not mesh_objects and not sectors:
             self.report({"INFO"}, "No mesh objects selected")
             return {"CANCELLED"}
+
+        dup_sectors = []  # type: list[Object]
+        for sec in sectors:
+            sec_data = sec.amagate_data.get_sector_data()
+            if scene_data["SectorManage"]["sectors"][str(sec_data.id)]["obj"] != sec:
+                dup_sectors.append(sec)
+        if dup_sectors:
+            # logger.debug(f"Duplicate sectors")
+            sector_id_map = {}
+            for sec in dup_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                old_id = sec_data.id
+                sec_data.init(post_copy=True)
+                sector_id_map[old_id] = sec_data.id
+            for sec in dup_sectors:
+                sec_data = sec.amagate_data.get_sector_data()
+                mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                conn_count = 0
+                for d in mesh.attributes["amagate_connected"].data:  # type: ignore
+                    conn_sid = sector_id_map.get(d.value, 0)
+                    if conn_sid != 0:
+                        conn_count += 1
+                    d.value = conn_sid
+                sec_data.connect_num = conn_count
+            ag_utils.dissolve_limit_sectors(dup_sectors)
 
         # 如果缺少活跃对象，则指定选中列表的第一个为活跃对象
         if not context.active_object:
@@ -650,6 +681,8 @@ class OT_Sector_Connect(bpy.types.Operator):
 
     def connect(self, context: Context, sectors: list[Object]):
         success = self.success = set()
+        epsilon = 1e-6
+        epsilon2 = 1 - epsilon
 
         for sec_idx_1, sec_1 in enumerate(sectors):
             sec_data_1 = sec_1.amagate_data.get_sector_data()
@@ -692,29 +725,37 @@ class OT_Sector_Connect(bpy.types.Operator):
                         normal_2 = matrix_2.to_quaternion() @ face_2.normal
 
                         # 如果法向不是完全相反，跳过
-                        if normal_1.dot(normal_2) > -epsilon2:
+                        dot = normal_1.dot(normal_2)
+                        if dot > -epsilon2:
+                            # logger.debug(f"normal not opposite: {dot}")
                             continue
 
-                        # 获取面的顶点坐标
-                        co1 = matrix_1 @ face_1.verts[0].co
-                        co2 = matrix_2 @ face_2.verts[0].co
-                        dir = (co2 - co1).normalized()
+                        D = -((matrix_1 @ face_1.verts[0].co).dot(normal_1))
+                        is_coplanar = next(
+                            (
+                                0
+                                for v in face_2.verts
+                                if abs((matrix_2 @ v.co).dot(normal_1) + D) > 0.001
+                            ),
+                            1,
+                        )
+                        # co = matrix_2 @ face_2.verts[0].co
+                        # diff = abs(co.dot(normal_1) + D)
                         # 如果顶点不是在同一平面，跳过
-                        dot = abs(dir.dot(normal_1))
-                        # ag_utils.debugprint("dot", dot)
-                        if dot > epsilon:
+                        if not is_coplanar:
+                            # logger.debug(f"not on same plane")
                             continue
-
+                        # logger.debug("found coplane")
                         has_coplane = True
                         # 获取平展面并排除连接面
                         sec_bm_1.faces.ensure_lookup_table()
                         sec_bm_2.faces.ensure_lookup_table()
 
                         flat_face_1 = ag_utils.get_linked_flat(face_1)
-                        flat_face_1 = [f for f in flat_face_1 if f[conn_layer_1] == 0 and f[tex_id_layer_1] != -1]  # type: ignore
+                        # flat_face_1 = [f for f in flat_face_1 if f[conn_layer_1] == 0 and f[tex_id_layer_1] != -1]  # type: ignore
 
                         flat_face_2 = ag_utils.get_linked_flat(face_2)
-                        flat_face_2 = [f for f in flat_face_2 if f[conn_layer_2] == 0 and f[tex_id_layer_2] != -1]  # type: ignore
+                        # flat_face_2 = [f for f in flat_face_2 if f[conn_layer_2] == 0 and f[tex_id_layer_2] != -1]  # type: ignore
 
                         sec_info = [
                             {
@@ -734,12 +775,12 @@ class OT_Sector_Connect(bpy.types.Operator):
                         ]
                         # ag_utils.debugprint("get_knife")
                         # 获取刀具
-                        knife, knife_bm = self.get_knife(context, sec_info)
+                        knife_bm = self.get_knife(context, sec_info)
                         # return
-                        if knife is None:
+                        if knife_bm is None:
                             ag_utils.debugprint("knife is None")
                             continue
-                        self.cut_plane(context, sec_info, knife, knife_bm)
+                        self.cut_plane(context, sec_info, knife_bm)
                         knife_bm.free()
                         break
 
@@ -752,7 +793,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         self.failed_lst = [sec.name for sec in sectors if sec not in success]
 
     # 获取刀具
-    def get_knife(self, context: Context, sec_info) -> tuple[Object, bmesh.types.BMesh]:
+    def get_knife(self, context: Context, sec_info) -> bmesh.types.BMesh | None:
         """获取刀具"""
         sec_1 = sec_info[0]["sec"]  # type: Object
         flat_face_1 = sec_info[0]["bm_face"]  # type: list[bmesh.types.BMFace]
@@ -766,22 +807,23 @@ class OT_Sector_Connect(bpy.types.Operator):
 
         #
         knife_bm = bmesh.new()
-        mark_layer = knife_bm.faces.layers.int.new("mark")
+        # mark_layer = knife_bm.faces.layers.int.new("mark")
         verts_map = {}
         for f in flat_face_1:
             for v in f.verts:
                 if v.index not in verts_map:
                     verts_map[v.index] = knife_bm.verts.new(matrix_1 @ v.co)
             new_f = knife_bm.faces.new([verts_map[v.index] for v in f.verts])
-            new_f[mark_layer] = 1
+            # new_f[mark_layer] = 1
+        bmesh.ops.dissolve_faces(knife_bm, faces=knife_bm.faces, use_verts=False)  # type: ignore
         # 往投影法向挤出10厘米
-        result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_bm.faces)  # type: ignore
-        matrix = Matrix.Translation(proj_normal * 0.1)
-        bmesh.ops.transform(
-            knife_bm,
-            matrix=matrix,
-            verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
-        )
+        # result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_bm.faces)  # type: ignore
+        # matrix = Matrix.Translation(proj_normal * 0.1)
+        # bmesh.ops.transform(
+        #     knife_bm,
+        #     matrix=matrix,
+        #     verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
+        # )
         #
         verts_map = {}
         knife_faces = []  # type: list[bmesh.types.BMFace]
@@ -790,18 +832,114 @@ class OT_Sector_Connect(bpy.types.Operator):
                 if v.index not in verts_map:
                     verts_map[v.index] = knife_bm.verts.new(matrix_2 @ v.co)
             new_f = knife_bm.faces.new([verts_map[v.index] for v in f.verts])
+            # new_f[mark_layer] = 2
             knife_faces.append(new_f)
-        # 往投影法向移动5厘米, 再往反方向挤出10厘米
-        matrix = Matrix.Translation(proj_normal * 0.05)
-        bmesh.ops.transform(knife_bm, matrix=matrix, verts=[v for f in knife_faces for v in f.verts])  # type: ignore
-        result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_faces)  # type: ignore
-        matrix = Matrix.Translation(-proj_normal * 0.1)
-        bmesh.ops.transform(
-            knife_bm,
-            matrix=matrix,
-            verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
-        )
         #
+        bmesh.ops.dissolve_faces(knife_bm, faces=knife_faces, use_verts=False)  # type: ignore
+        ag_utils.unsubdivide(knife_bm)
+        #
+        bm_cmp = knife_bm.copy()
+        verts_num = len(bm_cmp.verts) / 2
+        bmesh.ops.remove_doubles(bm_cmp, verts=bm_cmp.verts, dist=0.001)  # type: ignore
+        verts_num_2 = len(bm_cmp.verts)
+        if verts_num == verts_num_2:
+            knife_bm.free()
+            knife_bm = ag_utils.ensure_lookup_table(bm_cmp)
+            return knife_bm
+        else:
+            bm_cmp.free()
+            bm_cmp = bmesh.new()
+            knife_bm = ag_utils.ensure_lookup_table(knife_bm)
+            faces = list(knife_bm.faces)
+            tangent_list = []
+            #
+            for f_idx in (0, 1):
+                tangent = []
+                inner_face = faces[f_idx]
+                knife_face2 = faces[1 - f_idx]
+                normal = knife_face2.normal.copy()
+                verts_num = len(knife_face2.verts)
+
+                for i in range(verts_num):
+                    j = (i + 1) % verts_num
+
+                    co1 = knife_face2.verts[i].co
+                    co2 = knife_face2.verts[j].co
+                    plane_no = (co2 - co1).cross(normal)  # type: Vector
+                    plane_no.normalize()
+                    tangent.append((plane_no, co1.copy()))
+                tangent_list.append(tangent)
+            #
+            for idx in (0, 1):
+                inner_face = faces[idx]
+                tangent = tangent_list[idx]
+                for plane_no, plane_co in tangent:
+                    geom = (
+                        list(inner_face.verts) + list(inner_face.edges) + [inner_face]
+                    )
+                    result = bmesh.ops.bisect_plane(
+                        knife_bm,
+                        geom=geom,  # type: ignore
+                        dist=1e-4,
+                        plane_no=plane_no,
+                        plane_co=plane_co,
+                        clear_inner=False,
+                        clear_outer=False,
+                    )
+                    cut_edges = [
+                        g
+                        for g in result["geom_cut"]
+                        if isinstance(g, bmesh.types.BMEdge)
+                    ]
+                    if not cut_edges:
+                        continue
+                    edge = cut_edges[0]
+                    if len(edge.link_faces) != 2:
+                        continue
+                    #
+                    cut_verts = [
+                        g
+                        for g in result["geom_cut"]
+                        if isinstance(g, bmesh.types.BMVert)
+                    ]
+                    face1, face2 = edge.link_faces
+                    co = next(v.co for v in face1.verts if v not in cut_verts)
+                    dir = (co - edge.verts[0].co).normalized()  # type: ignore
+                    if plane_no.dot(dir) < 0:
+                        inner_face = face1
+                    else:
+                        inner_face = face2
+                #
+                for v in inner_face.verts:
+                    bm_cmp.verts.new(v.co)
+                bm_cmp.faces.new(bm_cmp.verts[-len(inner_face.verts) :])
+            #
+            bm_cmp.faces.ensure_lookup_table()
+            verts_num = len(bm_cmp.faces[0].verts)
+            if verts_num == len(bm_cmp.faces[1].verts):
+                bmesh.ops.remove_doubles(bm_cmp, verts=bm_cmp.verts, dist=0.001)  # type: ignore
+                verts_num_2 = len(bm_cmp.verts)
+                if verts_num == verts_num_2:
+                    knife_bm.free()
+                    knife_bm = ag_utils.ensure_lookup_table(bm_cmp)
+                    return knife_bm
+
+        knife_bm.free()
+        return None
+
+        # 往投影法向移动5厘米, 再往反方向挤出10厘米
+        # matrix = Matrix.Translation(proj_normal * 0.05)
+        # bmesh.ops.transform(knife_bm, matrix=matrix, verts=list(verts_map.values()))  # type: ignore
+        # result = bmesh.ops.extrude_face_region(knife_bm, geom=knife_faces)  # type: ignore
+        # matrix = Matrix.Translation(-proj_normal * 0.1)
+        # bmesh.ops.transform(
+        #     knife_bm,
+        #     matrix=matrix,
+        #     verts=[g for g in result["geom"] if isinstance(g, bmesh.types.BMVert)],
+        # )
+        #
+
+        """ 
         knife_mesh = bpy.data.meshes.new("AG.knife")
         knife_bm.to_mesh(knife_mesh)
         knife_bm.free()
@@ -836,6 +974,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         if len(bm_edit.faces) == 0:
             bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
             bpy.data.meshes.remove(knife_mesh)  # 删除网格
+            # logger.debug("1 - no knife")
             return None, None  # type: ignore
 
         bpy.ops.mesh.select_all(action="SELECT")  # 全选网格
@@ -863,7 +1002,7 @@ class OT_Sector_Connect(bpy.types.Operator):
         if len(bm_edit.faces) == 0:
             bpy.ops.object.mode_set(mode="OBJECT")  # 物体模式
             bpy.data.meshes.remove(knife_mesh)  # 删除网格
-            # ag_utils.debugprint("no knife")
+            # logger.debug("2 - no knife")
             return None, None  # type: ignore
         bmesh.ops.dissolve_faces(
             bm_edit, faces=list(bm_edit.faces), use_verts=False
@@ -882,28 +1021,39 @@ class OT_Sector_Connect(bpy.types.Operator):
         bmesh.ops.transform(
             knife_bm, matrix=matrix, verts=knife_bm.verts  # type: ignore
         )
-
-        return knife, knife_bm
+        return knife_bm
+        """
 
     def cut_plane(
         self,
         context: Context,
         sec_info,
-        knife: Object,
+        # knife: Object,
         knife_bm: bmesh.types.BMesh,
     ):
         success = self.success
+
+        # mesh_tmp = bpy.data.meshes.new("")
+        # knife_bm.to_mesh(mesh_tmp)
+        # obj_tmp = bpy.data.objects.new("AG.tmp", mesh_tmp)
+        # data.link2coll(obj_tmp, context.scene.collection)
+
         #
-        knife_mesh = knife.data  # type: bpy.types.Mesh # type: ignore
+        # knife_mesh = knife.data  # type: bpy.types.Mesh # type: ignore
+        knife_bm.faces.ensure_lookup_table()
+        knife_bm.verts.ensure_lookup_table()
+        # normal = knife_bm.faces[0].normal.copy()
         #
-        knife_verts_set = {v.co.to_tuple(3) for v in knife_mesh.vertices}
+        # knife_verts_set = {v.co.to_tuple(3) for v in knife_mesh.vertices}
         bvh = bvhtree.BVHTree.FromBMesh(knife_bm)
         for index in range(2):
             sec = sec_info[index]["sec"]  # type: Object
             sec_bm = sec_info[index]["bm"]  # type: bmesh.types.BMesh
-            flat_face = sec_info[index]["bm_face"]  # type: list[bmesh.types.BMFace]
-            # tex_id_layer = sec_bm.faces.layers.int.get("amagate_tex_id")
+            flat_face_all = sec_info[index]["bm_face"]  # type: list[bmesh.types.BMFace]
+            tex_id_layer = sec_bm.faces.layers.int.get("amagate_tex_id")
             conn_layer = sec_bm.faces.layers.int.get("amagate_connected")
+            flat_face = [f for f in flat_face_all if f[conn_layer] == 0 and f[tex_id_layer] != -1]  # type: ignore
+
             sec_data = sec.amagate_data.get_sector_data()
             matrix = sec.matrix_world
             matrix_inv = matrix.inverted()  # type: Matrix
@@ -911,13 +1061,17 @@ class OT_Sector_Connect(bpy.types.Operator):
             mesh = sec.data  # type: bpy.types.Mesh # type: ignore
             if index == 0:
                 proj_normal = matrix_quat @ flat_face[0].normal
+
+            sec2 = sec_info[1 - index]["sec"]  # type: Object
+            sec_data_2 = sec2.amagate_data.get_sector_data()
             #
             hit_bm = bmesh.new()
             hit_faces = []
             verts_map = {}
-            for f in flat_face:
+            for f in flat_face_all:
                 # 定义射线起点、方向和距离
                 ray_origin = matrix @ f.calc_center_median()
+                ray_origin -= proj_normal
                 ray_direction = proj_normal
                 # 执行射线检测
                 hit_loc, hit_normal, hit_index, hit_dist = bvhtree.BVHTree.ray_cast(
@@ -925,6 +1079,11 @@ class OT_Sector_Connect(bpy.types.Operator):
                 )
                 if hit_index is None:  # type: ignore
                     continue
+
+                # 如果已连接面打击到刀具，直接结束
+                if f[conn_layer] != 0:  # type: ignore
+                    hit_bm.free()
+                    return
 
                 hit_faces.append(f)
                 for v in f.verts:
@@ -940,9 +1099,21 @@ class OT_Sector_Connect(bpy.types.Operator):
                         hit_bm, faces=hit_bm.faces, use_verts=False  # type: ignore
                     )  # 融并面
                 ag_utils.unsubdivide(hit_bm)  # 反细分边
+
                 # 如果找到与刀具匹配的面，无需切割
-                verts_set = {v.co.to_tuple(3) for v in hit_bm.verts}
-                if verts_set == knife_verts_set:
+                verts_num = len(knife_bm.verts)
+                bm_cmp = bmesh.new()
+                for v in knife_bm.verts:
+                    bm_cmp.verts.new(v.co)
+                for v in hit_bm.verts:
+                    bm_cmp.verts.new(v.co)
+                bmesh.ops.remove_doubles(bm_cmp, verts=bm_cmp.verts, dist=0.001)  # type: ignore
+                verts_num_2 = len(bm_cmp.verts)
+                bm_cmp.free()
+                # verts_set = {v.co.to_tuple(3) for v in hit_bm.verts}
+                # D = -(knife_mesh.vertices[0].co.dot(normal))
+                # is_match = next((0 for v in hit_bm.verts if abs(v.co.dot(normal) + D) > 0.001),1)
+                if verts_num == verts_num_2:
                     # ag_utils.debugprint("found match")
                     if face_num != 1:
                         result = bmesh.ops.dissolve_faces(
@@ -951,9 +1122,7 @@ class OT_Sector_Connect(bpy.types.Operator):
                         conn_face = result["region"][0]
                     else:
                         conn_face = hit_faces[0]
-                    sec_data_2 = sec_info[1 - index][
-                        "sec"
-                    ].amagate_data.get_sector_data()
+
                     conn_face[conn_layer] = sec_data_2.id  # type: ignore
                     success.add(sec)
                     sec_data.connect_num += 1
@@ -984,46 +1153,72 @@ class OT_Sector_Connect(bpy.types.Operator):
             cut_layer = sec_bm.edges.layers.int.new("amagate_cut")
             # 获取边界
             boundary = []
-            visited = set()
-            for f in flat_face:
-                for e in f.edges:
-                    if e.index in visited:
-                        continue
-                    visited.add(e.index)
-                    for f2 in e.link_faces:
-                        if f2 in flat_face:
-                            continue
-                        if abs(f2.normal.dot(f.normal)) > epsilon2:
-                            continue
-                        # 找到边界边
-                        co1 = e.verts[0].co
-                        co2 = e.verts[1].co
-                        # key = (co2 - co1).normalized().to_tuple(5)
-                        # if key not in boundary:
-                        boundary.append(((co2 - co1).normalized(), co1))
+            verts_map = {}
+            bm_tmp = bmesh.new()
+            for f in flat_face_all:
+                verts = []
+                for v in f.verts:
+                    vert = verts_map.get(v.index)
+                    if vert is None:
+                        vert = verts_map.setdefault(v.index, bm_tmp.verts.new(v.co))
+                    verts.append(vert)
+                bm_tmp.faces.new(verts)
+            bmesh.ops.dissolve_faces(bm_tmp, faces=bm_tmp.faces, use_verts=False)  # type: ignore
+            ag_utils.unsubdivide(bm_tmp)  # 反细分边
+            boundary = [
+                (
+                    (e.verts[1].co - e.verts[0].co).normalized(),
+                    e.verts[0].co.copy(),
+                    e.verts[1].co.copy(),
+                )
+                for e in bm_tmp.edges
+            ]
+            bm_tmp.free()
+            # for e in f.edges:
+            #     if e.index in visited:
+            #         continue
+            #     visited.add(e.index)
+            #     for f2 in e.link_faces:
+            #         if f2 in flat_face:
+            #             continue
+            #         dot = f2.normal.dot(f.normal)
+            #         if abs(dot) > epsilon2:
+            #             continue
+            #         # 找到边界边
+            #         co1 = e.verts[0].co
+            #         co2 = e.verts[1].co
+            #         boundary.append(((co2 - co1).normalized(), co1.copy()))
             #
-            # ag_utils.debugprint(f"boundary: {boundary}")
-            normal = matrix_inv.to_quaternion() @ knife_mesh.polygons[0].normal
-            verts_idx = knife_mesh.polygons[0].vertices
-            v_num = len(verts_idx)
+            # for i in boundary:
+            #     ag_utils.debugprint(f"boundary: {i}")
+            normal = matrix_inv.to_quaternion() @ knife_bm.faces[0].normal
+            knife_face = knife_bm.faces[0]
+            v_num = len(knife_face.verts)
             geom = {e for f in flat_face for e in f.edges} | {
                 v for f in flat_face for v in f.verts
             }
             geom = list(geom) + flat_face
+            inner_faces = flat_face
             for i in range(v_num):
                 is_boundary = False
                 j = (i + 1) % v_num
-                co1 = matrix_inv @ knife_mesh.vertices[verts_idx[i]].co
-                co2 = matrix_inv @ knife_mesh.vertices[verts_idx[j]].co
+                co1 = matrix_inv @ knife_face.verts[i].co
+                co2 = matrix_inv @ knife_face.verts[j].co
                 dir2 = (co2 - co1).normalized()
-                for dir1, co in boundary:
+                for dir1, line_p1, line_p2 in boundary:
                     if abs(dir2.dot(dir1)) > epsilon2:
-                        if (co1 - co).length < epsilon:
-                            is_boundary = True
-                            break
-                        if abs((co1 - co).normalized().dot(dir1)) > epsilon2:
-                            is_boundary = True
-                            break
+                        pt, pct = geometry.intersect_point_line(co1, line_p1, line_p2)
+                        if 0 <= pct <= 1:
+                            if (pt - co1).length < 1e-4:
+                                is_boundary = True
+                        # if (co1 - co).length < epsilon:
+                        #     is_boundary = True
+                        #     # logger.debug(f"is boundary: length 0")
+                        #     break
+                        # if abs((co1 - co).normalized().dot(dir1)) > epsilon2:
+                        #     is_boundary = True
+                        #     # logger.debug(f"is boundary: {(co1 - co).normalized()}")
+                        #     break
                 if is_boundary:
                     # ag_utils.debugprint("is_boundary")
                     continue
@@ -1045,19 +1240,28 @@ class OT_Sector_Connect(bpy.types.Operator):
                 # 获取内部面
                 med_point = (co1 + co2) / 2.0
                 min_len = np.inf
-                for g in result["geom_cut"]:
-                    if isinstance(g, bmesh.types.BMEdge):
-                        g[cut_layer] = 1  # type: ignore
-                        med_point2 = (g.verts[0].co + g.verts[1].co) / 2.0
-                        length = (med_point - med_point2).length
-                        if length < min_len:
-                            min_len = length
-                            edge = g
+                cut_edges = [
+                    g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)
+                ]
+                if not cut_edges:
+                    # logger.debug(f"no cut_edges: {sec.name} - {sec2.name}")
+                    continue
+
+                for e in cut_edges:
+                    e[cut_layer] = 1  # type: ignore
+                    med_point2 = (e.verts[0].co + e.verts[1].co) / 2.0
+                    length = (med_point - med_point2).length
+                    if length < min_len:
+                        min_len = length
+                        edge = e
                 #
                 cut_verts = [
                     g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)
                 ]
                 face1, face2 = edge.link_faces
+                if face1.normal.dot(face2.normal) < epsilon2:
+                    continue
+                #
                 co = next(v.co for v in face1.verts if v not in cut_verts)
                 dir = (co - edge.verts[0].co).normalized()
                 if plane_no.dot(dir) < 0:
@@ -1065,6 +1269,20 @@ class OT_Sector_Connect(bpy.types.Operator):
                 else:
                     inner_face = face2
                 inner_faces = self.get_linked_flat(inner_face, cut_layer, conn_layer)
+                ###################### XXX 临时代码
+                # if sec_data_2.id == 237:
+                #     bm_tmp = bmesh.new()
+                #     verts_map_tmp = {}
+                #     for f in inner_faces:
+                #         for v in f.verts:
+                #             if v.index not in verts_map_tmp:
+                #                 verts_map_tmp[v.index] = bm_tmp.verts.new(matrix @ v.co)
+                #         bm_tmp.faces.new([verts_map_tmp[v.index] for v in f.verts])
+                #     mesh_tmp = bpy.data.meshes.new("")
+                #     bm_tmp.to_mesh(mesh_tmp)
+                #     obj_tmp = bpy.data.objects.new("AG.tmp", mesh_tmp)
+                #     data.link2coll(obj_tmp, context.scene.collection)
+                ######################
                 # ag_utils.debugprint(f"inner_faces_idx: {inner_faces_idx}")
                 geom = (
                     list(
@@ -1087,7 +1305,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             else:
                 conn_face = inner_faces[0]
             # ag_utils.debugprint(f"conn_face_idx: {conn_face.index}")
-            sec_data_2 = sec_info[1 - index]["sec"].amagate_data.get_sector_data()
+
             conn_face[conn_layer] = sec_data_2.id  # type: ignore
             success.add(sec)
             sec_data.connect_num += 1
@@ -1112,7 +1330,7 @@ class OT_Sector_Connect(bpy.types.Operator):
             ag_utils.unsubdivide(sec_bm)  # 反细分边
             sec_bm.to_mesh(mesh)
         #
-        bpy.data.meshes.remove(knife_mesh)  # 删除网格
+        # bpy.data.meshes.remove(knife_mesh)  # 删除网格
 
     def get_linked_flat(self, face, cut_layer=None, conn_layer=None):
         # type: (bmesh.types.BMFace, Any,Any) -> list[bmesh.types.BMFace]
