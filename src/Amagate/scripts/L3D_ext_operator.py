@@ -607,6 +607,8 @@ def export_map(
     start_time = time.time()
     sec_total = len(sector_ids)
     bar_length = 20  # 进度条长度
+    wm = bpy.context.window_manager
+    wm.progress_begin(0, 1)  # 初始化进度条
 
     bw_file = f"{os.path.splitext(bpy.data.filepath)[0]}.bw"
     global_face_count = 0
@@ -678,6 +680,8 @@ def export_map(
             # 进度条
             i = progress + 1
             percent = i / sec_total
+            wm.progress_update(percent)
+            #
             filled = int(bar_length * percent)
             bar = ("█" * filled).ljust(bar_length, "-")
             print(
@@ -1150,6 +1154,8 @@ def export_map(
         verts_buffer.close()
         sec_buffer.close()
 
+    #
+    wm.progress_end()
     # 地图数据脚本
     map_dir = os.path.dirname(bpy.data.filepath)
     # 玩家位置

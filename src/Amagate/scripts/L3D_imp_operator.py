@@ -156,7 +156,8 @@ def flat_split(sec_bm, face, cut_data, layers, sector_id):
                     g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)
                 ]
                 #
-                # if not cut_edges:
+                if not cut_edges:
+                    continue
                 #     bm_mesh = bpy.data.meshes.new(f"AG.split")
                 #     sec_bm.to_mesh(bm_mesh)
                 #     bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
@@ -487,6 +488,9 @@ def import_map(bw_file):
     z_axis = Vector((0, 0, 1))
     #
     context = bpy.context
+    #
+    wm = context.window_manager
+    wm.progress_begin(0, 1)  # 初始化进度条
     with open(bw_file, "rb") as f:
         # 创建大气
         atmo_num = unpack("<I", f)[0]
@@ -522,6 +526,7 @@ def import_map(bw_file):
             # 进度条
             i = sector_id
             percent = i / sec_total
+            wm.progress_update(percent)
             filled = int(bar_length * percent)
             bar = ("█" * filled).ljust(bar_length, "-")
             print(
@@ -1156,6 +1161,7 @@ def import_map(bw_file):
             sec.rename(name, mode="ALWAYS")
             sec.data.rename(name, mode="ALWAYS")
     #
+    wm.progress_end()
     print(f", Done in {time.time() - start_time:.2f}s")
 
     ############################
