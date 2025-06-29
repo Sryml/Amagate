@@ -317,17 +317,24 @@ class OT_Test(bpy.types.Operator):
 
         obj = context.object
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
-        bm = bmesh.from_edit_mesh(mesh)
+        # bm = bmesh.from_edit_mesh(mesh)
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        # edge = next(e for e in bm.edges if e.select)
+        # bm.faces.ensure_lookup_table()
+        face = next(e for e in bm.faces if e.select)
+        # face = bm.faces[3]
+
         # bm = bmesh.new()
         # bm.from_mesh(mesh)
         # OP_L3D_EXT.hole_split(bm)
 
         result = bmesh.ops.bisect_plane(
             bm,
-            geom=[v for v in bm.verts if v.select] + [e for e in bm.edges if e.select] + [f for f in bm.faces if f.select],  # type: ignore
+            geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
             dist=1e-4,
-            plane_no=Vector((0, 1, 0)),
-            plane_co=Vector((0.0, 0, 0)),
+            plane_no=Vector((0, 0, 1)),
+            plane_co=Vector((0, 0, 1)),
             clear_inner=False,
             clear_outer=False,
         )
@@ -338,26 +345,30 @@ class OT_Test(bpy.types.Operator):
         # bm.select_flush_mode()
         # bm.select_flush(True)
         # bmesh.update_edit_mesh(mesh)
-        # mesh_new = bpy.data.meshes.new("AG.test")
-        # outer_bm.to_mesh(mesh_new)
-        # obj_new = bpy.data.objects.new("AG.test", mesh_new)
-        # bpy.context.scene.collection.objects.link(obj_new)
-        # outer_bm.free()
+        mesh_new = bpy.data.meshes.new("AG.test")
+        bm.to_mesh(mesh_new)
+        obj_new = bpy.data.objects.new("AG.test", mesh_new)
+        bpy.context.scene.collection.objects.link(obj_new)
+        bm.free()
 
-        edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
-        face = edges[0].link_faces[0]
-        result = bmesh.ops.bisect_plane(
-            bm,
-            geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
-            dist=1e-4,
-            plane_no=Vector((1, 0, 0)),
-            plane_co=Vector((0.0, 0, 0)),
-            clear_inner=False,
-            clear_outer=False,
-        )
+        # cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
+        # cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
+        # print(f"cut_edges: {[e.index for e in cut_edges]}")
+        # print(f"link_faces :{len(cut_edges[0].link_faces)}")
+        # bm.free()
+        # face = edges[0].link_faces[0]
+        # result = bmesh.ops.bisect_plane(
+        #     bm,
+        #     geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
+        #     dist=1e-4,
+        #     plane_no=Vector((1, 0, 0)),
+        #     plane_co=Vector((0.0, 0, 0)),
+        #     clear_inner=False,
+        #     clear_outer=False,
+        # )
         # vert = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
         # print(f"edge: {[e.index for e in edge]}")
-        bmesh.update_edit_mesh(mesh)
+        # bmesh.update_edit_mesh(mesh)
 
         # 获取新生成的面
         # new_faces = [g for g in result["geom"] if isinstance(g, bmesh.types.BMFace)]
@@ -380,19 +391,57 @@ class OT_Test(bpy.types.Operator):
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
         bm = bmesh.new()
         bm.from_mesh(mesh)
-        layer = bm.faces.layers.int.get("amagate_connected")
-        faces = [f for f in bm.faces if f[layer] == 0]  # type: ignore
-        bmesh.ops.connect_verts_concave(bm, faces=faces)
-        #
-        bm_mesh = bpy.data.meshes.new(f"AG.split")
-        bm.to_mesh(bm_mesh)
-        bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
-        data.link2coll(bm_obj, bpy.context.scene.collection)
+        visited = set()
+        for f in bm.faces:
+            if f in visited:
+                continue
+            faces = ag_utils.get_linked_flat(f)
+            visited.update(faces)
+            # 使用前三个顶点定义平面
+            v1, v2, v3 = faces[0].verts[0], faces[0].verts[1], faces[0].verts[2]
+            plane_normal = (v2.co - v1.co).cross(v3.co - v1.co).normalized()
+
+            # 计算平面方程 ax + by + cz + d = 0 中的d
+            d = -plane_normal.dot(v1.co)
+
+            for f in faces:
+                for v in f.verts:
+                    # 计算点到平面的距离
+                    distance = abs(plane_normal.dot(v.co) + d)
+                    if distance > 1e-5:
+                        return True
+        # layer = bm.faces.layers.int.get("amagate_connected")
+        # faces = [f for f in bm.faces if f[layer] == 0]  # type: ignore
+        # bmesh.ops.connect_verts_concave(bm, faces=faces)
+        # #
+        # bm_mesh = bpy.data.meshes.new(f"AG.split")
+        # bm.to_mesh(bm_mesh)
+        # bm_obj = bpy.data.objects.new(f"AG.split", bm_mesh)
+        # data.link2coll(bm_obj, bpy.context.scene.collection)
         #
 
     def test3(self, context: Context):
-        mesh = context.object.data  # type: bpy.types.Mesh # type: ignore
-        bm = bmesh.from_edit_mesh(mesh)
+        # bpy.ops.wm.console_toggle()
+
+        def export_with_progress():
+            wm = bpy.context.window_manager
+            wm.progress_begin(0, 252)  # 初始化进度条
+            progress = 0
+            while progress < 252:
+                progress += 1
+                # print(f"progress: {progress}")
+                wm.progress_update(progress)  # 更新进度
+                time.sleep(0.05)  # 替换为实际导出逻辑
+            wm.progress_end()  # 结束
+            # for i in range(5,0,-1):
+            #     time.sleep(0.5)  # 替换为实际导出逻辑
+            #     wm.progress_update(i)  # 更新进度
+            # wm.progress_end()  # 结束
+
+        export_with_progress()
+
+        # mesh = context.object.data  # type: bpy.types.Mesh # type: ignore
+        # bm = bmesh.from_edit_mesh(mesh)
         # for v in bm.verts:
         #     if v.select:
         #         e = v.link_edges[0]

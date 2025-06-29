@@ -3,7 +3,7 @@
 ## 📖 Installation
 
 From the menu bar, select `Edit -> Preferences -> Get Extensions`,  
-then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file (or search for Amagate directly for online installation).
+then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file.
 
 Upon first installation, the required Python packages (approximately 41MB) will be automatically installed.
 
@@ -46,6 +46,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Texture management
   - Sky texture settings and downloading
   - Default sector attribute settings
+  - Frustum Culling
 - Sector
   - Steepness check and settings
   - Atmosphere assignment
@@ -71,6 +72,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Disconnect sectors
   - Set selected sector as default
   - Compile map
+  - Import map
 - Server
   - Load any level
   - Reload current level
@@ -82,6 +84,10 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 
 ### ⚠️ Notes
 
+- **Volumetric Fog**  
+  Black fog cannot display lights
+- **Concave Polyhedrons**  
+  Do not create complex concave sectors at once; instead, create multiple convex sectors and then connect them
 - **Non-uniform scaling issues**  
   If sector connection or other sector operations fail, try applying scale transformation `(Ctrl+A -> Scale)`
 - **Light simulation deviation**  
@@ -95,7 +101,8 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - **Sector connection**  
   If sector connection fails, try repositioning to ensure surfaces are tightly aligned
 - **Separating convex parts**  
-  Perform `Split Concave Faces` first before separation, otherwise the resulting sectors may contain concave polyhedrons  
+  Complex concave polyhedrons cannot be separated automatically and must be separated manually.  
+  Perform `Split Concave Faces` first before separation, otherwise the resulting sectors may contain concave polyhedrons.  
   Cross-surface splitting is unreliable; recommend disabling auto-connect and manually adjusting split sectors before perform the connection
 
 ## 📝 Todo

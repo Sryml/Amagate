@@ -40,7 +40,7 @@ https://github.com/Sryml/AmagateClient/releases
 ## 📖 Installation
 
 From the menu bar, select `Edit -> Preferences -> Get Extensions`,  
-then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file (or search for Amagate directly for online installation).
+then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file.
 
 Upon first installation, the required Python packages (approximately 41MB) will be automatically installed.
 
@@ -83,6 +83,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Texture management
   - Sky texture settings and downloading
   - Default sector attribute settings
+  - Frustum Culling
 - Sector
   - Steepness check and settings
   - Atmosphere assignment
@@ -108,6 +109,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Disconnect sectors
   - Set selected sector as default
   - Compile map
+  - Import map
 - Server
   - Load any level
   - Reload current level
@@ -137,6 +139,7 @@ Any suggestions or questions are welcome. Feel free to submit [Issues](https://g
 - The Blender Foundation for developing excellent software
 - LLM DeepSeek for providing much assistance
 - The reforged textures are from sfb's [Blade of Darkness Reforged](https://www.moddb.com/mods/blade-of-darkness-reforged)
+- Thanks for Ubaid's test
 
 ## License
 
