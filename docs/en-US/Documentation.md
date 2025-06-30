@@ -2,6 +2,8 @@
 
 ## 📖 Installation
 
+Blender version: 4.3.0 or above
+
 From the menu bar, select `Edit -> Preferences -> Get Extensions`,  
 then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file.
 

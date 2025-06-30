@@ -41,6 +41,8 @@ https://github.com/Sryml/AmagateClient/releases
 
 ## 📖 安装
 
+Blender 版本：4.3.0 或以上
+
 从菜单栏中选择`编辑 -> 偏好设置 -> 获取扩展`，  
 然后点击右上角`从磁盘安装`并选择下载好的扩展 zip 文件。
 
