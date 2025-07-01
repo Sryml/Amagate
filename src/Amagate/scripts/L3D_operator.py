@@ -431,6 +431,7 @@ class OT_Texture_Add(bpy.types.Operator):
     def load_image(filepath, name=""):
         img = bpy.data.images.load(filepath)  # type: Image # type: ignore
         img_data = img.amagate_data
+        img.preview_ensure()
         if name:
             img.name = name
         else:
@@ -638,6 +639,8 @@ class OT_Texture_Reload(bpy.types.Operator):
         for img in bpy.data.images:  # type: ignore
             if img.amagate_data.id:
                 img.reload()
+                img.preview_ensure()
+                img.preview.reload()
 
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
