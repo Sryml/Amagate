@@ -12,6 +12,7 @@ from bpy.app.translations import pgettext
 
 from . import data
 from . import operator as OP
+from . import entity_operator as OP_ENTITY
 from . import ag_utils
 
 if TYPE_CHECKING:
@@ -62,6 +63,33 @@ class AMAGATE_PT_PyPackages(AG_Panel, bpy.types.Panel):
 
 
 ############################
+############################ 实体编辑面板
+############################
+
+
+class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
+    bl_label = "Entity Editor"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = 1
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+        row = layout.row(align=True)
+        # 添加锚点
+        row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
+        # 添加组件
+        row.operator_menu_enum(OP_ENTITY.OT_AddComponent.bl_idname, "action")
+
+        layout.separator(type="LINE")
+
+        # 导出导入
+        row = layout.row(align=True)
+        row.operator(OP_ENTITY.OT_ExportBOD.bl_idname, icon="EXPORT").main = True  # type: ignore
+        # row.operator_menu_enum(OP_BOD_EXT.OT_ExportBOD.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+
+
+############################
 ############################ 坐标转换面板
 ############################
 class AMAGATE_PT_CoordConver(AG_Panel, bpy.types.Panel):
@@ -86,7 +114,7 @@ class AMAGATE_PT_CoordConver(AG_Panel, bpy.types.Panel):
 class AMAGATE_PT_Cubemap(AG_Panel, bpy.types.Panel):
     bl_label = "Cubemap Conver"
     bl_options = {"DEFAULT_CLOSED"}
-    bl_order = 2
+    bl_order = 1
 
     def draw(self, context: Context):
         scene_data = context.scene.amagate_data
@@ -103,6 +131,20 @@ class AMAGATE_PT_Cubemap(AG_Panel, bpy.types.Panel):
         col.prop(preferences, "cubemap_out_res_y", text="Y")
         col = layout.column()
         col.operator(OP.OT_Cubemap2Equirect.bl_idname, icon="EXPORT")
+
+
+############################
+############################ 工具面板
+############################
+
+
+# class AMAGATE_PT_Tools(AG_Panel, bpy.types.Panel):
+#     bl_label = "Tools"
+#     bl_order = 1
+
+#     def draw(self, context: Context):
+#         layout = self.layout
+#         column = layout.column()
 
 
 ############################

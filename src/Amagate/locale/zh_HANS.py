@@ -187,6 +187,9 @@
     ("Operator", "Paste Settings"): "粘贴设置",
     ("*", "No texture found"): "未找到纹理",
     #
+    # 预制体面板
+    ("*", "Prefab"): "预制体",
+    ("*", "Entity"): "实体",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",
     ("Operator", "Stop Server"): "停止服务器",
@@ -203,7 +206,7 @@
     ("*", "Load Level"): "加载关卡",
     ("*", "Reload Level"): "重载关卡",
     ("*", "Missing runtime files"): "缺少运行时文件",
-    # 工具面板
+    # L3D工具面板
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",
     ("Operator", "Compile to bw"): "编译为bw",
@@ -218,6 +221,15 @@
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
     ("Operator", "Import Map"): "导入地图",
+    # 实体编辑器面板
+    ("*", "Entity Editor"): "实体编辑器",
+    ("Operator", "Add Anchor"): "添加锚点",
+    ("Operator", "Add Component"): "添加组件",
+    ("EntAnchor", "Object"): "物体",
+    ("EntAnchor", "Person"): "人物",
+    ("Operator", "Export BOD"): "导出BOD",
+    ("*", "Export BOD (Visible Only)"): "导出BOD (仅可见的)",
+    ("*", "No collection with the prefix `Blade_Object_` was found"): "未找到以 `Blade_Object_` 为前缀的集合",
     # 坐标转换
     ("*", "Coord Conver"): "坐标转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",

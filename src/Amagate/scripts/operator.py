@@ -588,21 +588,35 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    from . import L3D_operator, L3D_ext_operator, L3D_imp_operator, sector_operator
+    from . import (
+        L3D_operator,
+        L3D_ext_operator,
+        L3D_imp_operator,
+        sector_operator,
+        entity_operator,
+    )
 
     L3D_operator.register()
     L3D_ext_operator.register()
     L3D_imp_operator.register()
     sector_operator.register()
+    entity_operator.register()
 
 
 def unregister():
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
-    from . import L3D_operator, L3D_ext_operator, L3D_imp_operator, sector_operator
+    from . import (
+        L3D_operator,
+        L3D_ext_operator,
+        L3D_imp_operator,
+        sector_operator,
+        entity_operator,
+    )
 
     L3D_operator.unregister()
     L3D_ext_operator.unregister()
     L3D_imp_operator.unregister()
     sector_operator.unregister()
+    entity_operator.unregister()
