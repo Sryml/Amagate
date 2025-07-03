@@ -1255,6 +1255,8 @@ class ObjectProperty(bpy.types.PropertyGroup):
     GhostSectorData: CollectionProperty(type=GhostSectorProperty)  # type: ignore
     is_sector: BoolProperty(default=False)  # type: ignore
     is_gho_sector: BoolProperty(default=False)  # type: ignore
+    # 实体组件类型
+    ent_comp_type: IntProperty(default=0)  # type: ignore
 
     ############################
     def get_sector_data(self) -> SectorProperty:

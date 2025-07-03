@@ -75,6 +75,9 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
 
+        # 创建集合
+        layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")
+
         row = layout.row(align=True)
         # 添加锚点
         row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
@@ -187,6 +190,7 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         col = layout.column(align=True)
         col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
         col.operator(OP.OT_ExportNode.bl_idname)
+        col.operator(OP.OT_ExportEntComponent.bl_idname)
         # col.operator(OP.OT_ImportNode.bl_idname)
         col.operator(OP.OT_Test.bl_idname)
         #

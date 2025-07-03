@@ -178,6 +178,18 @@ def get_name(used_names, f, id_) -> str:
     return name
 
 
+def get_object_name(prefix, start_id=1) -> str:
+    while bpy.data.objects.get(f"{prefix}{start_id}"):
+        start_id += 1
+    return f"{prefix}{start_id}"
+
+
+def get_coll_name(prefix, start_id=1) -> str:
+    while bpy.data.collections.get(f"{prefix}{start_id}"):
+        start_id += 1
+    return f"{prefix}{start_id}"
+
+
 #
 def link2coll(obj, coll):
     if coll.objects.get(obj.name) is None:

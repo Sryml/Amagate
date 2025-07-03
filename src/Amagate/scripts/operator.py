@@ -573,6 +573,39 @@ class OT_ImportNode(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 导出实体组件
+class OT_ExportEntComponent(bpy.types.Operator):
+    bl_idname = "amagate.db_export_ent_component"
+    bl_label = "Export Entity Component"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context):
+        filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
+        if os.path.exists(filepath):
+            mesh_dict = pickle.load(open(filepath, "rb"))
+        else:
+            mesh_dict = {}
+        #
+        obj_name = ("Blade_Edge_1", "Blade_Spike_1", "Blade_Trail_1", "B_Fire_Fuego_1")
+        for name in obj_name:
+            obj = bpy.data.objects.get(name)
+            if not obj:
+                continue
+            # matrix = obj.matrix_world.copy()
+            mesh_data = {"vertices": [], "edges": [], "faces": []}
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            for v in mesh.vertices:
+                mesh_data["vertices"].append(v.co.to_tuple(4))
+            for e in mesh.edges:
+                mesh_data["edges"].append(tuple(e.vertices))
+            for f in mesh.polygons:
+                mesh_data["faces"].append(tuple(e.vertices))
+            mesh_dict[name] = mesh_data
+        print(f"网格数量: {len(mesh_dict)}")
+        pickle.dump(mesh_dict, open(filepath, "wb"), protocol=0)
+        return {"FINISHED"}
+
+
 ############################
 ############################
 ############################

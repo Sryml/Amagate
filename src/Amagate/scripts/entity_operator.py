@@ -57,6 +57,19 @@ logger = data.logger
 ############################
 
 
+# 创建集合
+class OT_CreateColl(bpy.types.Operator):
+    bl_idname = "amagate.ent_create_coll"
+    bl_label = "Add Collection"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        coll_name = data.get_coll_name("Blade_Object_")
+        coll = bpy.data.collections.new(coll_name)
+        context.scene.collection.children.link(coll)
+        return {"FINISHED"}
+
+
 # 添加锚点
 class OT_AddAnchor(bpy.types.Operator):
     bl_idname = "amagate.ent_add_anchor"
@@ -69,26 +82,26 @@ class OT_AddAnchor(bpy.types.Operator):
         translation_context="EntAnchor",
         items=[
             ("", "Object", ""),
-            ("1", "1H_R", "1H_R"),
-            ("2", "1H_L", "1H_L"),
-            ("3", "2H", "2H"),
-            ("4", "Inv", "Inv"),
-            ("5", "Back", "Back"),
-            ("6", "Shield", "Shield"),
-            ("7", "Crush", "Crush"),
+            ("1", "1H_R", "Blade_Anchor_1H_R"),
+            ("2", "1H_L", "Blade_Anchor_1H_L"),
+            ("3", "2H", "Blade_Anchor_2H"),
+            ("4", "Inv", "Blade_Anchor_Inv"),
+            ("5", "Back", "Blade_Anchor_Back"),
+            ("6", "Shield", "Blade_Anchor_Shield"),
+            ("7", "Crush", "Blade_Anchor_Crush"),
             ("", "Person", ""),
-            ("8", "R_Hand", "R_Hand"),
-            ("9", "L_Hand", "L_Hand"),
-            ("10", "2O", "2O"),
-            ("11", "ViewPoint", "ViewPoint"),
+            ("8", "R_Hand", "Blade_Anchor_R_Hand"),
+            ("9", "L_Hand", "Blade_Anchor_L_Hand"),
+            ("10", "2O", "Blade_Anchor_2O"),
+            ("11", "ViewPoint", "Blade_Anchor_ViewPoint"),
         ],
     )  # type: ignore
 
     def execute(self, context: Context):
         # print(f"action: {self.action}")
-        name = bpy.types.UILayout.enum_item_name(self, "action", self.action)
-        anchor = bpy.data.objects.new(f"Blade_Anchor_{name}", None)
-        anchor.empty_display_size = 0.6
+        key = bpy.types.UILayout.enum_item_description(self, "action", self.action)
+        anchor = bpy.data.objects.new(key, None)
+        anchor.empty_display_size = 0.1
         anchor.empty_display_type = "ARROWS"
         data.link2coll(anchor, context.collection)
         return {"FINISHED"}
@@ -105,16 +118,44 @@ class OT_AddComponent(bpy.types.Operator):
         description="",
         translation_context="EntComponent",
         items=[
-            ("1", "Edge", "Edge"),
-            ("2", "Spike", "Spike"),
-            ("3", "Trail", "Trail"),
-            ("4", "Fire", "Fire"),
-            ("5", "Light", "Light"),
+            ("1", "Edge", "Blade_Edge_1"),
+            ("2", "Spike", "Blade_Spike_1"),
+            ("3", "Trail", "Blade_Trail_1"),
+            ("4", "Fire", "B_Fire_Fuego_1"),
+            ("5", "Light", "Blade_Light_1"),
         ],
     )  # type: ignore
 
     def execute(self, context: Context):
-        print(f"action: {self.action}")
+        # print(f"action: {self.action}")
+        key = bpy.types.UILayout.enum_item_description(self, "action", self.action)
+        obj_name = data.get_object_name(key[:-1])
+        if key == "Blade_Light_1":
+            anchor = bpy.data.objects.new(obj_name, None)
+            anchor.empty_display_size = 0.1
+            anchor.empty_display_type = "ARROWS"
+            data.link2coll(anchor, context.collection)
+        else:
+            filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
+            mesh_dict = pickle.load(open(filepath, "rb"))
+            mesh_data = mesh_dict[key]
+            #
+            bm = bmesh.new()
+            verts = []
+            for co in mesh_data["vertices"]:
+                verts.append(bm.verts.new(co))
+            for idx in mesh_data["edges"]:
+                bm.edges.new([verts[i] for i in idx])
+            for idx in mesh_data["faces"]:
+                bm.faces.new([verts[i] for i in idx])
+            #
+            mesh = bpy.data.meshes.new(obj_name)
+            bm.to_mesh(mesh)
+            bm.free()
+            obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
+            obj_data = obj.amagate_data
+            obj_data.ent_comp_type = int(self.action)
+            data.link2coll(obj, context.collection)
         return {"FINISHED"}
 
 
