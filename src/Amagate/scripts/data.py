@@ -179,14 +179,18 @@ def get_name(used_names, f, id_) -> str:
 
 
 def get_object_name(prefix, start_id=1) -> str:
-    while bpy.data.objects.get(f"{prefix}{start_id}"):
+    while (obj := bpy.data.objects.get(f"{prefix}{start_id}")) and obj.users > 0:
         start_id += 1
+    if obj:
+        bpy.data.objects.remove(obj)
     return f"{prefix}{start_id}"
 
 
 def get_coll_name(prefix, start_id=1) -> str:
-    while bpy.data.collections.get(f"{prefix}{start_id}"):
+    while (coll := bpy.data.collections.get(f"{prefix}{start_id}")) and coll.users > 0:
         start_id += 1
+    if coll:
+        bpy.data.collections.remove(coll)
     return f"{prefix}{start_id}"
 
 

@@ -227,9 +227,12 @@
     ("Operator", "Add Component"): "添加组件",
     ("EntAnchor", "Object"): "物体",
     ("EntAnchor", "Person"): "人物",
+    ("Operator", "Import BOD"): "导入BOD",
     ("Operator", "Export BOD"): "导出BOD",
-    ("*", "Export BOD (Visible Only)"): "导出BOD (仅可见的)",
+    ("*", "Export BOD as ..."): "导出BOD为...",
+    ("*", "Not a bod file"): "不是BOD文件",
     ("*", "No collection with the prefix `Blade_Object_` was found"): "未找到以 `Blade_Object_` 为前缀的集合",
+    ("*", "There are no visible entities objects"): "没有可见的实体物体",
     # 坐标转换
     ("*", "Coord Conver"): "坐标转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",

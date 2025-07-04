@@ -46,10 +46,32 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 
 ############################
 logger = data.logger
+
+unpack = ag_utils.unpack
+
+############################
+
+
+# 确保材质
+def ensure_material(tex: Image) -> bpy.types.Material:
+    name = tex.name
+    mat = bpy.data.materials.get(name)
+    if not mat:
+        mat = bpy.data.materials.new("")
+        mat.rename(name, mode="ALWAYS")
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        data.import_nodes(mat, nodes_data["EXPORT.Entity"])
+        mat.use_fake_user = True
+        mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+        mat.use_backface_culling = True
+
+    return mat
 
 
 ############################
@@ -175,6 +197,160 @@ class OT_Presets(bpy.types.Operator):
 ############################
 
 
+class OT_ImportBOD(bpy.types.Operator):
+    bl_idname = "amagate.import_bod"
+    bl_label = "Import BOD"
+    bl_description = "Import BOD"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+
+    def execute(self, context: Context):
+        if os.path.splitext(self.filepath)[1].lower() != ".bod":
+            self.report({"ERROR"}, "Not a bod file")
+            return {"CANCELLED"}
+        #
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        with open(self.filepath, "rb") as f:
+            bm = bmesh.new()
+            uv_layer = bm.loops.layers.uv.verify()  # 获取或创建UV图层
+            bm_verts = []
+            # 内部名称
+            length = unpack("I", f)[0]
+            inter_name = unpack(f"{length}s", f)
+            #
+            mesh = bpy.data.meshes.new(inter_name)
+            entity = bpy.data.objects.new(inter_name, mesh)
+            #
+            ent_coll = bpy.data.collections.new(f"Blade_Object_{inter_name}")
+            context.scene.collection.children.link(ent_coll)
+            data.link2coll(entity, ent_coll)
+            # 顶点
+            verts_num = unpack("I", f)[0]
+            for i in range(verts_num):
+                co = Vector(unpack("ddd", f)) / 1000
+                co.yz = co.z, -co.y
+                bm_verts.append(bm.verts.new(co))
+                # 跳过法线
+                f.seek(24, 1)
+            # 面
+            faces_num = unpack("I", f)[0]
+            for i in range(faces_num):
+                vert_idx = unpack("III", f)
+                try:
+                    face = bm.faces.new([bm_verts[i] for i in vert_idx])
+                except:
+                    face = None
+                length = unpack("I", f)[0]
+                img_name = unpack(f"{length}s", f)
+                uv_list = unpack("ffffff", f)
+                if face is not None:
+                    uv_list = [
+                        (uv_list[0], uv_list[3]),
+                        (uv_list[1], uv_list[4]),
+                        (uv_list[2], uv_list[5]),
+                    ]
+                    for idx, loop in enumerate(face.loops):
+                        loop[uv_layer].uv = uv_list[idx]
+                    #
+                    img = bpy.data.images.get(img_name)  # type: Image # type: ignore
+                    if img is None:
+                        img = bpy.data.images.new(img_name, 256, 256)
+                        img.source = "FILE"
+                        img.filepath = f"//textures/{img_name}.bmp"
+                    mat = ensure_material(img)
+                    #
+                    slot_index = mesh.materials.find(img_name)
+                    if slot_index == -1:
+                        mesh.materials.append(mat)
+                        slot_index = len(mesh.materials) - 1
+                    face.material_index = slot_index
+                # 跳过0
+                f.seek(4, 1)
+            # 骨架
+            skeleton_num = unpack("I", f)[0]
+            bones = []  # type: list[bpy.types.EditBone]
+            armature = None
+            if skeleton_num != 1:
+                # 创建骨架
+                armature = bpy.data.armatures.new("Blade_Skeleton")
+                armature.show_names = True
+                skl_obj = bpy.data.objects.new("Blade_Skeleton", armature)
+                data.link2coll(skl_obj, ent_coll)
+                ag_utils.select_active(context, skl_obj)  # type: ignore
+                bpy.ops.object.mode_set(mode="EDIT")
+
+            for i in range(skeleton_num):
+                if skeleton_num != 1:
+                    length = unpack("I", f)[0]
+                    name = unpack(f"{length}s", f)
+                #
+                parent_idx = unpack("i", f)[0]  # type: int
+                lst = unpack("dddd" * 4, f)
+                lst = [lst[i * 4 : (i + 1) * 4] for i in range(4)]
+                matrix = Matrix(lst)
+                matrix.transpose()  # 转置
+                # 构造交换 y 和 -z 的矩阵
+                swap_matrix = Matrix(
+                    (
+                        (1, 0, 0, 0),
+                        (0, 0, -1, 0),  # y → -z
+                        (0, 1, 0, 0),  # z → y
+                        (0, 0, 0, 1),
+                    )
+                )
+                # 转换坐标轴
+                matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+                matrix.translation /= 1000  # 转换位置单位
+                numverts = unpack("I", f)[0]
+                vert_start = unpack("I", f)[0]
+                # 添加骨骼
+                if armature is not None:
+                    bone = armature.edit_bones.new(name)
+                    bones.append(bone)
+                    bone.length = 0.2
+                    if parent_idx != -1:
+                        parent_bone = bones[parent_idx]
+                        bone.parent = parent_bone
+                        # bone.use_connect = True
+                        matrix = (
+                            parent_bone.matrix.to_quaternion().to_matrix().to_4x4()
+                            @ matrix
+                        )
+                        matrix.translation += parent_bone.matrix.translation
+                        bone.matrix = matrix
+                    else:
+                        bone.matrix = matrix
+
+                #
+                num = unpack("I", f)[0]
+                for j in range(num):
+                    pos = Vector(unpack("ddd", f)) / 1000
+                    pos.yz = pos.z, -pos.y
+                    dist = unpack("d", f)[0]
+                    numverts = unpack("I", f)[0]
+                    vert_start = unpack("I", f)[0]
+            # 中心
+            center = Vector(unpack("ddd", f)) / 1000
+            center.yz = center.z, -center.y
+            dist = unpack("d", f)[0]
+            #
+            bm.to_mesh(mesh)
+            bm.free()
+            #
+            if context.mode != "OBJECT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+        #
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        self.filepath = f"//"
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+
 ############################
 ############################ 导出操作
 ############################
@@ -183,21 +359,174 @@ class OT_Presets(bpy.types.Operator):
 class OT_ExportBOD(bpy.types.Operator):
     bl_idname = "amagate.export_bod"
     bl_label = "Export BOD"
+    bl_description = "Export BOD"
     bl_options = {"INTERNAL"}
 
-    main: BoolProperty(default=False)  # type: ignore
+    main: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
     action: EnumProperty(
         name="",
         description="",
         items=[
             # ("1", "Export BOD", ""),
-            ("2", "Export BOD (Visible Only)", ""),
+            ("2", "Export BOD as ...", ""),
         ],
+        options={"HIDDEN"},
     )  # type: ignore
+    filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
         # print(f"main: {self.main}, action: {self.action}")
-        coll_list = []
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        #
+        self.filepath = bpy.path.ensure_ext(self.filepath, ".bod")
+        # logger.debug(f"filepath: {self.filepath}")
+        ent_dict = self.ent_dict
+        lack_texture = False
+        # 获取主实体
+        has_skin = False
+        buffer = BytesIO()
+        if ent_dict["skin"] is not None:
+            has_skin = True
+            entity = ent_dict["skin"]  # type: Object
+            ag_utils.select_active(context, entity)
+            for obj in entity.children_recursive:
+                obj.select_set(True)
+            # 如果有子物体
+            if len(context.selected_objects) > 1:
+                bpy.ops.object.duplicate()
+                bpy.ops.object.join()
+                entity = context.object  # type: ignore
+            else:
+                bpy.ops.object.duplicate()
+                entity = context.object  # type: ignore
+        elif len(ent_dict["objects"]) > 1:
+            ag_utils.select_active(context, ent_dict["objects"][0])
+            for obj in ent_dict["objects"]:
+                obj.select_set(True)
+                bpy.ops.object.duplicate()
+                bpy.ops.object.join()
+                entity = context.object  # type: ignore
+        else:
+            ag_utils.select_active(context, ent_dict["objects"][0])
+            bpy.ops.object.duplicate()
+            entity = context.object  # type: ignore
+
+        bpy.ops.object.mode_set(mode="EDIT")
+        # 合并顶点
+        bpy.ops.mesh.select_mode(type="VERT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.remove_doubles()
+        # 三角化
+        bpy.ops.mesh.select_mode(type="FACE")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.quads_convert_to_tris(quad_method="BEAUTY", ngon_method="BEAUTY")
+        #
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+        #
+        mesh = entity.data  # type: bpy.types.Mesh # type: ignore
+        matrix = entity.matrix_world.copy()
+        quat = matrix.to_quaternion()
+        uv_layer = mesh.uv_layers.active.data
+
+        # 导出BOD
+        # 写入内部名称
+        inter_name = ent_dict["kind"].encode("utf-8")
+        buffer.write(struct.pack("I", len(inter_name)))
+        buffer.write(inter_name)
+        # 写入顶点数据
+        verts_num = len(mesh.vertices)
+        buffer.write(struct.pack("I", verts_num))
+        for vert in mesh.vertices:
+            normal = quat @ vert.normal
+            normal.yz = -normal.z, normal.y
+            co = (matrix @ vert.co) * 1000
+            co.yz = -co.z, co.y
+            co = co.to_tuple(1)
+            buffer.write(struct.pack("ddd", *co))
+            buffer.write(struct.pack("ddd", *normal))
+        # 写入面数据
+        faces_num = len(mesh.polygons)
+        buffer.write(struct.pack("I", faces_num))
+        for poly in mesh.polygons:
+            # 写顶点索引
+            buffer.write(struct.pack("III", *poly.vertices))
+            # 写材质
+            mat = entity.material_slots[poly.material_index].material
+            img_node = mat.node_tree.nodes.get("Image Texture")
+            img_name = ""
+            if img_node:
+                img = img_node.image  # type: Image # type: ignore
+                if img:
+                    img_name = img.name
+            if not img_name:
+                img_name = "NULL"
+                if not lack_texture:
+                    lack_texture = True
+            img_name = img_name.encode("utf-8")
+            buffer.write(struct.pack("I", len(img_name)))
+            buffer.write(img_name)
+            # 写UV
+            uv_list = []
+            for loop_idx in poly.loop_indices:
+                uv_list.append(uv_layer[loop_idx].uv.to_tuple())
+            uv_list = tuple(zip(*uv_list))
+            buffer.write(struct.pack("ffffff", *uv_list[0], *uv_list[1]))
+            #
+            buffer.write(struct.pack("f", 0))
+
+        # 如果有蒙皮和骨架
+        skeleton = [ent_dict["skeleton"]]  # type: list[Object]
+        if has_skin and skeleton is not None:
+            ag_utils.select_active(context, skeleton[0])
+            for obj in skeleton[0].children_recursive:
+                obj.select_set(True)
+                skeleton.append(obj)  # type: ignore
+            # 原点到几何中心
+            bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+            #
+            buffer.write(struct.pack("I", len(skeleton)))
+            for obj in skeleton:
+                name = obj.name.encode("utf-8")
+                buffer.write(struct.pack("I", len(name)))
+                buffer.write(name)
+                # 父节点索引
+                if obj.parent is None:
+                    buffer.write(struct.pack("i", -1))
+                else:
+                    parent_idx = skeleton.index(obj.parent)  # type: ignore
+                    buffer.write(struct.pack("I", parent_idx))
+                # 矩阵
+
+        else:
+            buffer.write(struct.pack("Ii", 1, -1))
+            for row in Matrix():
+                buffer.write(struct.pack("dddd", *row))
+            buffer.write(struct.pack("I", verts_num))
+            buffer.write(struct.pack("II", 0, 1))
+            center = entity.location.copy() * 1000
+            center.yz = -center.z, center.y
+            buffer.write(struct.pack("dddd", *center, 1000))
+            buffer.write(struct.pack("II", 0, verts_num))
+        #
+        with open(self.filepath, "wb") as f:
+            f.write(buffer.getvalue())
+        buffer.close()
+        #
+        bpy.data.meshes.remove(mesh)
+        if lack_texture:
+            self.report({"WARNING"}, "The object lacks texture")
+        else:
+            self.report(
+                {"INFO"},
+                f"{os.path.basename(self.filepath)}: {pgettext('Export successfully')}",
+            )
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event):
+        ent_coll = None
         for coll in bpy.data.collections:
             # 判断名称前缀
             if not coll.name.lower().startswith("blade_object_"):
@@ -209,25 +538,78 @@ class OT_ExportBOD(bpy.types.Operator):
             if len(coll.objects) == 0:
                 continue
 
-            if not self.main:
-                # 仅可见
-                if self.action == "2":
-                    if not coll.objects[0].visible_get():
-                        continue
-            coll_list.append(coll)
+            # if not self.main:
+            #     # 仅可见
+            #     if self.action == "2":
+            #         if not coll.objects[0].visible_get():
+            #             continue
+            ent_coll = coll
             break
-        #
-        if not coll_list:
+        if ent_coll is None:
             self.report(
-                {"INFO"}, "No collection with the prefix `Blade_Object_` was found"
+                {"WARNING"}, "No collection with the prefix `Blade_Object_` was found"
             )
             return {"CANCELLED"}
-        #
-        for coll in coll_list:
-            # 导出BOD
-            objects = []
 
-        return {"FINISHED"}
+        # 找到实体集合
+        ent_dict = {
+            "kind": ent_coll.name[13:],
+            "objects": [],
+            "skin": None,
+            "skeleton": None,
+            "anchors": [],
+            "edges": [],
+            "spikes": [],
+            "trails": [],
+            "fires": [],
+            "lights": [],
+        }
+
+        for obj in ent_coll.objects:
+            if not obj.visible_get():
+                continue
+            #
+            if obj.name.lower().startswith("blade_skin"):
+                ent_dict["skin"] = obj
+            elif obj.name.lower().startswith("blade_skeleton"):
+                ent_dict["skeleton"] = obj
+            elif obj.name.lower().startswith("blade_anchor_"):
+                ent_dict["anchors"].append(obj)
+            elif (
+                obj.name.lower().startswith("blade_edge_")
+                and obj.amagate_data.ent_comp_type == 1
+            ):
+                ent_dict["edges"].append(obj)
+            elif (
+                obj.name.lower().startswith("blade_spike_")
+                and obj.amagate_data.ent_comp_type == 2
+            ):
+                ent_dict["spikes"].append(obj)
+            elif (
+                obj.name.lower().startswith("blade_trail_")
+                and obj.amagate_data.ent_comp_type == 3
+            ):
+                ent_dict["trails"].append(obj)
+            elif obj.name.lower().startswith("b_fire_fuego_"):
+                ent_dict["fires"].append(obj)
+            elif obj.name.lower().startswith("blade_light_"):
+                ent_dict["lights"].append(obj)
+            else:
+                ent_dict["objects"].append(obj)
+        #
+        if not ent_dict["objects"]:
+            self.report({"WARNING"}, "There are no visible entities objects")
+            return {"CANCELLED"}
+        # 找到实体对象
+        self.ent_dict = ent_dict
+
+        if not bpy.data.filepath or (not self.main and self.action == "2"):
+            self.filepath = f"//{ent_dict['kind']}.bod"
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
+        else:
+            self.filepath = f"{os.path.splitext(bpy.data.filepath)[0]}.bod"
+            return self.execute(context)
 
 
 ############################

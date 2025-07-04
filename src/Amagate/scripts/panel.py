@@ -86,10 +86,12 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
         layout.separator(type="LINE")
 
-        # 导出导入
+        # 导出
         row = layout.row(align=True)
         row.operator(OP_ENTITY.OT_ExportBOD.bl_idname, icon="EXPORT").main = True  # type: ignore
-        # row.operator_menu_enum(OP_BOD_EXT.OT_ExportBOD.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        row.operator_menu_enum(OP_ENTITY.OT_ExportBOD.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        # 导入
+        layout.operator(OP_ENTITY.OT_ImportBOD.bl_idname, icon="IMPORT")
 
 
 ############################

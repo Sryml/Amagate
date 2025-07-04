@@ -18,6 +18,7 @@ import requests
 import zipfile
 import tempfile
 import typing
+import struct
 
 from typing import Any, TYPE_CHECKING
 from io import StringIO, BytesIO
@@ -572,6 +573,23 @@ def get_camera_transform(cam):
 
 def set_dict(this, key, value):
     this[key] = value
+
+
+def unpack(fmat: str, f) -> Any:
+    fmat_ = fmat.lower()
+    if fmat_[-1] == "s":
+        chunk = int(fmat_[:-1])
+    else:
+        chunk = (
+            fmat_.count("i") * 4
+            + fmat_.count("f") * 4
+            + fmat_.count("d") * 8
+            + fmat_.count("b")
+        )
+
+    if fmat_[-1] == "s":
+        return struct.unpack(fmat, f.read(chunk))[0].decode("Latin1")
+    return struct.unpack(fmat, f.read(chunk))
 
 
 # 射线法，判断点是否在多边形内
