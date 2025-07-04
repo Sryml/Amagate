@@ -501,20 +501,33 @@ class OT_ExportNode(bpy.types.Operator):
             if mat:
                 nodes_data[name] = data.export_nodes(mat)
         # 几何节点
-        nodes_data["Amagate Eval"] = data.export_nodes(
-            bpy.data.node_groups["Amagate Eval"]
-        )
-        nodes_data["AG.FrustumCulling"] = data.export_nodes(
-            bpy.data.node_groups["AG.FrustumCulling"]
-        )
-        nodes_data["AG.SectorNodes"] = data.export_nodes(
-            bpy.data.node_groups["AG.SectorNodes"]
-        )
-        # 世界节点
-        nodes_data["BWorld"] = data.export_nodes(bpy.data.worlds["BWorld"])
+        for name in ("Amagate Eval", "AG.FrustumCulling", "AG.SectorNodes"):
+            node = bpy.data.node_groups.get(name)
+            if node:
+                nodes_data[name] = data.export_nodes(node)
+        # nodes_data["Amagate Eval"] = data.export_nodes(
+        #     bpy.data.node_groups["Amagate Eval"]
+        # )
+        # nodes_data["AG.FrustumCulling"] = data.export_nodes(
+        #     bpy.data.node_groups["AG.FrustumCulling"]
+        # )
         # nodes_data["AG.SectorNodes"] = data.export_nodes(
         #     bpy.data.node_groups["AG.SectorNodes"]
         # )
+        # 世界节点
+        node = bpy.data.worlds.get("BWorld")
+        if node:
+            nodes_data[node.name] = data.export_nodes(node)
+        # nodes_data["AG.SectorNodes"] = data.export_nodes(
+        #     bpy.data.node_groups["AG.SectorNodes"]
+        # )
+        # 标记为导出的材质
+        for mat in bpy.data.materials:
+            if not mat.use_nodes:
+                continue
+            if mat.name.startswith("EXPORT."):
+                nodes_data[mat.name] = data.export_nodes(mat)
+        #
         print(f"节点数量: {len(nodes_data)}")
         pickle.dump(nodes_data, open(filepath, "wb"), protocol=pickle.HIGHEST_PROTOCOL)
 
