@@ -216,7 +216,7 @@ class OT_ImportBOD(bpy.types.Operator):
         with open(self.filepath, "rb") as f:
             bm = bmesh.new()
             uv_layer = bm.loops.layers.uv.verify()  # 获取或创建UV图层
-            bm_verts = []
+            bm_verts = []  # type: list[bmesh.types.BMVert]
             # 内部名称
             length = unpack("I", f)[0]
             inter_name = unpack(f"{length}s", f)
@@ -270,78 +270,125 @@ class OT_ImportBOD(bpy.types.Operator):
                 # 跳过0
                 f.seek(4, 1)
             # 骨架
-            skeleton_num = unpack("I", f)[0]
-            bones = []  # type: list[bpy.types.EditBone]
+            bones_num = unpack("I", f)[0]
+            bones_name = []
+            bones_vert_idx = []
+            # pose_matrix_list = []  # type: list[Matrix]
             armature = None
-            if skeleton_num != 1:
+            if bones_num != 1:
+                bmesh.ops.transform(
+                    bm, matrix=Matrix.Rotation(math.pi / 2, 4, "X"), verts=bm_verts
+                )
                 # 创建骨架
                 armature = bpy.data.armatures.new("Blade_Skeleton")
                 armature.show_names = True
-                skl_obj = bpy.data.objects.new("Blade_Skeleton", armature)
-                data.link2coll(skl_obj, ent_coll)
-                ag_utils.select_active(context, skl_obj)  # type: ignore
+                armature.show_axes = True
+                # armature.display_type = "STICK"
+                armature_obj = bpy.data.objects.new("Blade_Skeleton", armature)
+                armature_obj.show_in_front = True
+                data.link2coll(armature_obj, ent_coll)
+                ag_utils.select_active(context, armature_obj)  # type: ignore
                 bpy.ops.object.mode_set(mode="EDIT")
 
-            for i in range(skeleton_num):
-                if skeleton_num != 1:
+            for i in range(bones_num):
+                if bones_num != 1:
                     length = unpack("I", f)[0]
                     name = unpack(f"{length}s", f)
+                else:
+                    name = "None"
                 #
                 parent_idx = unpack("i", f)[0]  # type: int
                 lst = unpack("dddd" * 4, f)
                 lst = [lst[i * 4 : (i + 1) * 4] for i in range(4)]
                 matrix = Matrix(lst)
                 matrix.transpose()  # 转置
-                # 构造交换 y 和 -z 的矩阵
+                # 构造交换矩阵
                 swap_matrix = Matrix(
                     (
                         (1, 0, 0, 0),
-                        (0, 0, -1, 0),  # y → -z
-                        (0, 1, 0, 0),  # z → y
+                        (0, 0, 1, 0),  # y → z
+                        (0, -1, 0, 0),  # z → -y
                         (0, 0, 0, 1),
                     )
                 )
                 # 转换坐标轴
-                matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+                # matrix = swap_matrix @ matrix @ swap_matrix.transposed()
                 matrix.translation /= 1000  # 转换位置单位
                 numverts = unpack("I", f)[0]
                 vert_start = unpack("I", f)[0]
                 # 添加骨骼
                 if armature is not None:
+                    # pose_matrix_list.append(matrix)
                     bone = armature.edit_bones.new(name)
-                    bones.append(bone)
-                    bone.length = 0.2
+                    bones_name.append(name)
+                    bone.length = 0.1
                     if parent_idx != -1:
-                        parent_bone = bones[parent_idx]
+                        parent_bone = armature.edit_bones[
+                            bones_name[parent_idx]
+                        ]  # type: bpy.types.EditBone
                         bone.parent = parent_bone
                         # bone.use_connect = True
+                        parent_matrix = parent_bone.matrix
                         matrix = (
-                            parent_bone.matrix.to_quaternion().to_matrix().to_4x4()
-                            @ matrix
+                            parent_matrix.to_quaternion().to_matrix().to_4x4() @ matrix
                         )
-                        matrix.translation += parent_bone.matrix.translation
-                        bone.matrix = matrix
-                    else:
-                        bone.matrix = matrix
-
+                        matrix.translation += parent_matrix.translation
+                        dir = (parent_bone.tail - parent_bone.head).normalized()
+                        dot = dir.dot(matrix.translation - parent_bone.head)
+                        if dot > 0:
+                            parent_bone.length = dot
+                    # 设置骨骼矩阵
+                    bone.matrix = matrix
+                    verts = bm_verts[vert_start : vert_start + numverts]
+                    bmesh.ops.transform(
+                        bm,
+                        matrix=matrix,
+                        verts=verts,
+                    )
+                    # 保存顶点索引
+                    bones_vert_idx.append((vert_start, vert_start + numverts))
                 #
                 num = unpack("I", f)[0]
                 for j in range(num):
                     pos = Vector(unpack("ddd", f)) / 1000
-                    pos.yz = pos.z, -pos.y
-                    dist = unpack("d", f)[0]
+                    pos = (matrix @ Matrix.Translation(pos)).to_translation()
+                    # pos.yz = pos.z, -pos.y
+                    dist = unpack("d", f)[0] / 1000
+                    #
+                    # empty = bpy.data.objects.new(name, None)
+                    # empty.location = pos
+                    # empty.empty_display_size = dist
+                    # data.link2coll(empty, context.collection)
+                    #
                     numverts = unpack("I", f)[0]
                     vert_start = unpack("I", f)[0]
             # 中心
             center = Vector(unpack("ddd", f)) / 1000
             center.yz = center.z, -center.y
-            dist = unpack("d", f)[0]
+            dist = unpack("d", f)[0] / 1000
+            #
+            # empty = bpy.data.objects.new("t.center", None)
+            # empty.location = center
+            # empty.empty_display_size = dist
+            # data.link2coll(empty, context.scene.collection)
+            #
             #
             bm.to_mesh(mesh)
             bm.free()
+            # mesh.shade_smooth()  # 平滑着色
+            if armature is not None:
+                # 添加顶点组
+                for idx, name in enumerate(bones_name):
+                    group = entity.vertex_groups.new(name=name)
+                    start, end = bones_vert_idx[idx]
+                    group.add(list(range(start, end)), 1.0, "REPLACE")
+                # 添加骨架修改器
+                modifier = entity.modifiers.new("Armature", "ARMATURE")
+                modifier.object = armature_obj  # type: ignore
             #
             if context.mode != "OBJECT":
                 bpy.ops.object.mode_set(mode="OBJECT")
+            bpy.ops.view3d.view_all(center=True)
         #
         return {"FINISHED"}
 
