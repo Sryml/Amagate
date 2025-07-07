@@ -385,7 +385,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             ent_bm.to_mesh(ent_mesh)
             ent_bm.free()
-            # mesh.shade_smooth()  # 平滑着色
+            ent_mesh.shade_smooth()  # 平滑着色
             # 添加顶点组
             if armature is not None:
                 # 纠正位置
@@ -629,10 +629,65 @@ class OT_ImportBOD(bpy.types.Operator):
                 #
                 obj.matrix_world.translation = pt1
 
-            # 掩码组A
-            # 掩码组B
+            ent_mesh.attributes.new(name="amagate_group", type="INT", domain="FACE")
+            ent_mesh.attributes.new(
+                name="amagate_mutilation_group", type="INT", domain="FACE"
+            )
+            # 组
+            num = unpack("I", f)[0]
+            for idx in range(num):
+                group = unpack("b", f)[0]
+                if idx >= len(ent_mesh.polygons):
+                    continue
+                ent_mesh.attributes["amagate_group"].data[idx].value = group  # type: ignore
+
+            # 肢解组
+            num = unpack("I", f)[0]
+            for idx in range(num):
+                group = unpack("i", f)[0]
+                if idx >= len(ent_mesh.polygons):
+                    continue
+                ent_mesh.attributes["amagate_mutilation_group"].data[idx].value = group  # type: ignore
 
             # 轨迹
+            num = unpack("I", f)[0]
+            for idx in range(num):
+                mark = unpack("I", f)[0]  # 默认0
+                if mark != 0:
+                    logger.debug(f"Track - mark not 0: {mark}")
+                parent_idx = unpack("i", f)[0]  # type: int
+                pt1 = Vector(unpack("ddd", f)) / 1000
+                pt1.yz = pt1.z, -pt1.y
+                pt2 = Vector(unpack("ddd", f)) / 1000
+                pt2.yz = pt2.z, -pt2.y
+                #
+                obj_name = data.get_object_name("Blade_Trail_")
+                mesh = bpy.data.meshes.new(obj_name)
+                obj = bpy.data.objects.new(
+                    obj_name, mesh
+                )  # type: Object # type: ignore
+                obj.show_in_front = True
+                data.link2coll(obj, ent_coll)
+                #
+                if parent_idx != -1:
+                    if armature is not None:
+                        parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
+                        parent_matrix = parent_bone.matrix
+                        pt1 = (parent_matrix @ Matrix.Translation(pt1)).to_translation()
+                        pt2 = (parent_matrix @ Matrix.Translation(pt2)).to_translation()
+                        obj.parent = armature_obj  # type: ignore
+                        obj.parent_type = "BONE"
+                        obj.parent_bone = parent_bone.name
+                    else:
+                        obj.parent = entity  # type: ignore
+                #
+                bm = bmesh.new()
+                bm.verts.new(pt1)
+                bm.verts.new(pt2)
+                bm.edges.new(bm.verts)
+
+                bm.to_mesh(mesh)
+                bm.free()
         #
         bpy.ops.view3d.view_all(center=True)
         return {"FINISHED"}

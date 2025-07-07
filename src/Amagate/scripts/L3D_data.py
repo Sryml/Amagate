@@ -1157,6 +1157,18 @@ def load_post(filepath=""):
     global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK, ASYNC_THREAD
     context = bpy.context
     scene_data = context.scene.amagate_data
+    wm_data = context.window_manager.amagate_data
+    #
+    if len(wm_data.ent_groups) == 0:
+        for i in range(32):
+            prop = wm_data.ent_groups.add()
+            prop.index = i
+            prop.layer_name = "amagate_group"
+        for i in range(32):
+            prop = wm_data.ent_mutilation_groups.add()
+            prop.index = i
+            prop.layer_name = "amagate_mutilation_group"
+    #
     if scene_data.is_blade:
         # 向后兼容
         if not scene_data.sector_public.textures.get("Face"):

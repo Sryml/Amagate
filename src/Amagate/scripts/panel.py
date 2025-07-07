@@ -7,6 +7,7 @@ from __future__ import annotations
 from typing import Any, TYPE_CHECKING
 
 import bpy
+import bmesh
 from bpy.app.translations import pgettext
 
 
@@ -74,6 +75,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
+        wm_data = context.window_manager.amagate_data
 
         # 创建集合
         layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")
@@ -83,6 +85,75 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
         # 添加组件
         row.operator_menu_enum(OP_ENTITY.OT_AddComponent.bl_idname, "action")
+        # 组
+        box = layout.box()
+        box.enabled = context.mode == "EDIT_MESH"
+        column = box.column(align=True)
+        column.label(text=f"{pgettext('Groups')}:")
+        col_flow = column.grid_flow(row_major=True, columns=8, align=True)
+        if context.mode == "EDIT_MESH":
+            obj = context.object
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            bm = bmesh.from_edit_mesh(mesh)
+            layer_name = "amagate_group"
+            layer = bm.faces.layers.int.get(layer_name)
+            if layer is None:
+                layer = bm.faces.layers.int.new(layer_name)
+                bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+            faces = [f for f in bm.faces if f.select]
+        else:
+            faces = []
+        for i in range(32):
+            flag = ""
+            if faces:
+                group = ag_utils.int_to_uint(faces[0][layer])  # type: ignore
+                check = (group >> i) & 1  # 访问第i位
+                for f in faces:
+                    group = ag_utils.int_to_uint(f[layer])  # type: ignore
+                    if (group >> i) & 1 != check:
+                        flag = "*"
+            #
+            col_flow.prop(
+                wm_data.ent_groups[i],
+                "value",
+                text=f"{i+1}{flag}",
+                toggle=True,
+            )
+
+        # 肢解组
+        box = layout.box()
+        box.enabled = context.mode == "EDIT_MESH"
+        column = box.column(align=True)
+        column.label(text=f"{pgettext('Mutilation Groups')}:")
+        col_flow = column.grid_flow(row_major=True, columns=8, align=True)
+        if context.mode == "EDIT_MESH":
+            obj = context.object
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            bm = bmesh.from_edit_mesh(mesh)
+            layer_name = "amagate_mutilation_group"
+            layer = bm.faces.layers.int.get(layer_name)
+            if layer is None:
+                layer = bm.faces.layers.int.new(layer_name)
+                bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+            faces = [f for f in bm.faces if f.select]
+        else:
+            faces = []
+        for i in range(32):
+            flag = ""
+            if faces:
+                group = ag_utils.int_to_uint(faces[0][layer])  # type: ignore
+                check = (group >> i) & 1  # 访问第i位
+                for f in faces:
+                    group = ag_utils.int_to_uint(f[layer])  # type: ignore
+                    if (group >> i) & 1 != check:
+                        flag = "*"
+            #
+            col_flow.prop(
+                wm_data.ent_mutilation_groups[i],
+                "value",
+                text=f"{i+1}{flag}",
+                toggle=True,
+            )
 
         layout.separator(type="LINE")
 

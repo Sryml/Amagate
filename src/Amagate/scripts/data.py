@@ -21,7 +21,7 @@ from typing import Any, TYPE_CHECKING
 #
 import bpy
 
-# import bmesh
+import bmesh
 from bpy.app.translations import pgettext
 
 # from bpy.types import Context
@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 ############################ 全局变量
 Copyright = "(C) 2024-2025 Sryml"
@@ -598,6 +599,63 @@ class CollCollection(bpy.types.PropertyGroup):
     obj: PointerProperty(type=bpy.types.Collection)  # type: ignore
 
 
+# 实体组收集器
+class EntityGroupCollection(bpy.types.PropertyGroup):
+    index: IntProperty(default=0)  # type: ignore
+    value: BoolProperty(default=False, get=lambda self: self.get_value(), set=lambda self, value: self.set_value(value))  # type: ignore
+    layer_name: StringProperty(default="")  # type: ignore
+
+    def get_value(self):
+        from . import ag_utils
+
+        context = bpy.context
+        if context.mode != "EDIT_MESH":
+            return False
+        #
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        bm = bmesh.from_edit_mesh(mesh)
+        face = next((f for f in bm.faces if f.select), None)
+        if not face:
+            return False
+        #
+        layer = bm.faces.layers.int.get(self.layer_name)
+        group = ag_utils.int_to_uint(face[layer])  # type: ignore
+        return (group >> self.index) & 1
+
+    def set_value(self, value):
+        from . import ag_utils
+
+        mask_limit = 0xFFFFFFFF
+        mask = 1 << self.index
+
+        context = bpy.context
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        bm = bmesh.from_edit_mesh(mesh)
+        faces = [f for f in bm.faces if f.select]
+        if not faces:
+            return
+
+        layer = bm.faces.layers.int.get(self.layer_name)
+        if value:
+            for face in faces:
+                # 单选
+                if self.layer_name == "amagate_group":
+                    group = ag_utils.uint_to_int(mask)
+                else:
+                    group = ag_utils.uint_to_int(
+                        face[layer] | mask  # type: ignore
+                    )  # 设置为1
+                face[layer] = group  # type: ignore
+        else:
+            for face in faces:
+                group = ag_utils.uint_to_int(
+                    face[layer] & (~mask & mask_limit)  # type: ignore
+                )  # 设置为0
+                face[layer] = group  # type: ignore
+
+
 ############################
 ############################ Operator Props
 ############################
@@ -610,6 +668,16 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
 
     def pyp_install_progress_update(self, context):
         region_redraw("UI")
+
+
+############################
+############################ WM属性组
+############################
+
+
+class WindowManagerProperty(bpy.types.PropertyGroup):
+    ent_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
+    ent_mutilation_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
 
 
 ############################
@@ -643,6 +711,8 @@ def register():
 
     sector_data.register()
     L3D_data.register()
+    #
+    bpy.types.WindowManager.amagate_data = PointerProperty(type=WindowManagerProperty, name="Amagate Data")  # type: ignore
 
 
 def unregister():
@@ -664,3 +734,5 @@ def unregister():
     handler = logger.handlers[0]
     logger.removeHandler(handler)
     handler.close()
+    #
+    del bpy.types.WindowManager.amagate_data  # type: ignore

@@ -227,6 +227,7 @@
     ("Operator", "Add Component"): "添加组件",
     ("EntAnchor", "Object"): "物体",
     ("EntAnchor", "Person"): "人物",
+    ("*", "Mutilation Groups"): "肢解组",
     ("Operator", "Import BOD"): "导入BOD",
     ("Operator", "Export BOD"): "导出BOD",
     ("*", "Export BOD as ..."): "导出BOD为...",
