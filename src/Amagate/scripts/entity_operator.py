@@ -206,6 +206,8 @@ class OT_ImportBOD(bpy.types.Operator):
     bl_description = "Import BOD"
     bl_options = {"INTERNAL"}
 
+    # 转换坐标空间
+    from_old_exporter: BoolProperty(name="From Old Exporter", default=True)  # type: ignore
     filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
@@ -225,10 +227,12 @@ class OT_ImportBOD(bpy.types.Operator):
                 (0, 0, 0, 1),
             )
         )
+        transform_space = not self.from_old_exporter
         filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
         mesh_dict = pickle.load(open(filepath, "rb"))
 
         with open(self.filepath, "rb") as f:
+            file_size = os.fstat(f.fileno()).st_size
             ent_bm = bmesh.new()
             uv_layer = ent_bm.loops.layers.uv.verify()  # 获取或创建UV图层
             bm_verts = []  # type: list[bmesh.types.BMVert]
@@ -239,14 +243,17 @@ class OT_ImportBOD(bpy.types.Operator):
             ent_mesh = bpy.data.meshes.new(inter_name)
             entity = bpy.data.objects.new(inter_name, ent_mesh)
             #
-            ent_coll = bpy.data.collections.new(f"Blade_Object_{inter_name}")
+            ent_coll = bpy.data.collections.new(
+                f"Blade_Object_{inter_name}"
+            )  # type: Collection # type: ignore
             context.scene.collection.children.link(ent_coll)
             data.link2coll(entity, ent_coll)
             # 顶点
             verts_num = unpack("I", f)[0]
             for i in range(verts_num):
                 co = Vector(unpack("ddd", f)) / 1000
-                co.yz = co.z, -co.y
+                if transform_space:
+                    co.yz = co.z, -co.y
                 bm_verts.append(ent_bm.verts.new(co))
                 # 跳过法线
                 f.seek(24, 1)
@@ -291,9 +298,9 @@ class OT_ImportBOD(bpy.types.Operator):
             # pose_matrix_list = []  # type: list[Matrix]
             armature = None
             if bones_num != 1:
-                bmesh.ops.transform(
-                    ent_bm, matrix=Matrix.Rotation(math.pi / 2, 4, "X"), verts=bm_verts
-                )
+                # bmesh.ops.transform(
+                #     ent_bm, matrix=Matrix.Rotation(math.pi / 2, 4, "X"), verts=bm_verts
+                # )
                 # 创建骨架
                 armature = bpy.data.armatures.new("Blade_Skeleton")
                 armature.show_names = True
@@ -358,8 +365,9 @@ class OT_ImportBOD(bpy.types.Operator):
                 num = unpack("I", f)[0]
                 for j in range(num):
                     pos = Vector(unpack("ddd", f)) / 1000
-                    pos = (matrix @ Matrix.Translation(pos)).to_translation()
-                    # pos.yz = pos.z, -pos.y
+                    pos = matrix @ pos
+                    if transform_space:
+                        pos.yz = pos.z, -pos.y
                     dist = unpack("d", f)[0] / 1000
                     #
                     # empty = bpy.data.objects.new(name, None)
@@ -367,36 +375,30 @@ class OT_ImportBOD(bpy.types.Operator):
                     # empty.empty_display_size = dist
                     # data.link2coll(empty, context.collection)
                     #
-                    numverts = unpack("I", f)[0]
                     vert_start = unpack("I", f)[0]
+                    numverts = unpack("I", f)[0]
             #
             if context.mode != "OBJECT":
                 bpy.ops.object.mode_set(mode="OBJECT")
+            #
+            ent_bm.to_mesh(ent_mesh)
+            ent_bm.free()
+            ent_mesh.shade_smooth()  # 平滑着色
             # 中心
             center = Vector(unpack("ddd", f)) / 1000
+            # if transform_space:
             center.yz = center.z, -center.y
             dist = unpack("d", f)[0] / 1000
+
             #
             # empty = bpy.data.objects.new("t.center", None)
             # empty.location = center
             # empty.empty_display_size = dist
             # data.link2coll(empty, context.scene.collection)
             #
-            #
-            ent_bm.to_mesh(ent_mesh)
-            ent_bm.free()
-            ent_mesh.shade_smooth()  # 平滑着色
+
             # 添加顶点组
             if armature is not None:
-                # 纠正位置
-                ag_utils.select_active(context, entity)  # type: ignore
-                armature_obj.select_set(True)
-                entity.rotation_euler = Euler((-math.pi / 2, 0, 0))
-                armature_obj.rotation_euler = Euler((-math.pi / 2, 0, 0))
-                bpy.ops.object.transform_apply(
-                    location=False, rotation=True, scale=False
-                )
-                bpy.ops.object.select_all(action="DESELECT")
                 for idx, name in enumerate(bones_name):
                     group = entity.vertex_groups.new(name=name)
                     start, end = bones_vert_idx[idx]
@@ -413,7 +415,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 prev_vert = None
                 for i in range(verts_num):
                     co = Vector(unpack("ddd", f)) / 1000
-                    co.yz = co.z, -co.y
+                    if transform_space:
+                        co.yz = co.z, -co.y
                     vert = bm.verts.new(co)
                     if prev_vert is not None:
                         bm.edges.new([prev_vert, vert])
@@ -439,6 +442,7 @@ class OT_ImportBOD(bpy.types.Operator):
                     obj.parent = armature_obj  # type: ignore
                     obj.parent_type = "BONE"
                     obj.parent_bone = parent_bone.name
+                obj.matrix_world = Matrix()
 
                 bm.to_mesh(mesh)
                 bm.free()
@@ -454,7 +458,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 strength = unpack("f", f)[0]
                 precision = unpack("f", f)[0]
                 co = Vector(unpack("ddd", f)) / 1000
-                co.yz = co.z, -co.y
+                if transform_space:
+                    co.yz = co.z, -co.y
                 #
                 obj_name = data.get_object_name("Blade_Light_")
                 obj = bpy.data.objects.new(
@@ -468,12 +473,12 @@ class OT_ImportBOD(bpy.types.Operator):
                 parent_idx = unpack("i", f)[0]  # type: int
                 if parent_idx != -1 and armature is not None:
                     parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
-                    co = (parent_bone.matrix @ Matrix.Translation(co)).to_translation()
+                    co = parent_bone.matrix @ co
                     obj.parent = armature_obj  # type: ignore
                     obj.parent_type = "BONE"
                     obj.parent_bone = parent_bone.name
                 #
-                obj.matrix_world.translation = co
+                obj.matrix_world = Matrix.Translation(co)
 
             # 锚点
             num = unpack("I", f)[0]
@@ -485,7 +490,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 matrix = Matrix(lst)
                 matrix.transpose()  # 转置
                 # 转换坐标轴
-                matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+                if transform_space:
+                    matrix = swap_matrix @ matrix @ swap_matrix.transposed()
                 matrix.translation /= 1000  # 转换位置单位
                 #
                 obj_name = f"Blade_Anchor_{name}"
@@ -502,10 +508,11 @@ class OT_ImportBOD(bpy.types.Operator):
                     if armature is not None:
                         parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
                         parent_matrix = parent_bone.matrix
-                        matrix = (
-                            parent_matrix.to_quaternion().to_matrix().to_4x4() @ matrix
-                        )
-                        matrix.translation += parent_matrix.translation
+                        matrix = parent_matrix @ matrix
+                        # matrix = (
+                        #     parent_matrix.to_quaternion().to_matrix().to_4x4() @ matrix
+                        # )
+                        # matrix.translation += parent_matrix.translation
                         obj.parent = armature_obj  # type: ignore
                         obj.parent_type = "BONE"
                         obj.parent_bone = parent_bone.name
@@ -526,11 +533,12 @@ class OT_ImportBOD(bpy.types.Operator):
                 #
                 parent_idx = unpack("i", f)[0]  # type: int
                 pt1 = Vector(unpack("ddd", f)) / 1000
-                pt1.yz = pt1.z, -pt1.y
                 pt2 = Vector(unpack("ddd", f)) / 1000
-                pt2.yz = pt2.z, -pt2.y
                 pt3 = Vector(unpack("ddd", f)) / 1000
-                pt3.yz = pt3.z, -pt3.y
+                if transform_space:
+                    pt1.yz = pt1.z, -pt1.y
+                    pt2.yz = pt2.z, -pt2.y
+                    pt3.yz = pt3.z, -pt3.y
                 #
                 obj_name = data.get_object_name("Blade_Edge_")
                 mesh = bpy.data.meshes.new(obj_name)
@@ -538,15 +546,17 @@ class OT_ImportBOD(bpy.types.Operator):
                     obj_name, mesh
                 )  # type: Object # type: ignore
                 obj.show_in_front = True
+                obj.amagate_data.ent_comp_type = 1
                 data.link2coll(obj, ent_coll)
                 #
                 if parent_idx != -1:
                     if armature is not None:
                         parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
                         parent_matrix = parent_bone.matrix
-                        pt1 = (parent_matrix @ Matrix.Translation(pt1)).to_translation()
-                        pt2 = (parent_matrix @ Matrix.Translation(pt2)).to_translation()
-                        pt3 = (parent_matrix @ Matrix.Translation(pt3)).to_translation()
+                        quat = parent_matrix.to_quaternion()
+                        pt1 = parent_matrix @ pt1
+                        pt2 = quat @ pt2
+                        pt3 = quat @ pt3
                         obj.parent = armature_obj  # type: ignore
                         obj.parent_type = "BONE"
                         obj.parent_bone = parent_bone.name
@@ -562,19 +572,23 @@ class OT_ImportBOD(bpy.types.Operator):
                 for idx in mesh_data["edges"]:
                     bm.edges.new([verts[i] for i in idx])
                 # 调整大小
-                scale_y = pt2.length / 0.8
+                scale_y = pt2.length * 2 / 0.8
                 bmesh.ops.scale(bm, vec=(1, scale_y, 1), verts=bm.verts)  # type: ignore
                 move_x = pt3.length - 0.3
                 bmesh.ops.translate(bm, vec=(move_x, 0, 0), verts=[verts[i] for i in range(2, 8)])  # type: ignore
                 # 调整朝向
-                quat = pt2.normalized().to_track_quat("Y", "Z")
-                quat = pt3.normalized().to_track_quat("X", "Z") @ quat
-                bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=quat.to_matrix(), verts=bm.verts)  # type: ignore
+                x_axis = pt3.normalized()
+                y_axis = pt2.normalized()
+                z_axis = x_axis.cross(y_axis).normalized()
+                matrix = Matrix((x_axis, y_axis, z_axis)).transposed()
+                # quat = pt2.normalized().to_track_quat("Y", "Z")
+                # quat = pt3.normalized().to_track_quat("X", "Z") @ quat
+                bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=matrix, verts=bm.verts)  # type: ignore
 
                 bm.to_mesh(mesh)
                 bm.free()
                 #
-                obj.matrix_world.translation = pt1
+                obj.matrix_world = Matrix.Translation(pt1)
 
             # 尖刺
             num = unpack("I", f)[0]
@@ -585,9 +599,10 @@ class OT_ImportBOD(bpy.types.Operator):
                 #
                 parent_idx = unpack("i", f)[0]  # type: int
                 pt1 = Vector(unpack("ddd", f)) / 1000
-                pt1.yz = pt1.z, -pt1.y
                 pt2 = Vector(unpack("ddd", f)) / 1000
-                pt2.yz = pt2.z, -pt2.y
+                if transform_space:
+                    pt1.yz = pt1.z, -pt1.y
+                    pt2.yz = pt2.z, -pt2.y
                 #
                 obj_name = data.get_object_name("Blade_Spike_")
                 mesh = bpy.data.meshes.new(obj_name)
@@ -595,14 +610,15 @@ class OT_ImportBOD(bpy.types.Operator):
                     obj_name, mesh
                 )  # type: Object # type: ignore
                 obj.show_in_front = True
+                obj.amagate_data.ent_comp_type = 2
                 data.link2coll(obj, ent_coll)
                 #
                 if parent_idx != -1:
                     if armature is not None:
                         parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
                         parent_matrix = parent_bone.matrix
-                        pt1 = (parent_matrix @ Matrix.Translation(pt1)).to_translation()
-                        pt2 = (parent_matrix @ Matrix.Translation(pt2)).to_translation()
+                        pt1 = parent_matrix @ pt1
+                        pt2 = parent_matrix @ pt2
                         obj.parent = armature_obj  # type: ignore
                         obj.parent_type = "BONE"
                         obj.parent_bone = parent_bone.name
@@ -627,7 +643,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 bm.to_mesh(mesh)
                 bm.free()
                 #
-                obj.matrix_world.translation = pt1
+                obj.matrix_world = Matrix.Translation(pt1)
 
             ent_mesh.attributes.new(name="amagate_group", type="INT", domain="FACE")
             ent_mesh.attributes.new(
@@ -636,58 +652,90 @@ class OT_ImportBOD(bpy.types.Operator):
             # 组
             num = unpack("I", f)[0]
             for idx in range(num):
-                group = unpack("b", f)[0]
+                group = unpack("B", f)[0]
                 if idx >= len(ent_mesh.polygons):
                     continue
-                ent_mesh.attributes["amagate_group"].data[idx].value = group  # type: ignore
+                ent_mesh.attributes["amagate_group"].data[idx].value = 0 if group == 0 else ag_utils.uint_to_int(1 << (group - 1))  # type: ignore
 
-            # 肢解组
-            num = unpack("I", f)[0]
-            for idx in range(num):
-                group = unpack("i", f)[0]
-                if idx >= len(ent_mesh.polygons):
-                    continue
-                ent_mesh.attributes["amagate_mutilation_group"].data[idx].value = group  # type: ignore
+            # 如果不是文件尾
+            if f.tell() != file_size:
+                # 肢解组
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    group = unpack("i", f)[0]
+                    if idx >= len(ent_mesh.polygons):
+                        continue
+                    ent_mesh.attributes["amagate_mutilation_group"].data[idx].value = group  # type: ignore
 
-            # 轨迹
-            num = unpack("I", f)[0]
-            for idx in range(num):
-                mark = unpack("I", f)[0]  # 默认0
-                if mark != 0:
-                    logger.debug(f"Track - mark not 0: {mark}")
-                parent_idx = unpack("i", f)[0]  # type: int
-                pt1 = Vector(unpack("ddd", f)) / 1000
-                pt1.yz = pt1.z, -pt1.y
-                pt2 = Vector(unpack("ddd", f)) / 1000
-                pt2.yz = pt2.z, -pt2.y
-                #
-                obj_name = data.get_object_name("Blade_Trail_")
-                mesh = bpy.data.meshes.new(obj_name)
-                obj = bpy.data.objects.new(
-                    obj_name, mesh
-                )  # type: Object # type: ignore
-                obj.show_in_front = True
-                data.link2coll(obj, ent_coll)
-                #
-                if parent_idx != -1:
-                    if armature is not None:
-                        parent_bone = armature_obj.pose.bones[bones_name[parent_idx]]
-                        parent_matrix = parent_bone.matrix
-                        pt1 = (parent_matrix @ Matrix.Translation(pt1)).to_translation()
-                        pt2 = (parent_matrix @ Matrix.Translation(pt2)).to_translation()
-                        obj.parent = armature_obj  # type: ignore
-                        obj.parent_type = "BONE"
-                        obj.parent_bone = parent_bone.name
-                    else:
-                        obj.parent = entity  # type: ignore
-                #
-                bm = bmesh.new()
-                bm.verts.new(pt1)
-                bm.verts.new(pt2)
-                bm.edges.new(bm.verts)
+                # 轨迹
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    mark = unpack("I", f)[0]  # 默认0
+                    if mark != 0:
+                        logger.debug(f"Track - mark not 0: {mark}")
+                    parent_idx = unpack("i", f)[0]  # type: int
+                    pt1 = Vector(unpack("ddd", f)) / 1000
+                    pt2 = Vector(unpack("ddd", f)) / 1000
+                    if transform_space:
+                        pt1.yz = pt1.z, -pt1.y
+                        pt2.yz = pt2.z, -pt2.y
+                    #
+                    obj_name = data.get_object_name("Blade_Trail_")
+                    mesh = bpy.data.meshes.new(obj_name)
+                    obj = bpy.data.objects.new(
+                        obj_name, mesh
+                    )  # type: Object # type: ignore
+                    obj.show_in_front = True
+                    obj.amagate_data.ent_comp_type = 3
+                    data.link2coll(obj, ent_coll)
+                    #
+                    if parent_idx != -1:
+                        if armature is not None:
+                            parent_bone = armature_obj.pose.bones[
+                                bones_name[parent_idx]
+                            ]
+                            parent_matrix = parent_bone.matrix
+                            pt1 = parent_matrix @ pt1
+                            pt2 = parent_matrix @ pt2
+                            obj.parent = armature_obj  # type: ignore
+                            obj.parent_type = "BONE"
+                            obj.parent_bone = parent_bone.name
+                        else:
+                            obj.parent = entity  # type: ignore
+                    #
+                    obj.matrix_world = Matrix()
+                    bm = bmesh.new()
+                    bm.verts.new(pt1)
+                    bm.verts.new(pt2)
+                    bm.edges.new(bm.verts)
 
-                bm.to_mesh(mesh)
-                bm.free()
+                    bm.to_mesh(mesh)
+                    bm.free()
+
+        ag_utils.select_active(context, entity)  # type: ignore
+        for obj in ent_coll.objects:
+            if not obj.parent:
+                obj.select_set(True)
+        # if armature is not None:
+        #     armature_obj.select_set(True)
+        # 纠正方向
+        if not transform_space:
+            for obj in context.selected_objects:
+                obj.matrix_world = (
+                    Matrix.Rotation(-math.pi / 2, 4, "X") @ obj.matrix_world
+                )
+            # entity.rotation_euler = Euler((-math.pi / 2, 0, 0))
+            # if armature is not None:
+            #     armature_obj.rotation_euler = Euler((-math.pi / 2, 0, 0))
+        # 调整实体中心
+        for obj in context.selected_objects:
+            obj.location += center
+        # entity.location = center
+        # if armature is not None:
+        #     armature_obj.location = center
+
+        # bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        bpy.ops.object.select_all(action="DESELECT")
         #
         bpy.ops.view3d.view_all(center=True)
         return {"FINISHED"}
@@ -731,14 +779,20 @@ class OT_ExportBOD(bpy.types.Operator):
         # logger.debug(f"filepath: {self.filepath}")
         ent_dict = self.ent_dict
         lack_texture = False
+        #
+        armature_obj = ent_dict["skeleton"]  # type: Object
+        if armature_obj is not None:
+            armature_matrix = armature_obj.matrix_world.copy()
+            armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+        else:
+            armature = None  # type: ignore
+            armature_matrix = Matrix()
         # 获取主实体
-        has_skin = False
         buffer = BytesIO()
         if ent_dict["skin"] is not None:
-            has_skin = True
             entity = ent_dict["skin"]  # type: Object
             ag_utils.select_active(context, entity)
-            for obj in entity.children_recursive:
+            for obj in entity.children_recursive:  # type: ignore
                 obj.select_set(True)
             # 如果有子物体
             if len(context.selected_objects) > 1:
@@ -752,9 +806,9 @@ class OT_ExportBOD(bpy.types.Operator):
             ag_utils.select_active(context, ent_dict["objects"][0])
             for obj in ent_dict["objects"]:
                 obj.select_set(True)
-                bpy.ops.object.duplicate()
-                bpy.ops.object.join()
-                entity = context.object  # type: ignore
+            bpy.ops.object.duplicate()
+            bpy.ops.object.join()
+            entity = context.object  # type: ignore
         else:
             ag_utils.select_active(context, ent_dict["objects"][0])
             bpy.ops.object.duplicate()
@@ -771,43 +825,113 @@ class OT_ExportBOD(bpy.types.Operator):
         bpy.ops.mesh.quads_convert_to_tris(quad_method="BEAUTY", ngon_method="BEAUTY")
         #
         bpy.ops.object.mode_set(mode="OBJECT")
-        bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        # bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
         #
-        mesh = entity.data  # type: bpy.types.Mesh # type: ignore
-        matrix = entity.matrix_world.copy()
-        quat = matrix.to_quaternion()
-        uv_layer = mesh.uv_layers.active.data
+        depsgraph = context.evaluated_depsgraph_get()
+        # 交换矩阵
+        swap_matrix = Matrix(
+            (
+                (1, 0, 0, 0),
+                (0, 0, -1, 0),  # y → -z
+                (0, 1, 0, 0),  # z → y
+                (0, 0, 0, 1),
+            )
+        )
+
+        entity = entity.evaluated_get(depsgraph)
+        ent_mesh = entity.data  # type: bpy.types.Mesh # type: ignore
+        # matrix = entity.matrix_world.copy()
+        # quat = matrix.to_quaternion()
+        uv_layer = ent_mesh.uv_layers.active.data
 
         # 导出BOD
+        global_verts_map = {}
+        global_verts_count = 0
         # 写入内部名称
         inter_name = ent_dict["kind"].encode("utf-8")
         buffer.write(struct.pack("I", len(inter_name)))
         buffer.write(inter_name)
+
         # 写入顶点数据
-        verts_num = len(mesh.vertices)
+        verts_num = len(ent_mesh.vertices)
         buffer.write(struct.pack("I", verts_num))
-        for vert in mesh.vertices:
-            normal = quat @ vert.normal
-            normal.yz = -normal.z, normal.y
-            co = (matrix @ vert.co) * 1000
-            co.yz = -co.z, co.y
-            co = co.to_tuple(1)
-            buffer.write(struct.pack("ddd", *co))
-            buffer.write(struct.pack("ddd", *normal))
+        bones_name = []  # type: list[str]
+        bones_list = []
+        bones_matrix = {}  # type: dict[str, tuple[Matrix, Matrix]]
+        if armature is not None:
+            bone_verts_start = 0
+            for bone in armature_obj.pose.bones:
+                bone_matrix = bones_matrix.setdefault(
+                    bone.name,
+                    (
+                        armature_matrix @ bone.matrix,
+                        (armature_matrix @ bone.matrix).inverted(),
+                    ),
+                )[1]
+                # bone_matrix = bone.matrix.inverted()  # type: Matrix
+                name = bone.name
+                vertex_indices = ag_utils.get_vertex_in_group(
+                    entity, name
+                )  # type: set[int]
+                co_list = []
+                max_length = 0
+                for idx in vertex_indices:
+                    global_verts_map[idx] = global_verts_count
+                    global_verts_count += 1
+                    #
+                    vert = ent_mesh.vertices[idx]
+
+                    normal = bone_matrix.to_quaternion() @ vert.normal
+                    normal.yz = -normal.z, normal.y
+                    co = bone_matrix @ vert.co
+                    co *= 1000
+                    co.yz = -co.z, co.y
+                    co_list.append(co)
+                    length = co.length
+                    if length > max_length:
+                        max_length = length
+                    #
+                    buffer.write(struct.pack("ddd", *co))
+                    buffer.write(struct.pack("ddd", *normal))
+                #
+                bone_verts_num = len(co_list)
+                bone_center = sum(co_list, Vector()) / len(co_list)
+                bones_name.append(name)
+                bones_list.append(
+                    (bone_verts_num, bone_verts_start, bone_center, max_length)
+                )
+                bone_verts_start += bone_verts_num
+        else:
+            for vert in ent_mesh.vertices:
+                normal = vert.normal.copy()
+                normal.yz = -normal.z, normal.y
+                co = vert.co * 1000
+                co.yz = -co.z, co.y
+                # co = co.to_tuple(1)
+                buffer.write(struct.pack("ddd", *co))
+                buffer.write(struct.pack("ddd", *normal))
+
         # 写入面数据
-        faces_num = len(mesh.polygons)
+        faces_num = len(ent_mesh.polygons)
         buffer.write(struct.pack("I", faces_num))
-        for poly in mesh.polygons:
+        for poly in ent_mesh.polygons:
             # 写顶点索引
-            buffer.write(struct.pack("III", *poly.vertices))
+            if armature is not None:
+                buffer.write(
+                    struct.pack("III", *[global_verts_map[i] for i in poly.vertices])
+                )
+            else:
+                buffer.write(struct.pack("III", *poly.vertices))
             # 写材质
-            mat = entity.material_slots[poly.material_index].material
-            img_node = mat.node_tree.nodes.get("Image Texture")
             img_name = ""
-            if img_node:
-                img = img_node.image  # type: Image # type: ignore
-                if img:
-                    img_name = img.name
+            if poly.material_index < len(entity.material_slots):
+                mat = entity.material_slots[poly.material_index].material
+                img_node = mat.node_tree.nodes.get("Image Texture")
+                if img_node:
+                    img = img_node.image  # type: Image # type: ignore
+                    if img:
+                        img_name = img.name
             if not img_name:
                 img_name = "NULL"
                 if not lack_texture:
@@ -824,45 +948,283 @@ class OT_ExportBOD(bpy.types.Operator):
             #
             buffer.write(struct.pack("f", 0))
 
-        # 如果有蒙皮和骨架
-        skeleton = [ent_dict["skeleton"]]  # type: list[Object]
-        if has_skin and skeleton is not None:
-            ag_utils.select_active(context, skeleton[0])
-            for obj in skeleton[0].children_recursive:
-                obj.select_set(True)
-                skeleton.append(obj)  # type: ignore
-            # 原点到几何中心
-            bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
+        # 如果有骨架
+        if armature is not None:
+            # ag_utils.select_active(context, skeleton[0])
+            # for obj in skeleton[0].children_recursive:
+            #     obj.select_set(True)
+            #     skeleton.append(obj)  # type: ignore
+            # # 原点到几何中心
+            # bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
             #
-            buffer.write(struct.pack("I", len(skeleton)))
-            for obj in skeleton:
-                name = obj.name.encode("utf-8")
+            buffer.write(struct.pack("I", len(bones_name)))
+            for index, bone_name in enumerate(bones_name):
+                bone = armature_obj.pose.bones[bone_name]
+                name = bone_name.encode("utf-8")
                 buffer.write(struct.pack("I", len(name)))
                 buffer.write(name)
                 # 父节点索引
-                if obj.parent is None:
-                    buffer.write(struct.pack("i", -1))
+                parent_bone = bone.parent
+                matrix = bones_matrix[bone_name][0]
+                if parent_bone is None:
+                    parent_idx = -1
                 else:
-                    parent_idx = skeleton.index(obj.parent)  # type: ignore
-                    buffer.write(struct.pack("I", parent_idx))
-                # 矩阵
+                    parent_idx = bones_name.index(parent_bone.name)  # type: ignore
+                    matrix = bones_matrix[parent_bone.name][1] @ matrix
+                    # matrix = (
+                    #     armature_matrix @ parent_bone.matrix.inverted() @ bone.matrix
+                    # )
 
+                matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+                matrix.translation *= 1000  # 转换位置单位
+                matrix.transpose()  # 转置
+                buffer.write(struct.pack("i", parent_idx))
+                for row in matrix:
+                    buffer.write(struct.pack("dddd", *row))
+                bone_verts_num, bone_verts_start, bone_center, max_length = bones_list[
+                    index
+                ]
+                # 写入顶点数量
+                buffer.write(struct.pack("I", bone_verts_num))
+                # 写入顶点起始位置
+                buffer.write(struct.pack("I", bone_verts_start))
+                #
+                buffer.write(struct.pack("I", 1))
+                buffer.write(struct.pack("ddd", *bone_center))
+                buffer.write(struct.pack("d", max_length))
+                buffer.write(struct.pack("I", bone_verts_start))
+                buffer.write(struct.pack("I", bone_verts_num))
         else:
             buffer.write(struct.pack("Ii", 1, -1))
             for row in Matrix():
                 buffer.write(struct.pack("dddd", *row))
             buffer.write(struct.pack("I", verts_num))
-            buffer.write(struct.pack("II", 0, 1))
-            center = entity.location.copy() * 1000
+            buffer.write(struct.pack("I", 0))
+            #
+            buffer.write(struct.pack("I", 1))
+            center = entity.location * 1000
             center.yz = -center.z, center.y
-            buffer.write(struct.pack("dddd", *center, 1000))
+            buffer.write(struct.pack("dddd", *center, 500))
             buffer.write(struct.pack("II", 0, verts_num))
+
+        # 中心
+        buffer.write(
+            struct.pack("dddd", 0, 0, 0, 500)
+        )  # XXX 是否需要正确的中心到边界框最长距离
+
+        obj: Object
+        # 火焰
+        buffer.write(struct.pack("I", len(ent_dict["fires"])))
+        for index, obj in enumerate(ent_dict["fires"]):
+            obj = obj.evaluated_get(depsgraph)
+            matrix_world = obj.matrix_world.copy()
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            buffer.write(struct.pack("I", len(mesh.vertices)))
+            #
+            if obj.parent_bone in bones_name:
+                # parent_matrix = armature_obj.pose.bones[obj.parent_bone].matrix
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                parent_idx = -1
+            for vert in mesh.vertices:
+                if parent_matrix:
+                    co = parent_matrix @ matrix_world @ vert.co
+                else:
+                    co = matrix_world @ vert.co
+                co *= 1000
+                co.yz = -co.z, co.y
+                #
+                buffer.write(struct.pack("ddd", *co))
+                buffer.write(struct.pack("I", 3))  # 固定3
+                buffer.write(struct.pack("i", parent_idx))
+                buffer.write(struct.pack("I", index))
+
+        # 灯光
+        buffer.write(struct.pack("I", len(ent_dict["lights"])))
+        for obj in ent_dict["lights"]:
+            obj = obj.evaluated_get(depsgraph)
+            strength = 0.1
+            precision = 0.01
+            buffer.write(struct.pack("f", strength))
+            buffer.write(struct.pack("f", precision))
+            #
+            if obj.parent_bone in bones_name:
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                parent_idx = -1
+            if parent_matrix:
+                co = parent_matrix @ obj.matrix_world.translation
+            else:
+                co = obj.matrix_world.to_translation()
+            co *= 1000
+            co.yz = -co.z, co.y
+            #
+            buffer.write(struct.pack("ddd", *co))
+            buffer.write(struct.pack("i", parent_idx))
+
+        # 锚点
+        buffer.write(struct.pack("I", len(ent_dict["anchors"])))
+        for obj in ent_dict["anchors"]:
+            obj = obj.evaluated_get(depsgraph)
+            name = obj.name[13:].encode("utf-8")
+            buffer.write(struct.pack("I", len(name)))
+            buffer.write(name)
+            #
+            if obj.parent_bone in bones_name:
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                if obj.parent:
+                    parent_idx = 0
+                else:
+                    parent_idx = -1
+            if parent_matrix:
+                matrix = parent_matrix @ obj.matrix_world
+            else:
+                matrix = obj.matrix_world.copy()
+            #
+            matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+            matrix.translation *= 1000  # 转换位置单位
+            matrix.transpose()  # 转置
+            for row in matrix:
+                buffer.write(struct.pack("dddd", *row))
+            buffer.write(struct.pack("i", parent_idx))
+
         #
+        buffer.write(struct.pack("I", 4))  # 固定4
+
+        # 边缘
+        buffer.write(struct.pack("I", len(ent_dict["edges"])))
+        for obj in ent_dict["edges"]:
+            obj = obj.evaluated_get(depsgraph)
+            matrix_world = obj.matrix_world.copy()
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            #
+            pt1 = (
+                matrix_world @ mesh.vertices[0].co + matrix_world @ mesh.vertices[1].co
+            ) / 2
+            pt2 = matrix_world @ mesh.vertices[1].co - pt1
+            pt3 = (
+                matrix_world @ mesh.vertices[2].co + matrix_world @ mesh.vertices[3].co
+            ) / 2 - pt1
+            #
+            if obj.parent_bone in bones_name:
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                if obj.parent:
+                    parent_idx = 0
+                else:
+                    parent_idx = -1
+            if parent_matrix:
+                pt1 = parent_matrix @ pt1
+                pt2 = parent_matrix @ pt2
+                pt3 = parent_matrix @ pt3
+            pt1 *= 1000
+            pt2 *= 1000
+            pt3 *= 1000
+            pt1.yz = -pt1.z, pt1.y
+            pt2.yz = -pt2.z, pt2.y
+            pt3.yz = -pt3.z, pt3.y
+            #
+            buffer.write(struct.pack("I", 0))  # 固定0
+            buffer.write(struct.pack("i", parent_idx))
+            buffer.write(struct.pack("ddd", *pt1))
+            buffer.write(struct.pack("ddd", *pt2))
+            buffer.write(struct.pack("ddd", *pt3))
+
+        # 尖刺
+        buffer.write(struct.pack("I", len(ent_dict["spikes"])))
+        for obj in ent_dict["spikes"]:
+            obj = obj.evaluated_get(depsgraph)
+            matrix_world = obj.matrix_world.copy()
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            #
+            pt1 = matrix_world @ mesh.vertices[0].co
+            pt2 = matrix_world @ mesh.vertices[1].co
+            #
+            if obj.parent_bone in bones_name:
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                if obj.parent:
+                    parent_idx = 0
+                else:
+                    parent_idx = -1
+            if parent_matrix:
+                pt1 = parent_matrix @ pt1
+                pt2 = parent_matrix @ pt2
+            pt1 *= 1000
+            pt2 *= 1000
+            pt1.yz = -pt1.z, pt1.y
+            pt2.yz = -pt2.z, pt2.y
+            #
+            buffer.write(struct.pack("I", 0))  # 固定0
+            buffer.write(struct.pack("i", parent_idx))
+            buffer.write(struct.pack("ddd", *pt1))
+            buffer.write(struct.pack("ddd", *pt2))
+
+        # 组
+        buffer.write(struct.pack("I", faces_num))
+        for i in range(faces_num):
+            group = ent_mesh.attributes["amagate_group"].data[i].value  # type: ignore
+            group = next((i + 1 for i in range(32) if (1 << i) & group), 0)
+            buffer.write(struct.pack("B", group))
+
+        # 肢解组
+        if armature is not None:
+            buffer.write(struct.pack("I", faces_num))
+            for i in range(faces_num):
+                group = ent_mesh.attributes["amagate_mutilation_group"].data[i].value  # type: ignore
+                buffer.write(struct.pack("i", group))
+        else:
+            buffer.write(struct.pack("I", 0))
+
+        # 轨迹
+        buffer.write(struct.pack("I", len(ent_dict["trails"])))
+        for obj in ent_dict["trails"]:
+            obj = obj.evaluated_get(depsgraph)
+            matrix_world = obj.matrix_world.copy()
+            mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            #
+            pt1 = matrix_world @ mesh.vertices[0].co
+            pt2 = matrix_world @ mesh.vertices[1].co
+            #
+            if obj.parent_bone in bones_name:
+                parent_matrix = bones_matrix[obj.parent_bone][1]
+                parent_idx = bones_name.index(obj.parent_bone)
+            else:
+                parent_matrix = None
+                if obj.parent:
+                    parent_idx = 0
+                else:
+                    parent_idx = -1
+            if parent_matrix:
+                pt1 = parent_matrix @ pt1
+                pt2 = parent_matrix @ pt2
+            pt1 *= 1000
+            pt2 *= 1000
+            pt1.yz = -pt1.z, pt1.y
+            pt2.yz = -pt2.z, pt2.y
+            #
+            buffer.write(struct.pack("I", 0))  # 固定0
+            buffer.write(struct.pack("i", parent_idx))
+            buffer.write(struct.pack("ddd", *pt1))
+            buffer.write(struct.pack("ddd", *pt2))
+
+        # 写入文件
         with open(self.filepath, "wb") as f:
             f.write(buffer.getvalue())
         buffer.close()
         #
-        bpy.data.meshes.remove(mesh)
+        bpy.data.meshes.remove(bpy.data.meshes[ent_mesh.name])
         if lack_texture:
             self.report({"WARNING"}, "The object lacks texture")
         else:
@@ -944,9 +1306,11 @@ class OT_ExportBOD(bpy.types.Operator):
             else:
                 ent_dict["objects"].append(obj)
         #
-        if not ent_dict["objects"]:
+        if not ent_dict["objects"] and not ent_dict["skin"]:
             self.report({"WARNING"}, "There are no visible entities objects")
             return {"CANCELLED"}
+        # print([i.name for i in ent_dict["objects"]])
+        # return {"CANCELLED"}
         # 找到实体对象
         self.ent_dict = ent_dict
 

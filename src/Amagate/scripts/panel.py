@@ -105,6 +105,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
             faces = []
         for i in range(32):
             flag = ""
+            col_flow.alert = False
             if faces:
                 group = ag_utils.int_to_uint(faces[0][layer])  # type: ignore
                 check = (group >> i) & 1  # 访问第i位
@@ -112,6 +113,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                     group = ag_utils.int_to_uint(f[layer])  # type: ignore
                     if (group >> i) & 1 != check:
                         flag = "*"
+                        col_flow.alert = True
+                        break
             #
             col_flow.prop(
                 wm_data.ent_groups[i],
@@ -140,6 +143,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
             faces = []
         for i in range(32):
             flag = ""
+            col_flow.alert = False
             if faces:
                 group = ag_utils.int_to_uint(faces[0][layer])  # type: ignore
                 check = (group >> i) & 1  # 访问第i位
@@ -147,6 +151,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                     group = ag_utils.int_to_uint(f[layer])  # type: ignore
                     if (group >> i) & 1 != check:
                         flag = "*"
+                        col_flow.alert = True
+                        break
             #
             col_flow.prop(
                 wm_data.ent_mutilation_groups[i],
