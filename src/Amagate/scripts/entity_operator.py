@@ -326,7 +326,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 matrix.transpose()  # 转置
 
                 # 转换坐标轴
-                # matrix = swap_matrix @ matrix @ swap_matrix.transposed()
+                if transform_space:
+                    matrix = swap_matrix @ matrix @ swap_matrix.transposed()
                 matrix.translation /= 1000  # 转换位置单位
                 numverts = unpack("I", f)[0]
                 vert_start = unpack("I", f)[0]
@@ -350,7 +351,7 @@ class OT_ImportBOD(bpy.types.Operator):
                         dir = (parent_bone.tail - parent_bone.head).normalized()
                         dot = dir.dot(matrix.translation - parent_bone.head)
                         if dot > 0:
-                            parent_bone.length = dot
+                            parent_bone.length = max(0.001, dot)
                     # 设置骨骼矩阵
                     bone.matrix = matrix
                     verts = bm_verts[vert_start : vert_start + numverts]
@@ -406,6 +407,19 @@ class OT_ImportBOD(bpy.types.Operator):
                 # 添加骨架修改器
                 modifier = entity.modifiers.new("Armature", "ARMATURE")
                 modifier.object = armature_obj  # type: ignore
+            # 检查没有顶点组或者顶点组大于1的顶点
+            verts_no_group = []
+            verts_multi_group = []
+            for v in ent_mesh.vertices:
+                if len(v.groups) == 0:
+                    verts_no_group.append(v.index)
+                elif len(v.groups) > 1:
+                    verts_multi_group.append(v.index)
+            if verts_no_group:
+                logger.debug(f"verts_no_group: {verts_no_group}")
+            if verts_multi_group:
+                logger.debug(f"verts_multi_group: {verts_multi_group}")
+            #
 
             # 火焰
             num = unpack("I", f)[0]
@@ -734,7 +748,7 @@ class OT_ImportBOD(bpy.types.Operator):
         # if armature is not None:
         #     armature_obj.location = center
 
-        # bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
         bpy.ops.object.select_all(action="DESELECT")
         #
         bpy.ops.view3d.view_all(center=True)
@@ -818,7 +832,8 @@ class OT_ExportBOD(bpy.types.Operator):
         # 合并顶点
         bpy.ops.mesh.select_mode(type="VERT")
         bpy.ops.mesh.select_all(action="SELECT")
-        bpy.ops.mesh.remove_doubles()
+        with contextlib.redirect_stdout(StringIO()):
+            bpy.ops.mesh.remove_doubles()
         # 三角化
         bpy.ops.mesh.select_mode(type="FACE")
         bpy.ops.mesh.select_all(action="SELECT")
@@ -859,6 +874,7 @@ class OT_ExportBOD(bpy.types.Operator):
         bones_name = []  # type: list[str]
         bones_list = []
         bones_matrix = {}  # type: dict[str, tuple[Matrix, Matrix]]
+        # 如果有骨架
         if armature is not None:
             bone_verts_start = 0
             for bone in armature_obj.pose.bones:
@@ -877,11 +893,13 @@ class OT_ExportBOD(bpy.types.Operator):
                 co_list = []
                 max_length = 0
                 for idx in vertex_indices:
+                    if idx in global_verts_map:
+                        continue
+
                     global_verts_map[idx] = global_verts_count
                     global_verts_count += 1
                     #
                     vert = ent_mesh.vertices[idx]
-
                     normal = bone_matrix.to_quaternion() @ vert.normal
                     normal.yz = -normal.z, normal.y
                     co = bone_matrix @ vert.co
@@ -896,7 +914,10 @@ class OT_ExportBOD(bpy.types.Operator):
                     buffer.write(struct.pack("ddd", *normal))
                 #
                 bone_verts_num = len(co_list)
-                bone_center = sum(co_list, Vector()) / len(co_list)
+                if bone_verts_num == 0:
+                    bone_center = Vector()
+                else:
+                    bone_center = sum(co_list, Vector()) / bone_verts_num
                 bones_name.append(name)
                 bones_list.append(
                     (bone_verts_num, bone_verts_start, bone_center, max_length)
@@ -1123,9 +1144,10 @@ class OT_ExportBOD(bpy.types.Operator):
                 else:
                     parent_idx = -1
             if parent_matrix:
+                quat = parent_matrix.to_quaternion()
                 pt1 = parent_matrix @ pt1
-                pt2 = parent_matrix @ pt2
-                pt3 = parent_matrix @ pt3
+                pt2 = quat @ pt2
+                pt3 = quat @ pt3
             pt1 *= 1000
             pt2 *= 1000
             pt3 *= 1000
@@ -1230,7 +1252,7 @@ class OT_ExportBOD(bpy.types.Operator):
         else:
             self.report(
                 {"INFO"},
-                f"{os.path.basename(self.filepath)}: {pgettext('Export successfully')}",
+                f"{pgettext('Export successfully')}: {os.path.basename(self.filepath)}",
             )
         return {"FINISHED"}
 
