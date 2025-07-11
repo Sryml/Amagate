@@ -212,9 +212,36 @@ class OT_ImportBOD(bpy.types.Operator):
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
-        if os.path.splitext(self.filepath)[1].lower() != ".bod":
+        filepath = self.filepath
+        if os.path.splitext(filepath)[1].lower() != ".bod":
             self.report({"ERROR"}, "Not a bod file")
             return {"CANCELLED"}
+
+        self.import_bod(context, filepath)
+        return {"FINISHED"}
+
+    @staticmethod
+    def import_bod(context: Context, filepath):
+        def final():
+            ag_utils.select_active(context, entity)  # type: ignore
+            for obj in ent_coll.objects:
+                if not obj.parent:
+                    obj.select_set(True)
+            # 调整实体中心
+            for obj in context.selected_objects:
+                obj.matrix_world.translation += center
+            # 纠正方向
+            if not transform_space:
+                for obj in context.selected_objects:
+                    obj.matrix_world = (
+                        Matrix.Rotation(-math.pi / 2, 4, "X") @ obj.matrix_world
+                    )
+
+            bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+            bpy.ops.object.select_all(action="DESELECT")
+            #
+            bpy.ops.view3d.view_all(center=True)
+
         #
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
@@ -222,13 +249,13 @@ class OT_ImportBOD(bpy.types.Operator):
         local_space = Matrix.Rotation(-math.pi / 2, 4, "X")
         # local_space_inv = local_space.inverted()
         transform_space = False  # not self.from_old_exporter # XXX 不再需要
-        filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
-        mesh_dict = pickle.load(open(filepath, "rb"))
+        path = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
+        mesh_dict = pickle.load(open(path, "rb"))
 
         ent_bm = bmesh.new()
         uv_layer = ent_bm.loops.layers.uv.verify()  # 获取或创建UV图层
         bm_verts = []  # type: list[bmesh.types.BMVert]
-        with open(self.filepath, "rb") as f:
+        with open(filepath, "rb") as f:
             file_size = os.fstat(f.fileno()).st_size
             # 内部名称
             length = unpack("I", f)[0]
@@ -554,8 +581,11 @@ class OT_ImportBOD(bpy.types.Operator):
                 else:
                     obj.matrix_world = matrix
 
-            # 跳过 0x04
-            f.seek(4, 1)
+            #
+            data_num = unpack("I", f)[0]
+            if data_num == 0:
+                final()
+                return
 
             # 边缘
             num = unpack("I", f)[0]
@@ -621,6 +651,12 @@ class OT_ImportBOD(bpy.types.Operator):
                 #
                 obj.matrix_world.translation = pt1
 
+            #
+            data_num -= 1
+            if data_num == 0:
+                final()
+                return
+
             # 尖刺
             num = unpack("I", f)[0]
             for idx in range(num):
@@ -679,6 +715,13 @@ class OT_ImportBOD(bpy.types.Operator):
             ent_mesh.attributes.new(
                 name="amagate_mutilation_group", type="INT", domain="FACE"
             )
+
+            #
+            data_num -= 1
+            if data_num == 0:
+                final()
+                return
+
             # 组
             num = unpack("I", f)[0]
             for idx in range(num):
@@ -687,78 +730,62 @@ class OT_ImportBOD(bpy.types.Operator):
                     continue
                 ent_mesh.attributes["amagate_group"].data[idx].value = 0 if group == 0 else ag_utils.uint_to_int(1 << (group - 1))  # type: ignore
 
-            # 如果不是文件尾
-            if f.tell() != file_size:
-                # 肢解组
-                num = unpack("I", f)[0]
-                for idx in range(num):
-                    group = unpack("i", f)[0]
-                    if idx >= len(ent_mesh.polygons):
-                        continue
-                    ent_mesh.attributes["amagate_mutilation_group"].data[idx].value = group  # type: ignore
+            # 肢解组
+            num = unpack("I", f)[0]
+            for idx in range(num):
+                group = unpack("i", f)[0]
+                if idx >= len(ent_mesh.polygons):
+                    continue
+                ent_mesh.attributes["amagate_mutilation_group"].data[idx].value = group  # type: ignore
 
-                # 轨迹
-                num = unpack("I", f)[0]
-                for idx in range(num):
-                    mark = unpack("I", f)[0]  # 默认0
-                    if mark != 0:
-                        logger.debug(f"Track - mark not 0: {mark}")
-                    parent_idx = unpack("i", f)[0]  # type: int
-                    pt1 = Vector(unpack("ddd", f)) / 1000
-                    pt2 = Vector(unpack("ddd", f)) / 1000
-                    #
-                    obj_name = data.get_object_name("Blade_Trail_")
-                    mesh = bpy.data.meshes.new(obj_name)
-                    obj = bpy.data.objects.new(
-                        obj_name, mesh
-                    )  # type: Object # type: ignore
-                    obj.show_in_front = True
-                    obj.amagate_data.ent_comp_type = 3
-                    data.link2coll(obj, ent_coll)
-                    #
-                    parent_matrix = local_space if transform_space else None
-                    if parent_idx != -1:
-                        if armature is not None:
-                            bone_name = bones_name[parent_idx]
-                            parent_matrix = bone_matrix[bone_name]
-                            obj.parent = armature_obj  # type: ignore
-                            obj.parent_type = "BONE"
-                            obj.parent_bone = bone_name
-                        else:
-                            obj.parent = entity  # type: ignore
-                    #
-                    if parent_matrix:
-                        pt1 = parent_matrix @ pt1
-                        pt2 = parent_matrix @ pt2
-                    #
-                    obj.matrix_world = Matrix()
-                    bm = bmesh.new()
-                    bm.verts.new(pt1)
-                    bm.verts.new(pt2)
-                    bm.edges.new(bm.verts)
+            #
+            data_num -= 1
+            if data_num == 0:
+                final()
+                return
 
-                    bm.to_mesh(mesh)
-                    bm.free()
-        #
-        ag_utils.select_active(context, entity)  # type: ignore
-        for obj in ent_coll.objects:
-            if not obj.parent:
-                obj.select_set(True)
-        # 调整实体中心
-        for obj in context.selected_objects:
-            obj.matrix_world.translation += center
-        # 纠正方向
-        if not transform_space:
-            for obj in context.selected_objects:
-                obj.matrix_world = (
-                    Matrix.Rotation(-math.pi / 2, 4, "X") @ obj.matrix_world
-                )
+            # 轨迹
+            num = unpack("I", f)[0]
+            for idx in range(num):
+                mark = unpack("I", f)[0]  # 默认0
+                if mark != 0:
+                    logger.debug(f"Track - mark not 0: {mark}")
+                parent_idx = unpack("i", f)[0]  # type: int
+                pt1 = Vector(unpack("ddd", f)) / 1000
+                pt2 = Vector(unpack("ddd", f)) / 1000
+                #
+                obj_name = data.get_object_name("Blade_Trail_")
+                mesh = bpy.data.meshes.new(obj_name)
+                obj = bpy.data.objects.new(
+                    obj_name, mesh
+                )  # type: Object # type: ignore
+                obj.show_in_front = True
+                obj.amagate_data.ent_comp_type = 3
+                data.link2coll(obj, ent_coll)
+                #
+                parent_matrix = local_space if transform_space else None
+                if parent_idx != -1:
+                    if armature is not None:
+                        bone_name = bones_name[parent_idx]
+                        parent_matrix = bone_matrix[bone_name]
+                        obj.parent = armature_obj  # type: ignore
+                        obj.parent_type = "BONE"
+                        obj.parent_bone = bone_name
+                    else:
+                        obj.parent = entity  # type: ignore
+                #
+                if parent_matrix:
+                    pt1 = parent_matrix @ pt1
+                    pt2 = parent_matrix @ pt2
+                #
+                obj.matrix_world = Matrix()
+                bm = bmesh.new()
+                bm.verts.new(pt1)
+                bm.verts.new(pt2)
+                bm.edges.new(bm.verts)
 
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-        bpy.ops.object.select_all(action="DESELECT")
-        #
-        bpy.ops.view3d.view_all(center=True)
-        return {"FINISHED"}
+                bm.to_mesh(mesh)
+                bm.free()
 
     def invoke(self, context: Context, event):
         self.filepath = f"//"
@@ -825,6 +852,14 @@ class OT_ExportBOD(bpy.types.Operator):
             ag_utils.select_active(context, ent_dict["objects"][0])
             bpy.ops.object.duplicate()
             entity = context.object  # type: ignore
+
+        ent_mesh = entity.data  # type: bpy.types.Mesh # type: ignore
+        if not ent_mesh.attributes.get("amagate_group"):
+            ent_mesh.attributes.new(name="amagate_group", type="INT", domain="FACE")
+        if not ent_mesh.attributes.get("amagate_mutilation_group"):
+            ent_mesh.attributes.new(
+                name="amagate_mutilation_group", type="INT", domain="FACE"
+            )
 
         bpy.ops.object.mode_set(mode="EDIT")
         # 合并顶点
