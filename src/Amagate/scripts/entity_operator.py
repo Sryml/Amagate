@@ -241,10 +241,13 @@ class OT_ImportBOD(bpy.types.Operator):
             bpy.ops.object.select_all(action="DESELECT")
             #
             bpy.ops.view3d.view_all(center=True)
+            return entity, lack_texture
 
         #
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
+        context.space_data.shading.type = "WIREFRAME"  # type: ignore
+        lack_texture = False
         # 局部空间
         local_space = Matrix.Rotation(-math.pi / 2, 4, "X")
         # local_space_inv = local_space.inverted()
@@ -310,6 +313,10 @@ class OT_ImportBOD(bpy.types.Operator):
                         ent_mesh.materials.append(mat)
                         slot_index = len(ent_mesh.materials) - 1
                     face.material_index = slot_index
+                    if not os.path.exists(
+                        bpy.path.abspath(f"//textures/{img_name}.bmp")
+                    ):
+                        lack_texture = True
                 # 跳过0
                 f.seek(4, 1)
             # 骨架
@@ -584,8 +591,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num = unpack("I", f)[0]
             if data_num == 0:
-                final()
-                return
+                return final()
 
             # 边缘
             num = unpack("I", f)[0]
@@ -654,8 +660,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                final()
-                return
+                return final()
 
             # 尖刺
             num = unpack("I", f)[0]
@@ -719,8 +724,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                final()
-                return
+                return final()
 
             # 组
             num = unpack("I", f)[0]
@@ -741,8 +745,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                final()
-                return
+                return final()
 
             # 轨迹
             num = unpack("I", f)[0]
@@ -786,6 +789,9 @@ class OT_ImportBOD(bpy.types.Operator):
 
                 bm.to_mesh(mesh)
                 bm.free()
+
+            #
+            return final()
 
     def invoke(self, context: Context, event):
         self.filepath = f"//"
@@ -1134,7 +1140,7 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["lights"])))
         for obj in ent_dict["lights"]:
             obj = obj.evaluated_get(depsgraph)
-            strength = 1
+            strength = 1  # 创建实体时灯光强度默认为10，不会被该值影响
             precision = bytes.fromhex("0000003D")  # 0.03125
             buffer.write(struct.pack("f", strength))
             buffer.write(precision)
@@ -1375,33 +1381,40 @@ class OT_ExportBOD(bpy.types.Operator):
             if not obj.visible_get():
                 continue
             #
-            if obj.name.lower().startswith("blade_skin"):
-                ent_dict["skin"] = obj
-            elif obj.name.lower().startswith("blade_skeleton"):
+            if obj.type == "MESH":
+                if obj.name.lower().startswith("blade_skin"):
+                    ent_dict["skin"] = obj
+                elif (
+                    obj.name.lower().startswith("blade_edge_")
+                    and obj.amagate_data.ent_comp_type == 1
+                ):
+                    ent_dict["edges"].append(obj)
+                elif (
+                    obj.name.lower().startswith("blade_spike_")
+                    and obj.amagate_data.ent_comp_type == 2
+                ):
+                    ent_dict["spikes"].append(obj)
+                elif (
+                    obj.name.lower().startswith("blade_trail_")
+                    and obj.amagate_data.ent_comp_type == 3
+                ):
+                    ent_dict["trails"].append(obj)
+                elif obj.name.lower().startswith("b_fire_fuego_"):
+                    ent_dict["fires"].append(obj)
+                else:
+                    ent_dict["objects"].append(obj)
+
+            elif obj.type == "ARMATURE" and obj.name.lower().startswith(
+                "blade_skeleton"
+            ):
                 ent_dict["skeleton"] = obj
-            elif obj.name.lower().startswith("blade_anchor_"):
-                ent_dict["anchors"].append(obj)
-            elif (
-                obj.name.lower().startswith("blade_edge_")
-                and obj.amagate_data.ent_comp_type == 1
-            ):
-                ent_dict["edges"].append(obj)
-            elif (
-                obj.name.lower().startswith("blade_spike_")
-                and obj.amagate_data.ent_comp_type == 2
-            ):
-                ent_dict["spikes"].append(obj)
-            elif (
-                obj.name.lower().startswith("blade_trail_")
-                and obj.amagate_data.ent_comp_type == 3
-            ):
-                ent_dict["trails"].append(obj)
-            elif obj.name.lower().startswith("b_fire_fuego_"):
-                ent_dict["fires"].append(obj)
-            elif obj.name.lower().startswith("blade_light_"):
-                ent_dict["lights"].append(obj)
-            else:
-                ent_dict["objects"].append(obj)
+
+            elif obj.type == "EMPTY":
+                if obj.name.lower().startswith("blade_anchor_"):
+                    ent_dict["anchors"].append(obj)
+                elif obj.name.lower().startswith("blade_light_"):
+                    ent_dict["lights"].append(obj)
+
         #
         if not ent_dict["objects"] and not ent_dict["skin"]:
             self.report({"WARNING"}, "There are no visible entities objects")
