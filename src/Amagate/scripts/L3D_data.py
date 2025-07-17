@@ -1284,7 +1284,11 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
         # col = split.column()
         # col.enabled = False
         # col.label(text=f"ID: {item.id}")
-        i = data.ICONS["star"].icon_id if item.id == scene_data.defaults.atmo_id else 1
+        i = (
+            data.ICONS["star"].icon_id
+            if item.id == scene_data.defaults.atmo_id
+            else data.BLANK1
+        )
         col = row.column()
         col.alignment = "LEFT"
         col.label(text="", icon_value=i)  # icon="CHECKMARK"
@@ -1344,7 +1348,7 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         i = (
             data.ICONS["star"].icon_id
             if light.id == scene_data.defaults.external_id
-            else 1
+            else data.BLANK1
         )
         col = row.column()
         col.alignment = "LEFT"
@@ -1424,7 +1428,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         row = layout.row()
 
         # tex.preview.reload()
-        i = tex.preview.icon_id if tex.preview else 1
+        i = tex.preview.icon_id if tex.preview else data.BLANK1
         col = row.column()
         col.alignment = "LEFT"
         # col.label(text="", icon_value=i)
@@ -1443,7 +1447,7 @@ class AMAGATE_UI_UL_TextureList(bpy.types.UIList):
         col = row.column()
         col.alignment = "RIGHT"
         default_id = [i.id for i in scene_data.defaults.textures if i.id != 0]
-        i = data.ICONS["star"].icon_id if tex_data.id in default_id else 1
+        i = data.ICONS["star"].icon_id if tex_data.id in default_id else data.BLANK1
         col.label(text="", icon_value=i)
 
         col = row.column()

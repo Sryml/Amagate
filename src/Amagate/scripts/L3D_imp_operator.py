@@ -52,24 +52,8 @@ logger = data.logger
 
 epsilon: float = ag_utils.epsilon
 epsilon2: float = ag_utils.epsilon2
+unpack = ag_utils.unpack
 ############################
-
-
-def unpack(fmat: str, f) -> Any:
-    fmat_ = fmat.lower()
-    if fmat_[-1] == "s":
-        chunk = int(fmat_[:-1])
-    else:
-        chunk = (
-            fmat_.count("i") * 4
-            + fmat_.count("f") * 4
-            + fmat_.count("d") * 8
-            + fmat_.count("b")
-        )
-
-    if fmat_[-1] == "s":
-        return struct.unpack(fmat, f.read(chunk))[0].decode("Latin1")
-    return struct.unpack(fmat, f.read(chunk))
 
 
 # 验证bw文件完整性
@@ -1188,7 +1172,7 @@ class OT_ImportMap(bpy.types.Operator):
     # relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: StringProperty()  # type: ignore
-    directory: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     execute_type: IntProperty(default=0, options={"HIDDEN"})  # type: ignore
@@ -1198,14 +1182,17 @@ class OT_ImportMap(bpy.types.Operator):
     #     return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context):
-        file_name = next(
-            (f.name for f in self.files if f.name[-3:].lower() == ".bw"), None
-        )
-        if not file_name:
+        filepath = self.filepath
+        if os.path.splitext(filepath)[1].lower() != ".bw":
             self.report({"ERROR"}, "No bw file selected")
             return {"CANCELLED"}
+        # file_name = next(
+        #     (f.name for f in self.files if f.name[-3:].lower() == ".bw"), None
+        # )
+        # if not file_name:
+        #     self.report({"ERROR"}, "No bw file selected")
+        #     return {"CANCELLED"}
 
-        filepath = os.path.join(self.directory, file_name)
         L3D_data.LOAD_POST_CALLBACK = (OP_L3D.InitMap, (filepath,))
         bpy.ops.wm.read_homefile(app_template="")
 
@@ -1229,7 +1216,8 @@ class OT_ImportMap(bpy.types.Operator):
             ag_utils.simulate_keypress(27)
             return {"CANCELLED"}
 
-        self.filepath = "//"
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 

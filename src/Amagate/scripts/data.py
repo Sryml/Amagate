@@ -12,14 +12,17 @@ import shutil
 import pickle
 import threading
 import contextlib
+import json
 import logging
 
+from pathlib import Path
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
 # from collections import Counter
 #
 import bpy
+import bpy.utils.previews
 
 import bmesh
 from bpy.app.translations import pgettext
@@ -88,6 +91,20 @@ with open(os.path.join(ADDON_PATH, "version"), "r") as v:
 DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 
 ICONS: Any = None
+ENT_PREVIEWS: Any = None
+BLANK1 = bpy.types.UILayout.bl_rna.functions["prop"].parameters["icon"].enum_items["BLANK1"].value  # type: ignore
+
+# fmt: off
+IMAGE_FILTER = (
+    # 常见格式
+    ".png", ".jpg", ".jpeg",
+    ".tga", ".tif", ".tiff",
+    ".exr", ".hdr", ".webp",
+    ".bmp", 
+    # 较少见的格式
+    ".iris", ".iriz", ".aviraw", ".avijpeg",
+)
+# fmt: on
 
 #
 logger = logging.getLogger(PACKAGE)
@@ -199,6 +216,87 @@ def get_coll_name(prefix, start_id=1) -> str:
 def link2coll(obj, coll):
     if coll.objects.get(obj.name) is None:
         coll.objects.link(obj)
+
+
+############################
+############################
+############################
+
+# E_MANIFEST = json.load(open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8"))
+
+
+def get_ent_enum(this, context):
+    return ENT_ENUM
+
+
+def get_ent_preview(this, context) -> Any:
+    wm_data = context.window_manager.amagate_data
+    name = bpy.types.UILayout.enum_item_name(wm_data, "ent_enum", wm_data.ent_enum)
+    description = bpy.types.UILayout.enum_item_description(
+        wm_data, "ent_enum", wm_data.ent_enum
+    )
+    icon = bpy.types.UILayout.enum_item_icon(wm_data, "ent_enum", wm_data.ent_enum)
+    return [("0", name, description, icon, 0)]
+
+
+def get_ent_enum2(this, context):
+    ent_enum = ENT_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+    return ent_enum
+
+
+def gen_ent_enum():
+    global ENT_ENUM
+    ENT_ENUM = []
+    manifest = json.load(
+        open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
+    )
+    count = 0
+
+    for cat in (
+        "Characters",
+        "Props",
+        "1H Weapons",
+        "2H Weapons",
+        "Shields & Bows",
+        "Others",
+        "Custom",
+    ):
+        enum = []
+        for k, v in manifest["Entities"][cat].items():
+            filename = Path(v[1])
+            enum.append(
+                [
+                    str(count),
+                    v[0],
+                    k,
+                    ENT_PREVIEWS[filename.stem].icon_id,
+                    count,
+                    v[2] if len(v) > 2 else -1,
+                ]
+            )
+            count += 1
+        enum.sort(key=lambda x: x[1])
+        enum.sort(key=lambda x: x[5])
+        for i in range(len(enum)):
+            enum[i] = tuple(enum[i][:-1])
+        enum.insert(0, ("", cat, ""))
+        ENT_ENUM.extend(enum)
+
+
+def load_ent_preview():
+    global ENT_PREVIEWS
+    preview_dir = os.path.join(ADDON_PATH, "Models", "Preview")
+    ENT_PREVIEWS = bpy.utils.previews.new()
+    for file in os.listdir(preview_dir):
+        if file.lower().endswith(".jpg"):
+            ENT_PREVIEWS.load(
+                file[:-4], os.path.join(preview_dir, file), "IMAGE"
+            )  # force_reload=True
+    # 生成实体枚举
+    gen_ent_enum()
 
 
 ############################
@@ -678,8 +776,36 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
 class WindowManagerProperty(bpy.types.PropertyGroup):
     ent_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
     ent_mutilation_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
+    #
+    ent_inter_name: StringProperty(default="", get=lambda self: self.get_ent_inter_name(), set=lambda self, value: None)  # type: ignore
+    ent_enum: EnumProperty(
+        translation_context="Entity",
+        items=get_ent_enum,
+        update=lambda self, context: self.update_ent_enum(context),
+    )  # type: ignore
+    ent_preview: EnumProperty(
+        translation_context="Entity", items=get_ent_preview
+    )  # type: ignore
+    prefab_name: StringProperty(default="")  # type: ignore
+    # 实体参考
+    ent_ref: BoolProperty(default=False)  # type: ignore
+
+    ############################
+
+    def get_ent_inter_name(self):
+        wm_data = bpy.context.window_manager.amagate_data
+        return bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", wm_data.ent_enum
+        )
+
+    @staticmethod
+    def update_ent_enum(context: Context):
+        wm_data = context.window_manager.amagate_data
+        name = bpy.types.UILayout.enum_item_name(wm_data, "ent_enum", wm_data.ent_enum)
+        wm_data.prefab_name = name
 
 
+############################
 ############################
 ############################
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
@@ -693,14 +819,14 @@ classes = [
 def register():
     global ICONS
 
-    import bpy.utils.previews
-
     ICONS = bpy.utils.previews.new()
     icons_dir = os.path.join(ADDON_PATH, "icons")
     for root, dirs, files in os.walk(icons_dir):
         for file in files:
             if file.endswith(".png"):
                 ICONS.load(file[:-4], os.path.join(root, file), "IMAGE")
+    #
+    load_ent_preview()
     #
     bpy.utils.register_class(AmagatePreferences)
     #
@@ -716,7 +842,7 @@ def register():
 
 
 def unregister():
-    global ICONS
+    global ICONS, ENT_PREVIEWS
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
@@ -724,7 +850,9 @@ def unregister():
     bpy.utils.unregister_class(AmagatePreferences)
     #
     bpy.utils.previews.remove(ICONS)
+    bpy.utils.previews.remove(ENT_PREVIEWS)
     ICONS = None
+    ENT_PREVIEWS = None
     #
     from . import sector_data, L3D_data
 

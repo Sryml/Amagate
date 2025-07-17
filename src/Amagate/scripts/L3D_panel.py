@@ -1209,6 +1209,78 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
 
 
 ############################
+############################ 预制体面板
+############################
+
+
+class AMAGATE_PT_Prefab(L3D_Panel, bpy.types.Panel):
+    bl_label = "Prefab"
+    bl_parent_id = "AMAGATE_PT_L3D"
+    bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return data.PY_PACKAGES_INSTALLED
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+
+class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
+    bl_label = "Entity"
+    bl_parent_id = "AMAGATE_PT_Prefab"
+
+    @classmethod
+    def poll(cls, context):
+        return data.PY_PACKAGES_INSTALLED
+
+    def draw(self, context: Context):
+        layout = self.layout
+        wm_data = context.window_manager.amagate_data
+
+        column = layout.column(align=True)
+        row = column.row(align=True)
+        # row.prop(wm_data, "ent_enum",text="")
+        split = row.split(factor=0.9, align=True)
+        split.operator(
+            OP_L3D.OT_Entity_Enum.bl_idname, text="Select Entity", icon="DOWNARROW_HLT"
+        )
+        op = split.operator(OP_L3D.OT_Entity_Search.bl_idname, text="", icon="VIEWZOOM")
+        # op.enum = wm_data.ent_enum  # type: ignore
+        column.template_icon_view(
+            wm_data, "ent_preview", show_labels=True, scale=5, scale_popup=10
+        )
+
+        row = layout.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Internal Name')}:")
+        row.prop(wm_data, "ent_inter_name", text="")
+
+        row = layout.row()
+        row.operator(OP_L3D.OT_EntityAddToScene.bl_idname)
+        row.operator(OP_L3D.OT_EntityRemoveFromScene.bl_idname)
+
+        layout.separator(type="LINE")
+        #
+        row = layout.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Prefab Name')}:")
+        row.prop(wm_data, "prefab_name", text="")
+
+        row = layout.row()
+        # col = row.column()
+        # col.alignment = "LEFT"
+        # col.label(text=f"{pgettext('Set as Prefab')}:")
+        row.operator_menu_enum(
+            OP_L3D.OT_SetAsPrefab.bl_idname,
+            "action",
+        )
+        row.operator(OP_L3D.OT_RemovePrefab.bl_idname)
+
+
+############################
 ############################ 服务器面板
 ############################
 class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
@@ -1274,8 +1346,8 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
 ############################
 ############################ 工具面板
 ############################
-class AMAGATE_PT_Tools(L3D_Panel, bpy.types.Panel):
-    bl_label = "Tools"
+class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
+    bl_label = f"L3D {pgettext('Tools')}"
     bl_parent_id = "AMAGATE_PT_L3D"
     # bl_options = {"DEFAULT_CLOSED"}
 

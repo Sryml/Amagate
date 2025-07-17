@@ -17,6 +17,7 @@ import time
 import locale
 import requests
 import tempfile
+import json
 from pathlib import Path
 from pprint import pprint
 from io import StringIO, BytesIO
@@ -424,7 +425,7 @@ class OT_Texture_Add(bpy.types.Operator):
     override: BoolProperty(name="Override Mode", default=False)  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: StringProperty()  # type: ignore
-    directory: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     @staticmethod
@@ -455,18 +456,22 @@ class OT_Texture_Add(bpy.types.Operator):
         files = [
             f.name
             for f in self.files
-            if f.name and os.path.exists(os.path.join(self.directory, f.name))
+            if f.name
+            and os.path.exists(
+                os.path.join(self.directory, f.name)
+                and f.name.lower().endswith(data.IMAGE_FILTER)
+            )
         ]
         if not files:
             files = [
                 f
                 for f in os.listdir(self.directory)
-                if f.endswith((".jpg", ".png", ".jpeg", ".bmp", ".tga"))
+                if f.lower().endswith(data.IMAGE_FILTER)
             ]
 
         for file in files:
             name = os.path.splitext(file)[0]
-            if name == L3D_data.ensure_null_texture().name:
+            if name.lower() == L3D_data.ensure_null_texture().name.lower():
                 # 忽略与特殊纹理同名的纹理
                 self.report(
                     {"WARNING"},
@@ -495,8 +500,8 @@ class OT_Texture_Add(bpy.types.Operator):
 
     def invoke(self, context, event):
         self.override = event.shift
-        # 这里通过文件选择器来选择文件或文件夹
-        self.filepath = "//"
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -816,28 +821,23 @@ class OT_SkyTexture_Open(bpy.types.Operator):
     relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: StringProperty()  # type: ignore
-    directory: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     def execute(self, context: Context):
+        if not self.filepath.lower().endswith(data.IMAGE_FILTER):
+            self.report({"ERROR"}, "No valid files selected")
+            return {"CANCELLED"}
+
         curr_dir = bpy.path.abspath("//")
         # 相同驱动器
         same_drive = (
             os.path.splitdrive(self.directory)[0] == os.path.splitdrive(curr_dir)[0]
         )
-        files = [
-            f.name
-            for f in self.files
-            if f.name and os.path.exists(os.path.join(self.directory, f.name))
-        ]
-        if not files:
-            self.report({"ERROR"}, "No valid files selected")
-            return {"CANCELLED"}
 
-        file = files[0]
-        filepath = os.path.join(self.directory, file)
-        if same_drive and self.relative_path:
-            filepath = f"//{os.path.relpath(filepath, curr_dir)}"
+        filepath = self.filepath
+        # if same_drive and self.relative_path:
+        #     filepath = f"//{os.path.relpath(filepath, curr_dir)}"
         img = L3D_data.ensure_null_texture()
         img.filepath = filepath
         img.reload()
@@ -845,7 +845,8 @@ class OT_SkyTexture_Open(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        self.filepath = "//"
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -1082,6 +1083,272 @@ class OT_PasteFaceTexture(bpy.types.Operator):
         #
         data.area_redraw("VIEW_3D")
 
+        return {"FINISHED"}
+
+
+############################
+############################ 预制体面板
+############################
+
+
+# 实体搜索
+class OT_Entity_Search(bpy.types.Operator):
+    bl_idname = "amagate.entity_search"
+    bl_label = "Search"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    enum: EnumProperty(
+        translation_context="Entity",
+        items=data.get_ent_enum2,
+        update=lambda self, context: self.update_ent_enum(context),
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        wm_data.ent_enum = self.enum
+        data.region_redraw("UI")
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        context.window_manager.invoke_search_popup(self)
+        return {"FINISHED"}
+
+    ############################
+    def update_ent_enum(self, context: Context):
+        data.WindowManagerProperty.update_ent_enum(context)
+
+
+# 实体枚举
+class OT_Entity_Enum(bpy.types.Operator):
+    bl_idname = "amagate.entity_enum"
+    bl_label = "Entity Enum"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def draw(self, context: Context):
+        layout = self.layout
+        wm_data = context.window_manager.amagate_data
+        scene_data = context.scene.amagate_data
+        ent_enum = data.get_ent_enum(None, None)
+        row = layout.row(align=False)
+        for item in ent_enum:
+            if item[0] == "":
+                col = row.column(align=True, heading=item[1], heading_ctxt="Entity")
+            else:
+                col.prop_enum(wm_data, "ent_enum", item[0])
+        # grid = layout.grid_flow(row_major=False, columns=8)
+        # grid.prop_tabs_enum(wm_data, "ent_enum",property_highlight=wm_data.ent_enum)
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        return context.window_manager.invoke_popup(self, width=900)
+        # return {"FINISHED"}
+
+
+# 添加到场景
+class OT_EntityAddToScene(bpy.types.Operator):
+    bl_idname = "amagate.entity_add_to_scene"
+    bl_label = "Add to Scene"
+    bl_description = "Add to Scene"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+
+# 从场景移除
+class OT_EntityRemoveFromScene(bpy.types.Operator):
+    bl_idname = "amagate.entity_remove_from_scene"
+    bl_label = "Remove from Scene"
+    bl_description = "Remove from Scene"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+
+# 设为预制体
+class OT_SetAsPrefab(bpy.types.Operator):
+    bl_idname = "amagate.set_as_prefab"
+    bl_label = "Set as Prefab"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    action: EnumProperty(
+        name="",
+        description="",
+        translation_context="AG_Prefab",
+        items=[
+            ("", "Select Preview View", ""),
+            ("1", "Top", ""),
+            ("2", "Front", ""),
+            ("3", "Front 45°", ""),
+            ("4", "Right", ""),
+            ("5", "Right 45°", ""),
+            ("8", "Bottom", ""),
+            ("6", "Back", ""),
+            ("7", "Left", ""),
+        ],
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        from . import entity_operator as OP_ENTITY
+
+        scene = context.scene
+
+        # 检查是否为无标题文件
+        if not bpy.data.filepath:
+            self.report({"WARNING"}, "Please save the file first")
+            return {"CANCELLED"}
+
+        entity, inter_name = OP_ENTITY.get_ent_data()
+        if entity is None:
+            self.report({"WARNING"}, "There are no visible entities objects")
+            return {"CANCELLED"}
+
+        filename = os.path.basename(bpy.data.filepath)
+        E_MANIFEST = data.E_MANIFEST
+        for cat in E_MANIFEST["Entities"]:
+            if cat == "Custom":
+                continue
+            # 如果内部名称与内置实体相同，取消操作
+            if E_MANIFEST["Entities"][cat].get(inter_name):
+                self.report(
+                    {"WARNING"}, "Internal name is the same as the built-in entity"
+                )
+                return {"CANCELLED"}
+
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+        wm_data = context.window_manager.amagate_data
+        models_path = os.path.join(data.ADDON_PATH, "Models")
+        preview_dir = os.path.join(models_path, "Preview")
+        rv3d = context.region_data
+        skeleton = bpy.data.objects.get("Blade_Skeleton")
+
+        # 创建摄像机
+        if scene.camera is None:
+            camera = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
+            scene.collection.objects.link(camera)
+            scene.camera = camera  # 设置活动摄像机
+
+        camera = scene.camera
+        rv3d.view_perspective = "CAMERA"
+        camera.hide_set(True)
+        fov = math.degrees(camera.data.angle)  # type: ignore
+
+        # 计算视图
+        view = bpy.types.UILayout.enum_item_name(self, "action", self.action)
+        padding = 0.05
+
+        verts = [entity.matrix_world @ Vector(v) for v in entity.bound_box]
+
+        if view == "Top":
+            look_at = Vector((0, 0, -1))
+            u, v = Vector((1, 0, 0)), Vector((0, 1, 0))
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Front":
+            look_at = Vector((0, 1, 0))
+            u, v = Vector((1, 0, 0)), Vector((0, 0, 1))
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Front 45°":
+            look_at = Vector((0, 1, -1)).normalized()
+            u, v = Vector((1, 0, 0)), Vector((0, 1, 1)).normalized()
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Right":
+            look_at = Vector((-1, 0, 0))
+            u, v = Vector((0, 1, 0)), Vector((0, 0, 1))
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Right 45°":
+            look_at = Vector((-1, 0, -1)).normalized()
+            u, v = Vector((0, 1, 0)), Vector((-1, 0, 1)).normalized()
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Back":
+            look_at = Vector((0, -1, 0))
+            u, v = Vector((-1, 0, 0)), Vector((0, 0, 1))
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Left":
+            look_at = Vector((1, 0, 0))
+            u, v = Vector((0, -1, 0)), Vector((0, 0, 1))
+            base_len = min(v.dot(look_at) for v in verts)
+        elif view == "Bottom":
+            look_at = Vector((0, 0, 1))
+            u, v = Vector((1, 0, 0)), Vector((0, -1, 0))
+            base_len = min(v.dot(look_at) for v in verts)
+
+        verts = [Vector((vert.dot(u), vert.dot(v))) for vert in verts]
+        min_x = min(v.x for v in verts)
+        max_x = max(v.x for v in verts)
+        min_y = min(v.y for v in verts)
+        max_y = max(v.y for v in verts)
+        width = max_x - min_x
+        height = max_y - min_y
+        max_dimension = max(width, height) + padding
+        distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
+        x = (min_x + max_x) * 0.5 * u
+        y = (min_y + max_y) * 0.5 * v
+        z = look_at * (base_len - distance)
+        camera.rotation_euler = look_at.to_track_quat("-Z", "Y").to_euler()
+        camera.location = x + y + z  # type: ignore
+
+        # 写入清单列表
+        prefab_name = wm_data.prefab_name.strip()
+        prefab_name = prefab_name if prefab_name else inter_name
+        E_MANIFEST["Entities"]["Custom"][inter_name] = [
+            prefab_name,
+            f"Custom\\{filename}",
+        ]
+        json.dump(
+            E_MANIFEST,
+            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+
+        dest = os.path.join(models_path, "Custom", filename)
+        if Path(bpy.data.filepath) != Path(dest):
+            shutil.copy(bpy.data.filepath, dest)
+
+        # 渲染
+        context.space_data.shading.type = "MATERIAL"  # type: ignore
+        scene.eevee.taa_render_samples = 8
+        scene.display.shading.light = "FLAT"
+        scene.display.shading.color_type = "TEXTURE"
+        if skeleton is not None:
+            scene.render.resolution_x = 1024
+            scene.render.resolution_y = 1024
+        else:
+            scene.render.resolution_x = 512
+            scene.render.resolution_y = 512
+        scene.render.image_settings.file_format = "JPEG"
+        scene.render.image_settings.quality = 90
+
+        for mat in bpy.data.materials:
+            mat.use_backface_culling = False
+
+        scene.render.filepath = os.path.join(preview_dir, os.path.splitext(filename)[0])
+        bpy.ops.render.render(write_still=True)
+
+        for mat in bpy.data.materials:
+            mat.use_backface_culling = True
+
+        return {"FINISHED"}
+
+
+# 移除预制体
+class OT_RemovePrefab(bpy.types.Operator):
+    bl_idname = "amagate.remove_prefab"
+    bl_label = "Remove Prefab"
+    bl_description = "Remove Prefab"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
         return {"FINISHED"}
 
 

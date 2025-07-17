@@ -14,6 +14,7 @@ import contextlib
 import shutil
 import threading
 import time
+import json
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -96,14 +97,12 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     # 过滤文件
-    # filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
-    # filter_image: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+    filter_image: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
 
-    # 相对路径
-    # relative_path: BoolProperty(name="Relative Path", default=True)  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     # filename: StringProperty()  # type: ignore
-    directory: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     def execute(self, context: Context):
@@ -119,13 +118,18 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
         for f in self.files:
             if not name_set:
                 break
+            if not f.name.lower().endswith(data.IMAGE_FILTER):
+                continue
             name = os.path.splitext(f.name)[0]
             if name in name_set:
                 name_set.discard(name)
                 files.append(f.name)
 
         if len(files) != 6:
-            self.report({"ERROR"}, f"Please select the six cubemap images: {name_set}")
+            self.report(
+                {"ERROR"},
+                f"{pgettext('Please select the six cubemap images')}: {name_set}",
+            )
             return {"CANCELLED"}
 
         scene = bpy.data.scenes.new("AG.Cubemap")
@@ -271,7 +275,8 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context, event):
-        self.filepath = "//"
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -283,11 +288,25 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
 
 class OT_Test(bpy.types.Operator):
     bl_idname = "amagate.test"
-    bl_label = "Test"
+    bl_label = "功能集合"
     bl_options = {"INTERNAL", "UNDO"}
 
+    action: EnumProperty(
+        name="",
+        description="",
+        items=[
+            ("1", "Batch Import BOD", ""),
+            # ("2", "Export BOD as ...", ""),
+        ],
+        options={"HIDDEN"},
+    )  # type: ignore
+
     def execute(self, context: Context):
-        self.test1(context)
+        cb_dict = {"Batch Import BOD": self.import_bod}
+        name = bpy.types.UILayout.enum_item_name(self, "action", self.action)
+        cb_dict[name](context)
+
+        # self.test1(context)
         # self.test2(context)
         # self.test3(context)
 
@@ -311,6 +330,163 @@ class OT_Test(bpy.types.Operator):
         # print(f"view_camera_zoom: {rv3d.view_camera_zoom}")
         # break
         return {"FINISHED"}
+
+    @staticmethod
+    def import_bod(context: Context):
+        from . import entity_operator as OP_ENTITY
+
+        models_path = os.path.join(data.ADDON_PATH, "Models")
+        preview_dir = os.path.join(models_path, "Preview")
+        manifest = json.load(
+            open(os.path.join(models_path, "manifest.json"), encoding="utf-8")
+        )
+        ent_dir = ("3DChars", "3DObjs")[1]
+        root = os.path.join(models_path, ent_dir)
+        manifest_dict = manifest["Entities"]
+        # key = sorted(manifest_dict.keys(), key=int)
+        # if key:
+        #     key = int(key[-1]) + 1
+        # else:
+        #     key = 1
+        #
+        DefaultSelectionData = {}
+        exec(open(os.path.join(models_path, "EnglishUS.py")).read())
+
+        count = 0
+        # rv3d = context.region_data  # type: bpy.types.RegionView3D
+        scene = context.scene  # type: Scene
+        padding = 0.05
+        z_axis = Vector((0, 0, 1))
+        #
+        scene.eevee.taa_render_samples = 8
+        scene.display.shading.light = "FLAT"
+        scene.display.shading.color_type = "TEXTURE"
+        if ent_dir == "3DChars":
+            scene.render.resolution_x = 1024
+            scene.render.resolution_y = 1024
+        else:
+            scene.render.resolution_x = 512
+            scene.render.resolution_y = 512
+        scene.render.image_settings.file_format = "JPEG"
+        scene.render.image_settings.quality = 90
+
+        for f_name in os.listdir(root):
+            if not f_name.lower().endswith(".bod"):
+                continue
+
+            count += 1
+            filepath = os.path.join(root, f_name)
+            if context.mode != "OBJECT":
+                bpy.ops.object.mode_set(mode="OBJECT")
+            # 清空场景
+            bpy.ops.object.select_all(action="SELECT")
+            bpy.ops.object.delete(use_global=True)
+            for d in (
+                bpy.data.meshes,
+                bpy.data.lights,
+                bpy.data.cameras,
+                bpy.data.collections,
+                bpy.data.materials,
+                bpy.data.images,
+                bpy.data.armatures,
+            ):
+                for _ in range(len(d)):
+                    # 倒序删除，避免集合索引更新的开销
+                    d.remove(d[-1])  # type: ignore
+
+            # 导入
+            obj, lack_texture = OP_ENTITY.OT_ImportBOD.import_bod(context, filepath)
+
+            skeleton = bpy.data.objects.get("Blade_Skeleton")
+            view = "TOP"
+            if skeleton:
+                anchor = bpy.data.objects.get("Blade_Anchor_ViewPoint")
+                if anchor:
+                    if abs(anchor.matrix_world.col[1].xyz.dot(z_axis)) > 0.7:
+                        view = "FRONT"
+                # bone = skeleton.pose.bones.get("Center")
+                # if bone:
+                #     if abs(bone.matrix.col[1].xyz.dot(z_axis)) > 0.7:
+                #         view = "FRONT"
+            else:
+                anchor = bpy.data.objects.get("Blade_Anchor_1H_R")
+                if anchor and abs(anchor.matrix_world.col[2].xyz.dot(z_axis)) > 0.7:
+                    view = "FRONT"
+
+            bpy.ops.view3d.view_axis(type=view)
+
+            #
+            verts = [obj.matrix_world @ Vector(v) for v in obj.bound_box]
+            min_x = min(v.x for v in verts)
+            max_x = max(v.x for v in verts)
+            min_z = min(v.z for v in verts)
+            max_z = max(v.z for v in verts)
+            min_y = min(v.y for v in verts)
+            max_y = max(v.y for v in verts)
+
+            camera = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
+            scene.collection.objects.link(camera)
+            scene.camera = camera  # 设置活动摄像机
+            camera.hide_set(True)
+            fov = math.degrees(camera.data.angle)  # type: ignore
+
+            if view == "FRONT":
+                width = max_x - min_x
+                height = max_z - min_z
+                max_dimension = max(width, height) + padding
+                distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
+                x = (min_x + max_x) / 2
+                z = (min_z + max_z) / 2
+                camera.rotation_euler = Euler((math.pi / 2, 0.0, 0.0))
+                camera.location = (x, min_y - distance, z)
+            else:
+                width = max_x - min_x
+                height = max_y - min_y
+                max_dimension = max(width, height) + padding
+                distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
+                x = (min_x + max_x) / 2
+                y = (min_y + max_y) / 2
+                camera.rotation_euler = Euler((0.0, 0.0, 0.0))
+                camera.location = (x, y, max_z + distance)
+
+            #
+            scene.render.filepath = "//tmp"
+            context.space_data.shading.type = "MATERIAL"  # type: ignore
+            save_name = f"{f_name[:-4]}.blend"
+            bpy.ops.wm.save_as_mainfile(filepath=os.path.join(root, save_name))
+            manifest_dict[obj.name] = [
+                DefaultSelectionData.get(obj.name, (0, 0, obj.name))[2],
+                os.path.join(ent_dir, save_name),
+            ]
+            # key += 1
+            #
+
+            # if lack_texture:
+            #     context.space_data.shading.type = "SOLID"  # type: ignore
+            # else:
+            #     context.space_data.shading.type = "MATERIAL"  # type: ignore
+
+            # 渲染
+            for mat in bpy.data.materials:
+                mat.use_backface_culling = False
+            ag_utils.select_active(context, obj)  # type: ignore
+            camera.select_set(True)
+            bpy.ops.object.select_all(action="INVERT")
+            bpy.ops.object.delete()
+
+            scene.render.filepath = os.path.join(
+                preview_dir, os.path.splitext(save_name)[0]
+            )
+            bpy.ops.render.render(write_still=True)
+
+        #
+        json.dump(
+            manifest,
+            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
 
     def test1(self, context: Context):
         from . import L3D_ext_operator as OP_L3D_EXT

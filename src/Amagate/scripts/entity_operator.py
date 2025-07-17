@@ -74,6 +74,50 @@ def ensure_material(tex: Image) -> bpy.types.Material:
     return mat
 
 
+# 获取内部名和主体
+def get_ent_data() -> tuple[Object | None, str | None]:
+    ent_coll = None
+    for coll in bpy.data.collections:
+        # 判断名称前缀
+        if not coll.name.lower().startswith("blade_object_"):
+            continue
+        # 判断是否有引用
+        if coll.users - coll.use_fake_user == 0:
+            continue
+        # 判断是否有物体
+        if len(coll.objects) == 0:
+            continue
+
+        ent_coll = coll
+        break
+    #
+    if ent_coll is None:
+        return None, None
+    #
+    entity = None
+    prefixes = (
+        "blade_skin",
+        "blade_edge_",
+        "blade_spike_",
+        "blade_trail_",
+        "b_fire_fuego_",
+    )
+    for obj in ent_coll.all_objects:
+        if not obj.visible_get():
+            continue
+        #
+        if obj.type == "MESH":
+            if not obj.name.lower().startswith(prefixes):
+                entity = obj
+                break
+    #
+    if entity is None:
+        return None, None
+
+    inter_name = ent_coll.name[13:]
+    return entity, inter_name
+
+
 ############################
 ############################ 编辑操作
 ############################
@@ -209,6 +253,7 @@ class OT_ImportBOD(bpy.types.Operator):
     # 转换坐标空间
     # from_old_exporter: BoolProperty(name="From Old Exporter", default=True)  # type: ignore
     filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
@@ -794,7 +839,8 @@ class OT_ImportBOD(bpy.types.Operator):
             return final()
 
     def invoke(self, context: Context, event):
-        self.filepath = f"//"
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -821,6 +867,7 @@ class OT_ExportBOD(bpy.types.Operator):
         options={"HIDDEN"},
     )  # type: ignore
     filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
@@ -1425,7 +1472,8 @@ class OT_ExportBOD(bpy.types.Operator):
         self.ent_dict = ent_dict
 
         if not bpy.data.filepath or (not self.main and self.action == "2"):
-            self.filepath = f"//{ent_dict['kind']}.bod"
+            if not self.filepath:
+                self.filepath = f"{ent_dict['kind']}.bod"
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
         else:

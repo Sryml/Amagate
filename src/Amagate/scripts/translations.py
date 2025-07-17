@@ -14,7 +14,7 @@ for root, dirs, files in os.walk(os.path.join(ADDON_PATH, "locale")):
     for f_name in files:
         if f_name.endswith(".py"):
             lang = f_name[:-3]
-            with open(os.path.join(root, f_name), "r") as f:
+            with open(os.path.join(root, f_name), "r", encoding="utf-8") as f:
                 translations_dict[lang] = eval(f.read())
 
 

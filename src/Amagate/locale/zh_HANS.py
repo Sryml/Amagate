@@ -188,8 +188,17 @@
     ("*", "No texture found"): "未找到纹理",
     #
     # 预制体面板
+    ("Operator", "Set as Prefab"): "设为预制体",
+    ("Operator", "Remove Prefab"): "移除预制体",
+    ("AG_Prefab", "Select Preview View"): "选择预览视图",
     ("*", "Prefab"): "预制体",
     ("*", "Entity"): "实体",
+    ("Operator", "Select Entity"): "选择实体",
+    ("Operator", "Add to Scene"): "添加到场景",
+    ("Operator", "Remove from Scene"): "从场景中移除",
+    ("*", "Internal Name"): "内部名称",
+    ("*", "Prefab Name"): "预制体名称",
+    ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体名称相同",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",
     ("Operator", "Stop Server"): "停止服务器",
@@ -236,6 +245,9 @@
     ("*", "Not a bod file"): "不是BOD文件",
     ("*", "No collection with the prefix `Blade_Object_` was found"): "未找到以 `Blade_Object_` 为前缀的集合",
     ("*", "There are no visible entities objects"): "没有可见的实体物体",
+    ("*", "Skeleton Name"): "骨架名称",
+    ("*", "Do not link lights or flames to bone,"): "不要将灯光或火焰链接到骨骼上，",
+    ("*", "as the BOD engine does not support it"): "因为BOD引擎不支持",
     # 坐标转换
     ("*", "Coord Conver"): "坐标转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",
@@ -244,4 +256,5 @@
     ("*", "Cubemap Conver"): "立方体贴图转换",
     ("*", "Export as panorama"): "导出为全景图",
     ("Operator", "Select and export"): "选择并导出",
+    ("*", "Please select the six cubemap images"): "请选择六张立方体贴图",
 }

@@ -161,6 +161,23 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 toggle=True,
             )
 
+        # 参考
+        row = layout.row(align=True)
+        row.alignment = "LEFT"
+        row.prop(
+            wm_data,
+            "ent_ref",
+            text=f"{pgettext('Reference')}",
+            icon="DOWNARROW_HLT" if wm_data.ent_ref else "RIGHTARROW",
+            emboss=False,
+        )
+        if wm_data.ent_ref:
+            box = layout.box()
+            col = box.column(align=True)
+            col.label(text=f"- {pgettext('Skeleton Name')}: Blade_Skeleton")
+            col.label(text=f"- {pgettext('Do not link lights or flames to bone,')}")
+            col.label(text=f"{pgettext('as the BOD engine does not support it')}")
+
         layout.separator(type="LINE")
 
         # 导出
@@ -271,7 +288,8 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         col.operator(OP.OT_ExportNode.bl_idname)
         col.operator(OP.OT_ExportEntComponent.bl_idname)
         # col.operator(OP.OT_ImportNode.bl_idname)
-        col.operator(OP.OT_Test.bl_idname)
+        # col.operator(OP.OT_Test.bl_idname)
+        col.operator_menu_enum(OP.OT_Test.bl_idname, "action")
         #
         # col.operator(OP.OT_Test.bl_idname, icon="EMPTY_SINGLE_ARROW")
         # col.operator(OP.OT_Test.bl_idname, icon="EMPTY_ARROWS")
