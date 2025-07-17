@@ -787,8 +787,6 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         translation_context="Entity", items=get_ent_preview
     )  # type: ignore
     prefab_name: StringProperty(default="")  # type: ignore
-    # 实体参考
-    ent_ref: BoolProperty(default=False)  # type: ignore
 
     ############################
 

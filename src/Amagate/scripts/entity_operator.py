@@ -881,30 +881,30 @@ class OT_ExportBOD(bpy.types.Operator):
         lack_texture = False
 
         # 获取主实体
-        if ent_dict["skin"] is not None:
-            entity = ent_dict["skin"]  # type: Object
-            ag_utils.select_active(context, entity)
-            for obj in entity.children_recursive:  # type: ignore
-                obj.select_set(True)
-            # 如果有子物体
-            if len(context.selected_objects) > 1:
-                bpy.ops.object.duplicate()
-                bpy.ops.object.join()
-                entity = context.object  # type: ignore
-            else:
-                bpy.ops.object.duplicate()
-                entity = context.object  # type: ignore
-        elif len(ent_dict["objects"]) > 1:
+        # if ent_dict["skin"] is not None:
+        #     entity = ent_dict["skin"]  # type: Object
+        #     ag_utils.select_active(context, entity)
+        #     for obj in entity.children_recursive:  # type: ignore
+        #         obj.select_set(True)
+        #     # 如果有子物体
+        #     if len(context.selected_objects) > 1:
+        #         bpy.ops.object.duplicate()
+        #         bpy.ops.object.join()
+        #         entity = context.object  # type: ignore
+        #     else:
+        #         bpy.ops.object.duplicate()
+        #         entity = context.object  # type: ignore
+        if len(ent_dict["objects"]) > 1:
             ag_utils.select_active(context, ent_dict["objects"][0])
             for obj in ent_dict["objects"]:
                 obj.select_set(True)
             bpy.ops.object.duplicate()
             bpy.ops.object.join()
-            entity = context.object  # type: ignore
+            entity = context.object  # type: Object # type: ignore
         else:
             ag_utils.select_active(context, ent_dict["objects"][0])
             bpy.ops.object.duplicate()
-            entity = context.object  # type: ignore
+            entity = context.object  # type: Object # type: ignore
 
         ent_mesh = entity.data  # type: bpy.types.Mesh # type: ignore
         if not ent_mesh.attributes.get("amagate_group"):
@@ -952,8 +952,30 @@ class OT_ExportBOD(bpy.types.Operator):
         uv_layer = ent_mesh.uv_layers.active.data
         #
         cursor = context.scene.cursor
-        armature_obj = ent_dict["skeleton"]  # type: Object
+        armature_obj = next((m.object for m in entity.modifiers if m.type == "ARMATURE"), None)  # type: ignore
         if armature_obj is not None:
+            # 判断顶点组是否包含所有骨骼
+            names = set(i.name for i in entity.vertex_groups)
+            bone_names = set(i.name for i in armature_obj.data.bones)
+            if not names.issuperset(bone_names):
+                self.report({"ERROR"}, "Missing bone vertex group")
+                entity.to_mesh_clear()
+                bpy.data.meshes.remove(entity.data)  # type: ignore
+                return {"CANCELLED"}
+            groups_idx = [entity.vertex_groups[name].index for name in bone_names]
+            for v in ent_mesh.vertices:
+                # has_vg = next((1 for g in v.groups if g.group in groups_idx), 0)
+                vert_groups = [1 for g in v.groups if g.group in groups_idx]
+                if len(vert_groups) != 1:
+                    self.report(
+                        {"ERROR"},
+                        "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group",
+                    )
+                    entity.to_mesh_clear()
+                    bpy.data.meshes.remove(entity.data)  # type: ignore
+                    return {"CANCELLED"}
+
+            #
             prev_cursor = cursor.location.copy()
             cursor.location = origin
             ag_utils.select_active(context, armature_obj)
@@ -1414,8 +1436,8 @@ class OT_ExportBOD(bpy.types.Operator):
         ent_dict = {
             "kind": ent_coll.name[13:],
             "objects": [],
-            "skin": None,
-            "skeleton": None,
+            # "skin": None,
+            # "skeleton": None,
             "anchors": [],
             "edges": [],
             "spikes": [],
@@ -1429,9 +1451,9 @@ class OT_ExportBOD(bpy.types.Operator):
                 continue
             #
             if obj.type == "MESH":
-                if obj.name.lower().startswith("blade_skin"):
-                    ent_dict["skin"] = obj
-                elif (
+                # if obj.name.lower().startswith("blade_skin"):
+                #     ent_dict["skin"] = obj
+                if (
                     obj.name.lower().startswith("blade_edge_")
                     and obj.amagate_data.ent_comp_type == 1
                 ):
@@ -1451,10 +1473,10 @@ class OT_ExportBOD(bpy.types.Operator):
                 else:
                     ent_dict["objects"].append(obj)
 
-            elif obj.type == "ARMATURE" and obj.name.lower().startswith(
-                "blade_skeleton"
-            ):
-                ent_dict["skeleton"] = obj
+            # elif obj.type == "ARMATURE" and obj.name.lower().startswith(
+            #     "blade_skeleton"
+            # ):
+            #     ent_dict["skeleton"] = obj
 
             elif obj.type == "EMPTY":
                 if obj.name.lower().startswith("blade_anchor_"):
@@ -1463,7 +1485,7 @@ class OT_ExportBOD(bpy.types.Operator):
                     ent_dict["lights"].append(obj)
 
         #
-        if not ent_dict["objects"] and not ent_dict["skin"]:
+        if not ent_dict["objects"]:
             self.report({"WARNING"}, "There are no visible entities objects")
             return {"CANCELLED"}
         # print([i.name for i in ent_dict["objects"]])

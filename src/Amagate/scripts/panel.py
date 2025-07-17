@@ -161,22 +161,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 toggle=True,
             )
 
-        # 参考
-        row = layout.row(align=True)
-        row.alignment = "LEFT"
-        row.prop(
-            wm_data,
-            "ent_ref",
-            text=f"{pgettext('Reference')}",
-            icon="DOWNARROW_HLT" if wm_data.ent_ref else "RIGHTARROW",
-            emboss=False,
-        )
-        if wm_data.ent_ref:
-            box = layout.box()
-            col = box.column(align=True)
-            col.label(text=f"- {pgettext('Skeleton Name')}: Blade_Skeleton")
-            col.label(text=f"- {pgettext('Do not link lights or flames to bone,')}")
-            col.label(text=f"{pgettext('as the BOD engine does not support it')}")
+        # 实体说明
+        layout.operator(OP.OT_EntityNote.bl_idname, icon="INFO")
 
         layout.separator(type="LINE")
 

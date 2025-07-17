@@ -86,6 +86,38 @@ class OT_InstallPyPackages(bpy.types.Operator):
 
 
 ############################
+############################ 实体编辑器
+############################
+
+
+# 实体说明
+class OT_EntityNote(bpy.types.Operator):
+    bl_idname = "amagate.entity_note"
+    bl_label = "Entity Note"
+    bl_description = "Entity Note"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        wm = context.window_manager
+        wm.popup_menu(
+            self.draw_menu, title=pgettext("Entity Note", "Operator"), icon="INFO"
+        )
+        return {"FINISHED"}
+
+    @staticmethod
+    def draw_menu(this, context: Context):
+        layout = this.layout  # type: bpy.types.UILayout
+        column = layout.column()
+        column.label(
+            text=f"1. {pgettext('All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group')}"
+        )
+        column.label(
+            text=f"2. {pgettext('Do not link lights or flames to bone, as the BOD engine does not support it')}"
+        )
+        column.separator(factor=1, type="SPACE")
+
+
+############################
 ############################ Cubemap转换
 ############################
 
