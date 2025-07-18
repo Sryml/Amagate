@@ -1500,6 +1500,8 @@ class OT_ExportBOD(bpy.types.Operator):
     def invoke(self, context: Context, event):
         ent_coll = None
         for coll in bpy.data.collections:
+            if len(coll.name) < 14:
+                continue
             # 判断名称前缀
             if not coll.name.lower().startswith("blade_object_"):
                 continue

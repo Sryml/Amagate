@@ -199,7 +199,7 @@
     ("Operator", "Remove from Scene"): "从场景中移除",
     ("*", "Internal Name"): "内部名称",
     ("*", "Prefab Name"): "预制体名称",
-    ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体名称相同",
+    ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体相同",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",
     ("Operator", "Stop Server"): "停止服务器",

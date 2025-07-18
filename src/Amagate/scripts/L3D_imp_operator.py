@@ -1205,12 +1205,11 @@ class OT_ImportMap(bpy.types.Operator):
             else:
                 self.execute_type = 2
         elif self.execute_type == 1:  # Save
-            # ag_utils.simulate_keypress(27)
+            ag_utils.simulate_keypress(27)
             ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
             if ret != {"FINISHED"}:
                 return ret
         elif self.execute_type == 2:  # Don't Save
-            # ag_utils.simulate_keypress(27)
             pass
         elif self.execute_type == 3:  # Cancel
             ag_utils.simulate_keypress(27)
@@ -1229,8 +1228,8 @@ class OT_ImportMap(bpy.types.Operator):
         # layout.use_property_decorate = True
         scene_data = context.scene.amagate_data
 
-        row = layout.row()
-        row.label(text="Save changes before closing?")
+        layout.label(text="Save changes before closing?", icon="QUESTION")
+        layout.separator(type="LINE")
 
         row = layout.row()
         op = row.operator(OT_ImportMap.bl_idname, text="Save").execute_type = 1  # type: ignore

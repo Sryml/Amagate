@@ -207,10 +207,14 @@ def simulate_keypress(keycode: int):
     # 定义 keybd_event 参数
     # 按下键
     ctypes.windll.user32.keybd_event(keycode, 0, 0, 0)
-    time.sleep(0.01)  # 按键按下后等待一段时间
+    # time.sleep(0.01)  # 按键按下后等待一段时间
 
     # 释放键
-    ctypes.windll.user32.keybd_event(keycode, 0, 2, 0)
+    bpy.app.timers.register(
+        lambda keycode=keycode: ctypes.windll.user32.keybd_event(keycode, 0, 2, 0),
+        first_interval=0.01,
+    )
+    # ctypes.windll.user32.keybd_event(keycode, 0, 2, 0)
 
 
 # 获取相连的平展面

@@ -222,11 +222,21 @@ def link2coll(obj, coll):
 ############################
 ############################
 
-# E_MANIFEST = json.load(open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8"))
+E_MANIFEST = json.load(
+    open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
+)
 
 
 def get_ent_enum(this, context):
     return ENT_ENUM
+
+
+def get_ent_enum2(this, context):
+    ent_enum = ENT_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+    return ent_enum
 
 
 def get_ent_preview(this, context) -> Any:
@@ -239,20 +249,9 @@ def get_ent_preview(this, context) -> Any:
     return [("0", name, description, icon, 0)]
 
 
-def get_ent_enum2(this, context):
-    ent_enum = ENT_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-    return ent_enum
-
-
 def gen_ent_enum():
     global ENT_ENUM
     ENT_ENUM = []
-    manifest = json.load(
-        open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
-    )
     count = 0
 
     for cat in (
@@ -265,7 +264,7 @@ def gen_ent_enum():
         "Custom",
     ):
         enum = []
-        for k, v in manifest["Entities"][cat].items():
+        for k, v in E_MANIFEST["Entities"][cat].items():
             filename = Path(v[1])
             enum.append(
                 [

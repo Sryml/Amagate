@@ -1168,6 +1168,7 @@ def load_post(filepath=""):
             prop = wm_data.ent_mutilation_groups.add()
             prop.index = i
             prop.layer_name = "amagate_mutilation_group"
+    wm_data.prefab_name = data.ENT_ENUM[1][1]
     #
     if scene_data.is_blade:
         # 向后兼容

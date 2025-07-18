@@ -1156,6 +1156,10 @@ class OT_EntityAddToScene(bpy.types.Operator):
     bl_description = "Add to Scene"
     bl_options = {"INTERNAL"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
+
     def execute(self, context: Context):
         return {"FINISHED"}
 
@@ -1167,8 +1171,66 @@ class OT_EntityRemoveFromScene(bpy.types.Operator):
     bl_description = "Remove from Scene"
     bl_options = {"INTERNAL"}
 
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
+
     def execute(self, context: Context):
         return {"FINISHED"}
+
+
+# 打开预制体文件
+class OT_OpenPrefab(bpy.types.Operator):
+    bl_idname = "amagate.open_prefab"
+    bl_label = "Open File"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    action: IntProperty(default=0)  # type: ignore
+
+    def execute(self, context: Context):
+        E_MANIFEST = data.E_MANIFEST
+        wm_data = context.window_manager.amagate_data
+        value = wm_data.ent_enum
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", value
+        )
+        for cat in E_MANIFEST["Entities"]:
+            item = E_MANIFEST["Entities"][cat].get(inter_name)
+            if item:
+                filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
+                bpy.ops.wm.open_mainfile(filepath=filepath)
+                break
+
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        if self.action == 0:
+            if bpy.data.is_dirty:
+                return context.window_manager.invoke_popup(self, width=300)
+        elif self.action == 1:  # Save
+            ag_utils.simulate_keypress(27)
+            ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
+            if ret != {"FINISHED"}:
+                return ret
+        elif self.action == 2:  # Don't Save
+            pass
+        elif self.action == 3:  # Cancel
+            ag_utils.simulate_keypress(27)
+            return {"CANCELLED"}
+
+        return self.execute(context)
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+        layout.label(text="Save changes before closing?", icon="QUESTION")
+        layout.separator(type="LINE")
+
+        row = layout.row()
+        op = row.operator(OT_OpenPrefab.bl_idname, text="Save").action = 1  # type: ignore
+        row.operator(OT_OpenPrefab.bl_idname, text="Don't Save").action = 2  # type: ignore
+        row.operator(OT_OpenPrefab.bl_idname, text="Cancel").action = 3  # type: ignore
 
 
 # 设为预制体
@@ -1206,11 +1268,19 @@ class OT_SetAsPrefab(bpy.types.Operator):
             return {"CANCELLED"}
 
         entity, inter_name = OP_ENTITY.get_ent_data()
-        if entity is None:
+        if inter_name is None:
             self.report({"WARNING"}, "There are no visible entities objects")
             return {"CANCELLED"}
 
-        filename = os.path.basename(bpy.data.filepath)
+        models_path = os.path.join(data.ADDON_PATH, "Models")
+        preview_dir = os.path.join(models_path, "Preview")
+        filename = inter_name
+        # filename = os.path.basename(bpy.data.filepath)
+        # if Path(models_path, "3DChars", filename).exists() or Path(models_path, "3DObjs", filename).exists():
+        #     # 文件名与内置实体相同
+        #     self.report({"WARNING"}, "File name is the same as the built-in entity")
+        #     return {"CANCELLED"}
+
         E_MANIFEST = data.E_MANIFEST
         for cat in E_MANIFEST["Entities"]:
             if cat == "Custom":
@@ -1226,10 +1296,10 @@ class OT_SetAsPrefab(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
 
         wm_data = context.window_manager.amagate_data
-        models_path = os.path.join(data.ADDON_PATH, "Models")
-        preview_dir = os.path.join(models_path, "Preview")
         rv3d = context.region_data
-        skeleton = bpy.data.objects.get("Blade_Skeleton")
+        has_armature = next(
+            (True for m in entity.modifiers if m.type == "ARMATURE"), False
+        )
 
         # 创建摄像机
         if scene.camera is None:
@@ -1301,7 +1371,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         prefab_name = prefab_name if prefab_name else inter_name
         E_MANIFEST["Entities"]["Custom"][inter_name] = [
             prefab_name,
-            f"Custom\\{filename}",
+            f"Custom\\{filename}.blend",
         ]
         json.dump(
             E_MANIFEST,
@@ -1311,7 +1381,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
             sort_keys=True,
         )
 
-        dest = os.path.join(models_path, "Custom", filename)
+        dest = os.path.join(models_path, "Custom", f"{filename}.blend")
         if Path(bpy.data.filepath) != Path(dest):
             shutil.copy(bpy.data.filepath, dest)
 
@@ -1320,7 +1390,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         scene.eevee.taa_render_samples = 8
         scene.display.shading.light = "FLAT"
         scene.display.shading.color_type = "TEXTURE"
-        if skeleton is not None:
+        if has_armature:
             scene.render.resolution_x = 1024
             scene.render.resolution_y = 1024
         else:
@@ -1332,11 +1402,22 @@ class OT_SetAsPrefab(bpy.types.Operator):
         for mat in bpy.data.materials:
             mat.use_backface_culling = False
 
-        scene.render.filepath = os.path.join(preview_dir, os.path.splitext(filename)[0])
+        scene.render.filepath = os.path.join(preview_dir, filename)
         bpy.ops.render.render(write_still=True)
 
         for mat in bpy.data.materials:
             mat.use_backface_culling = True
+
+        # 加载预览
+        if data.ENT_PREVIEWS.get(filename):
+            data.ENT_PREVIEWS.pop(filename)
+        data.ENT_PREVIEWS.load(
+            filename,
+            os.path.join(preview_dir, f"{filename}.jpg"),
+            "IMAGE",
+            force_reload=True,
+        )
+        data.gen_ent_enum()
 
         return {"FINISHED"}
 
@@ -1349,6 +1430,34 @@ class OT_RemovePrefab(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        E_MANIFEST = data.E_MANIFEST
+        models_path = os.path.join(data.ADDON_PATH, "Models")
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", wm_data.ent_enum
+        )
+
+        E_MANIFEST["Entities"]["Custom"].pop(inter_name)
+        json.dump(
+            E_MANIFEST,
+            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        wm_data.ent_enum = "0"
+        blend_path = os.path.join(models_path, "Custom", f"{inter_name}.blend")
+        preview_path = os.path.join(models_path, "Preview", f"{inter_name}.jpg")
+        if Path(bpy.data.filepath) == Path(blend_path):
+            bpy.ops.wm.read_homefile()
+        if os.path.exists(blend_path):
+            os.remove(blend_path)
+        if os.path.exists(preview_path):
+            os.remove(preview_path)
+        idx = next((i for i, e in enumerate(data.ENT_ENUM) if e[2] == inter_name), -1)
+        if idx != -1:
+            data.ENT_ENUM.pop(idx)
+
         return {"FINISHED"}
 
 
@@ -1467,8 +1576,8 @@ class OT_New(bpy.types.Operator):
         layout = self.layout
         scene_data = context.scene.amagate_data
 
-        row = layout.row()
-        row.label(text="Save changes before closing?")
+        layout.label(text="Save changes before closing?", icon="QUESTION")
+        layout.separator(type="LINE")
 
         row = layout.row()
         row.operator(OT_New.bl_idname, text="Save").execute_type = 1  # type: ignore
@@ -1491,12 +1600,11 @@ class OT_New(bpy.types.Operator):
             if bpy.data.is_dirty:
                 return context.window_manager.invoke_popup(self)
         elif self.execute_type == 1:  # Save
-            # ag_utils.simulate_keypress(27)
+            ag_utils.simulate_keypress(27)
             ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
             if ret != {"FINISHED"}:
                 return ret
         elif self.execute_type == 2:  # Don't Save
-            # ag_utils.simulate_keypress(27)
             pass
         elif self.execute_type == 3:  # Cancel
             ag_utils.simulate_keypress(27)

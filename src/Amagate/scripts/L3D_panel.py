@@ -1260,6 +1260,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         row = layout.row()
         row.operator(OP_L3D.OT_EntityAddToScene.bl_idname)
         row.operator(OP_L3D.OT_EntityRemoveFromScene.bl_idname)
+        layout.operator(OP_L3D.OT_OpenPrefab.bl_idname).action = 0  # type: ignore
 
         layout.separator(type="LINE")
         #
@@ -1277,7 +1278,12 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             OP_L3D.OT_SetAsPrefab.bl_idname,
             "action",
         )
-        row.operator(OP_L3D.OT_RemovePrefab.bl_idname)
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", wm_data.ent_enum
+        )
+        col = row.column()
+        col.enabled = inter_name in data.E_MANIFEST["Entities"]["Custom"]
+        col.operator(OP_L3D.OT_RemovePrefab.bl_idname)
 
 
 ############################
@@ -1347,7 +1353,7 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
 ############################ 工具面板
 ############################
 class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
-    bl_label = f"L3D {pgettext('Tools')}"
+    bl_label = "L3D Tools"
     bl_parent_id = "AMAGATE_PT_L3D"
     # bl_options = {"DEFAULT_CLOSED"}
 
