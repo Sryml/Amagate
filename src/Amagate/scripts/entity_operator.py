@@ -228,7 +228,7 @@ class OT_AddComponent(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# 预设
+# 预设 # TODO
 class OT_Presets(bpy.types.Operator):
     bl_idname = "amagate.ent_presets"
     bl_label = "Presets"
@@ -237,6 +237,97 @@ class OT_Presets(bpy.types.Operator):
     def execute(self, context: Context):
         # print(f"action: {self.action}")
         return {"FINISHED"}
+
+
+# 按组选择
+class OT_SelectByGroup(bpy.types.Operator):
+    bl_idname = "amagate.select_by_group"
+    bl_label = "Select By Group"
+    bl_options = {"INTERNAL"}
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        index = int(self.action)
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        edit_bm = bmesh.from_edit_mesh(mesh)
+        layer = edit_bm.faces.layers.int.get("amagate_group")
+        for face in edit_bm.faces:
+            if (face[layer] >> index) & 1:  # type: ignore
+                face.select_set(True)
+
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+
+        return {"FINISHED"}
+
+
+# 按肢解组选择
+class OT_SelectByMutilateGroup(bpy.types.Operator):
+    bl_idname = "amagate.select_by_mutilate_group"
+    bl_label = "Select By Group"
+    bl_options = {"INTERNAL"}
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        index = int(self.action)
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        edit_bm = bmesh.from_edit_mesh(mesh)
+        layer = edit_bm.faces.layers.int.get("amagate_mutilation_group")
+        # edit_bm.verts.ensure_lookup_table()
+        # 取消选择
+        # bpy.ops.object.select_all(action="DESELECT")
+        for face in edit_bm.faces:
+            if (face[layer] >> index) & 1:  # type: ignore
+                face.select_set(True)
+        # edit_bm.select_flush_mode()
+        # edit_bm.select_flush(True)
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+
+        return {"FINISHED"}
+
+
+# 实体说明
+class OT_EntityNote(bpy.types.Operator):
+    bl_idname = "amagate.ent_note"
+    bl_label = "Entity Note"
+    bl_description = "Entity Note"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        wm = context.window_manager
+        wm.popup_menu(
+            self.draw_menu, title=pgettext("Entity Note", "Operator"), icon="INFO"
+        )
+        return {"FINISHED"}
+
+    @staticmethod
+    def draw_menu(this, context: Context):
+        layout = this.layout  # type: bpy.types.UILayout
+        column = layout.column()
+        column.label(
+            text=f"1. {pgettext('All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group')}"
+        )
+        column.label(
+            text=f"2. {pgettext('Do not link lights or flames to bone, as the BOD engine does not support it')}"
+        )
+        column.separator(factor=1, type="SPACE")
 
 
 ############################
@@ -633,7 +724,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 else:
                     obj.matrix_world = matrix
 
-            #
+            # 剩余数据种类
             data_num = unpack("I", f)[0]
             if data_num == 0:
                 return final()
@@ -1263,7 +1354,7 @@ class OT_ExportBOD(bpy.types.Operator):
             buffer.write(struct.pack("i", parent_idx))
 
         #
-        buffer.write(struct.pack("I", 4))  # 固定4
+        buffer.write(struct.pack("I", 4))  # 写4种数据：边缘，尖刺，组，轨迹
 
         # 边缘
         buffer.write(struct.pack("I", len(ent_dict["edges"])))

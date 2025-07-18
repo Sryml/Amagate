@@ -85,6 +85,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
         # 添加组件
         row.operator_menu_enum(OP_ENTITY.OT_AddComponent.bl_idname, "action")
+
         # 组
         box = layout.box()
         box.enabled = context.mode == "EDIT_MESH"
@@ -122,16 +123,21 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 text=f"{i+1}{flag}",
                 toggle=True,
             )
+        # 按组选择
+        box.operator_menu_enum(OP_ENTITY.OT_SelectByGroup.bl_idname, "action")
 
         # 肢解组
         box = layout.box()
-        box.enabled = context.mode == "EDIT_MESH"
         column = box.column(align=True)
         column.label(text=f"{pgettext('Mutilation Groups')}:")
         col_flow = column.grid_flow(row_major=True, columns=8, align=True)
         if context.mode == "EDIT_MESH":
             obj = context.object
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+            box.enabled = next(
+                (True for m in obj.modifiers if m.type == "ARMATURE"), False
+            )
+
             bm = bmesh.from_edit_mesh(mesh)
             layer_name = "amagate_mutilation_group"
             layer = bm.faces.layers.int.get(layer_name)
@@ -140,6 +146,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
             faces = [f for f in bm.faces if f.select]
         else:
+            box.enabled = False
             faces = []
         for i in range(32):
             flag = ""
@@ -160,9 +167,11 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 text=f"{i+1}{flag}",
                 toggle=True,
             )
+        # 按肢解组选择
+        box.operator_menu_enum(OP_ENTITY.OT_SelectByMutilateGroup.bl_idname, "action")
 
         # 实体说明
-        layout.operator(OP.OT_EntityNote.bl_idname, icon="INFO")
+        layout.operator(OP_ENTITY.OT_EntityNote.bl_idname, icon="INFO")
 
         layout.separator(type="LINE")
 

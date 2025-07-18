@@ -217,6 +217,7 @@
     ("*", "Reload Level"): "重载关卡",
     ("*", "Missing runtime files"): "缺少运行时文件",
     # L3D工具面板
+    ("*", "L3D Tools"): "L3D 工具",
     ("Operator", "New Map"): "新建地图",
     ("*", "New Blade Map"): "新建 Blade 地图",
     ("Operator", "Compile to bw"): "编译为bw",
@@ -235,6 +236,7 @@
     ("*", "Entity Editor"): "实体编辑器",
     ("Operator", "Add Anchor"): "添加锚点",
     ("Operator", "Add Component"): "添加组件",
+    ("Operator", "Select By Group"): "按组选择",
     ("Operator", "Entity Note"): "实体说明",
     ("EntAnchor", "Object"): "物体",
     ("EntAnchor", "Person"): "人物",
