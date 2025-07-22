@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 
 class AG_Panel:

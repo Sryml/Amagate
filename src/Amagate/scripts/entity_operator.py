@@ -74,22 +74,24 @@ def ensure_material(tex: Image) -> bpy.types.Material:
     return mat
 
 
-# 获取内部名和主体
-def get_ent_data() -> tuple[Object | None, str | None]:
-    ent_coll = None
-    for coll in bpy.data.collections:
-        # 判断名称前缀
-        if not coll.name.lower().startswith("blade_object_"):
-            continue
-        # 判断是否有引用
-        if coll.users - coll.use_fake_user == 0:
-            continue
-        # 判断是否有物体
-        if len(coll.objects) == 0:
-            continue
+# 获取实体集合和主体
+def get_ent_data(
+    ent_coll=None, check_visible=True
+) -> tuple[Collection | None, Object | None]:
+    if ent_coll is None:
+        for coll in bpy.data.collections:
+            # 判断名称前缀
+            if not coll.name.lower().startswith("blade_object_"):
+                continue
+            # 判断是否有引用
+            if coll.users - coll.use_fake_user == 0:
+                continue
+            # 判断是否有物体
+            if len(coll.objects) == 0:
+                continue
 
-        ent_coll = coll
-        break
+            ent_coll = coll
+            break
     #
     if ent_coll is None:
         return None, None
@@ -103,7 +105,7 @@ def get_ent_data() -> tuple[Object | None, str | None]:
         "b_fire_fuego_",
     )
     for obj in ent_coll.all_objects:
-        if not obj.visible_get():
+        if check_visible and not obj.visible_get():
             continue
         #
         if obj.type == "MESH":
@@ -114,8 +116,7 @@ def get_ent_data() -> tuple[Object | None, str | None]:
     if entity is None:
         return None, None
 
-    inter_name = ent_coll.name[13:]
-    return entity, inter_name
+    return ent_coll, entity
 
 
 ############################
@@ -228,7 +229,7 @@ class OT_AddComponent(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# 预设 # TODO
+# TODO 预设
 class OT_Presets(bpy.types.Operator):
     bl_idname = "amagate.ent_presets"
     bl_label = "Presets"
@@ -1521,7 +1522,7 @@ class OT_ExportBOD(bpy.types.Operator):
             break
         if ent_coll is None:
             self.report(
-                {"WARNING"}, "No collection with the prefix `Blade_Object_` was found"
+                {"ERROR"}, "No collection with the prefix `Blade_Object_` was found"
             )
             return {"CANCELLED"}
 
@@ -1572,14 +1573,14 @@ class OT_ExportBOD(bpy.types.Operator):
             #     ent_dict["skeleton"] = obj
 
             elif obj.type == "EMPTY":
-                if obj.name.lower().startswith("blade_anchor_"):
+                if len(obj.name) > 13 and obj.name.lower().startswith("blade_anchor_"):
                     ent_dict["anchors"].append(obj)
                 elif obj.name.lower().startswith("blade_light_"):
                     ent_dict["lights"].append(obj)
 
         #
         if not ent_dict["objects"]:
-            self.report({"WARNING"}, "There are no visible entities objects")
+            self.report({"ERROR"}, "No visible entity Mesh")
             return {"CANCELLED"}
         # print([i.name for i in ent_dict["objects"]])
         # return {"CANCELLED"}

@@ -200,6 +200,8 @@
     ("*", "Internal Name"): "内部名称",
     ("*", "Prefab Name"): "预制体名称",
     ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体相同",
+    ("*", "Entity collection not found"): "实体集合未找到",
+    ("EntType", "Assigned By Script"): "由脚本分配",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",
     ("Operator", "Stop Server"): "停止服务器",
@@ -249,7 +251,7 @@
     ("*", "Export successfully"): "导出成功",
     ("*", "Not a bod file"): "不是BOD文件",
     ("*", "No collection with the prefix `Blade_Object_` was found"): "未找到以 `Blade_Object_` 为前缀的集合",
-    ("*", "There are no visible entities objects"): "没有可见的实体物体",
+    ("*", "No visible entity Mesh"): "没有可见的实体网格",
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
     ("*", "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group"): "所有顶点必须分配骨骼顶点组且只能有一个骨骼顶点组",
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",

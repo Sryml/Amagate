@@ -261,6 +261,7 @@ def gen_ent_enum():
         "2H Weapons",
         "Shields & Bows",
         "Others",
+        "Pieces",
         "Custom",
     ):
         enum = []
@@ -271,7 +272,11 @@ def gen_ent_enum():
                     str(count),
                     v[0],
                     k,
-                    ENT_PREVIEWS[filename.stem].icon_id,
+                    (
+                        ENT_PREVIEWS[filename.stem].icon_id
+                        if ENT_PREVIEWS.get(filename.stem)
+                        else "BLANK1"
+                    ),
                     count,
                     v[2] if len(v) > 2 else -1,
                 ]
@@ -767,11 +772,23 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
         region_redraw("UI")
 
 
+# 图像属性
+class ImageProperty(bpy.types.PropertyGroup):
+    id: IntProperty(name="ID", default=0)  # type: ignore
+    mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
+    # Amagate内置纹理标识
+    builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
+
+
 ############################
-############################ WM属性组
+from . import entity_data, sector_data, L3D_data
+
+############################
+############################ 主属性组
 ############################
 
 
+#
 class WindowManagerProperty(bpy.types.PropertyGroup):
     ent_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
     ent_mutilation_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
@@ -786,6 +803,7 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         translation_context="Entity", items=get_ent_preview
     )  # type: ignore
     prefab_name: StringProperty(default="")  # type: ignore
+    EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
 
     ############################
 
@@ -802,14 +820,63 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         wm_data.prefab_name = name
 
 
+# 物体属性
+class ObjectProperty(bpy.types.PropertyGroup):
+    SectorData: CollectionProperty(type=sector_data.SectorProperty)  # type: ignore
+    GhostSectorData: CollectionProperty(type=sector_data.GhostSectorProperty)  # type: ignore
+    EntityData: CollectionProperty(type=entity_data.EntityProperty)  # type: ignore
+    is_sector: BoolProperty(default=False)  # type: ignore
+    is_gho_sector: BoolProperty(default=False)  # type: ignore
+    is_entity: BoolProperty(default=False)  # type: ignore
+    # 实体组件类型
+    ent_comp_type: IntProperty(default=0)  # type: ignore
+
+    ############################
+    def get_sector_data(self) -> sector_data.SectorProperty:
+        if len(self.SectorData) == 0:
+            return None  # type: ignore
+        return self.SectorData[0]
+
+    def set_sector_data(self):
+        if not self.SectorData:
+            self.SectorData.add()
+            # return self.SectorData[0]
+
+    ############################
+    def get_ghost_sector_data(self) -> sector_data.GhostSectorProperty:
+        if len(self.GhostSectorData) == 0:
+            return None  # type: ignore
+        return self.GhostSectorData[0]
+
+    def set_ghost_sector_data(self):
+        if not self.GhostSectorData:
+            self.GhostSectorData.add()
+            self.is_gho_sector = True
+
+    ############################
+    def get_entity_data(self) -> entity_data.EntityProperty:
+        if len(self.EntityData) == 0:
+            return None  # type: ignore
+        return self.EntityData[0]
+
+    def set_entity_data(self):
+        if not self.EntityData:
+            self.EntityData.add()
+            self.EntityData[0].target = "Object"
+            self.is_entity = True
+
+
 ############################
 ############################
 ############################
+main_classes = (WindowManagerProperty, ObjectProperty)
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
 classes = [
     cls
     for cls in globals().values()
-    if isinstance(cls, type) and any(issubclass(cls, parent) for parent in class_tuple)
+    if isinstance(cls, type)
+    and any(issubclass(cls, parent) for parent in class_tuple)
+    and cls not in main_classes
 ]
 
 
@@ -830,17 +897,25 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
     #
-    from . import sector_data, L3D_data
-
+    # from . import entity_data, sector_data, L3D_data
+    entity_data.register()
     sector_data.register()
     L3D_data.register()
     #
+    for cls in main_classes:
+        bpy.utils.register_class(cls)
+    #
     bpy.types.WindowManager.amagate_data = PointerProperty(type=WindowManagerProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Scene.amagate_data = PointerProperty(type=L3D_data.SceneProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Object.amagate_data = PointerProperty(type=ObjectProperty, name="Amagate Data")  # type: ignore
 
 
 def unregister():
     global ICONS, ENT_PREVIEWS
 
+    for cls in main_classes:
+        bpy.utils.unregister_class(cls)
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 
@@ -851,13 +926,17 @@ def unregister():
     ICONS = None
     ENT_PREVIEWS = None
     #
-    from . import sector_data, L3D_data
+    # from . import entity_data, sector_data, L3D_data
 
     L3D_data.unregister()
     sector_data.unregister()
+    entity_data.unregister()
     ############################
     handler = logger.handlers[0]
     logger.removeHandler(handler)
     handler.close()
     #
     del bpy.types.WindowManager.amagate_data  # type: ignore
+    del bpy.types.Scene.amagate_data  # type: ignore
+    del bpy.types.Image.amagate_data  # type: ignore
+    del bpy.types.Object.amagate_data  # type: ignore

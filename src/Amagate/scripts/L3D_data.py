@@ -1181,6 +1181,8 @@ def load_post(filepath=""):
 
             scene_data.atmo_id_key = scene_data.atmospheres[0].name
             OP_L3D.OT_Node_Reset.reset_node()
+        elif [int(i) for i in scene_data.version.split(".")] < [1, 3, 0]:
+            scene_data["EntityManage"] = {}
         #
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
@@ -1767,14 +1769,6 @@ if 1:
         ag_service.exec_script_send(script)
 
 
-# 图像属性
-class ImageProperty(bpy.types.PropertyGroup):
-    id: IntProperty(name="ID", default=0)  # type: ignore
-    mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
-    # Amagate内置纹理标识
-    builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
-
-
 # 场景属性
 class SceneProperty(bpy.types.PropertyGroup):
     from . import sector_data
@@ -2209,6 +2203,7 @@ class SceneProperty(bpy.types.PropertyGroup):
         self.version = data.VERSION
         #
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
+        self["EntityManage"] = {}
         defaults = self.defaults
 
         defaults.target = "Scene"
@@ -2270,9 +2265,6 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty, name="Amagate Data")  # type: ignore
-    bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
-
     # 注册回调函数
     bpy.app.handlers.save_post.append(save_post)
     bpy.app.handlers.load_post.append(load_post)  # type: ignore
@@ -2289,9 +2281,6 @@ def unregister():
         run_coroutine_threadsafe(ASYNC_THREAD.stop(), ASYNC_THREAD.loop)
         ASYNC_THREAD.join()
     #
-    del bpy.types.Scene.amagate_data  # type: ignore
-    del bpy.types.Image.amagate_data  # type: ignore
-
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
 

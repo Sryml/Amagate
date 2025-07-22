@@ -41,6 +41,7 @@ from mathutils import *  # type: ignore
 
 #
 from . import ag_utils, data
+from . import entity_data
 
 #
 
@@ -51,8 +52,10 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 ############################
+logger = data.logger
 epsilon: float = 1e-5
 epsilon2: float = 1 - epsilon
 
@@ -1249,38 +1252,6 @@ class SectorProperty(bpy.types.PropertyGroup):
         obj.amagate_data.is_sector = True
 
 
-# 物体属性
-class ObjectProperty(bpy.types.PropertyGroup):
-    SectorData: CollectionProperty(type=SectorProperty)  # type: ignore
-    GhostSectorData: CollectionProperty(type=GhostSectorProperty)  # type: ignore
-    is_sector: BoolProperty(default=False)  # type: ignore
-    is_gho_sector: BoolProperty(default=False)  # type: ignore
-    # 实体组件类型
-    ent_comp_type: IntProperty(default=0)  # type: ignore
-
-    ############################
-    def get_sector_data(self) -> SectorProperty:
-        if len(self.SectorData) == 0:
-            return None  # type: ignore
-        return self.SectorData[0]
-
-    def set_sector_data(self):
-        if not self.SectorData:
-            self.SectorData.add()
-            # return self.SectorData[0]
-
-    ############################
-    def get_ghost_sector_data(self) -> GhostSectorProperty:
-        if len(self.GhostSectorData) == 0:
-            return None  # type: ignore
-        return self.GhostSectorData[0]
-
-    def set_ghost_sector_data(self):
-        if not self.GhostSectorData:
-            self.GhostSectorData.add()
-            self.is_gho_sector = True
-
-
 ############################
 
 
@@ -1298,11 +1269,8 @@ def register():
     for cls in classes:
         bpy.utils.register_class(cls)
 
-    bpy.types.Object.amagate_data = PointerProperty(type=ObjectProperty, name="Amagate Data")  # type: ignore
-
 
 def unregister():
-    del bpy.types.Object.amagate_data  # type: ignore
 
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)

@@ -18,6 +18,7 @@ import locale
 import requests
 import tempfile
 import json
+import zlib
 from pathlib import Path
 from pprint import pprint
 from io import StringIO, BytesIO
@@ -52,6 +53,7 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 
 ############################
@@ -1161,22 +1163,84 @@ class OT_EntityAddToScene(bpy.types.Operator):
         return context.scene.amagate_data.is_blade
 
     def execute(self, context: Context):
+        from . import entity_operator as OP_ENTITY
+
+        E_MANIFEST = data.E_MANIFEST
+        wm_data = context.window_manager.amagate_data
+        value = wm_data.ent_enum
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", value
+        )
+        #
+        filepath = ""
+        for cat in E_MANIFEST["Entities"]:
+            item = E_MANIFEST["Entities"][cat].get(inter_name)
+            if item:
+                filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
+                break
+        #
+        if not (filepath and os.path.exists(filepath)):
+            self.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
+            return {"CANCELLED"}
+
+        coll_name = f"Blade_Object_{inter_name}"
+        coll = bpy.data.collections.get(coll_name)
+        if coll is None:
+            with bpy.data.libraries.load(filepath, link=True) as (data_from, data_to):
+                from_coll = next(
+                    (i for i in data_from.collections if i == coll_name), None
+                )
+                if not from_coll:
+                    self.report({"ERROR"}, "Entity collection not found")
+                    return {"CANCELLED"}
+
+                data_to.collections = [coll_name]
+            coll = bpy.data.collections.get(coll_name)
+
+        ent_coll, entity_raw = OP_ENTITY.get_ent_data(coll, check_visible=False)
+        if entity_raw is None:
+            self.report({"ERROR"}, "No visible entity Mesh")
+            return {"CANCELLED"}
+        #
+        scene_data = context.scene.amagate_data
+        obj_name = self.get_name(context, f"{inter_name}_")
+        entity = bpy.data.objects.new(
+            obj_name, entity_raw.data
+        )  # type: Object # type: ignore
+        data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
+        entity.amagate_data.set_entity_data()
+        ent_data = entity.amagate_data.get_entity_data()
+        scene_data["EntityManage"][obj_name] = entity
+        # 移动到当前视图焦点
+        rv3d = context.region_data
+        entity.location = rv3d.view_location.to_tuple(0)
+        #
+        ent_data.Name = obj_name
+        ent_data.Kind = inter_name
+
         return {"FINISHED"}
+
+    @staticmethod
+    def get_name(context: Context, prefix: str, start_id=1):
+        scene_data = context.scene.amagate_data
+        while scene_data["EntityManage"].get(f"{prefix}{start_id}"):
+            start_id += 1
+        return f"{prefix}{start_id}"
 
 
 # 从场景移除
-class OT_EntityRemoveFromScene(bpy.types.Operator):
-    bl_idname = "amagate.entity_remove_from_scene"
-    bl_label = "Remove from Scene"
-    bl_description = "Remove from Scene"
-    bl_options = {"INTERNAL"}
+# class OT_EntityRemoveFromScene(bpy.types.Operator):
+#     bl_idname = "amagate.entity_remove_from_scene"
+#     bl_label = "Remove from Scene"
+#     bl_description = "Remove from Scene"
+#     bl_options = {"INTERNAL"}
 
-    @classmethod
-    def poll(cls, context: Context):
-        return context.scene.amagate_data.is_blade
+#     @classmethod
+#     def poll(cls, context: Context):
+#         return context.scene.amagate_data.is_blade
 
-    def execute(self, context: Context):
-        return {"FINISHED"}
+#     def execute(self, context: Context):
+#         return {"FINISHED"}
 
 
 # 打开预制体文件
@@ -1187,6 +1251,12 @@ class OT_OpenPrefab(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     action: IntProperty(default=0)  # type: ignore
+
+    @staticmethod
+    def set_ent_enum(value):
+        context = bpy.context
+        wm_data = context.window_manager.amagate_data
+        wm_data.ent_enum = value
 
     def execute(self, context: Context):
         E_MANIFEST = data.E_MANIFEST
@@ -1199,7 +1269,12 @@ class OT_OpenPrefab(bpy.types.Operator):
             item = E_MANIFEST["Entities"][cat].get(inter_name)
             if item:
                 filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
-                bpy.ops.wm.open_mainfile(filepath=filepath)
+                if os.path.exists(filepath):
+                    L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (value,))
+                    bpy.ops.wm.open_mainfile(filepath=filepath)
+                else:
+                    self.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
+
                 break
 
         return {"FINISHED"}
@@ -1263,18 +1338,20 @@ class OT_SetAsPrefab(bpy.types.Operator):
         scene = context.scene
 
         # 检查是否为无标题文件
-        if not bpy.data.filepath:
+        if not bpy.data.filepath or bpy.data.is_dirty:
             self.report({"WARNING"}, "Please save the file first")
             return {"CANCELLED"}
 
-        entity, inter_name = OP_ENTITY.get_ent_data()
-        if inter_name is None:
+        ent_coll, entity = OP_ENTITY.get_ent_data()
+        if entity is None:
             self.report({"WARNING"}, "There are no visible entities objects")
             return {"CANCELLED"}
 
+        inter_name = ent_coll.name[13:]
         models_path = os.path.join(data.ADDON_PATH, "Models")
         preview_dir = os.path.join(models_path, "Preview")
-        filename = inter_name
+        # 转crc32，避免文件名大小写冲突
+        filename = format(zlib.crc32(inter_name.encode("utf-8")) & 0xFFFFFFFF, "08x")
         # filename = os.path.basename(bpy.data.filepath)
         # if Path(models_path, "3DChars", filename).exists() or Path(models_path, "3DObjs", filename).exists():
         #     # 文件名与内置实体相同
@@ -1295,6 +1372,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
 
+        ent_coll.name = f"Blade_Object_{inter_name}"
         wm_data = context.window_manager.amagate_data
         rv3d = context.region_data
         has_armature = next(
@@ -1366,25 +1444,6 @@ class OT_SetAsPrefab(bpy.types.Operator):
         camera.rotation_euler = look_at.to_track_quat("-Z", "Y").to_euler()
         camera.location = x + y + z  # type: ignore
 
-        # 写入清单列表
-        prefab_name = wm_data.prefab_name.strip()
-        prefab_name = prefab_name if prefab_name else inter_name
-        E_MANIFEST["Entities"]["Custom"][inter_name] = [
-            prefab_name,
-            f"Custom\\{filename}.blend",
-        ]
-        json.dump(
-            E_MANIFEST,
-            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
-            indent=4,
-            ensure_ascii=False,
-            sort_keys=True,
-        )
-
-        dest = os.path.join(models_path, "Custom", f"{filename}.blend")
-        if Path(bpy.data.filepath) != Path(dest):
-            shutil.copy(bpy.data.filepath, dest)
-
         # 渲染
         context.space_data.shading.type = "MATERIAL"  # type: ignore
         scene.eevee.taa_render_samples = 8
@@ -1408,6 +1467,33 @@ class OT_SetAsPrefab(bpy.types.Operator):
         for mat in bpy.data.materials:
             mat.use_backface_culling = True
 
+        # 写入清单列表
+        prefab_name = wm_data.prefab_name.strip()
+        prefab_name = prefab_name if prefab_name else inter_name
+        E_MANIFEST["Entities"]["Custom"][inter_name] = [
+            prefab_name,
+            f"Custom\\{filename}.blend",
+        ]
+        json.dump(
+            E_MANIFEST,
+            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+
+        save_version = context.preferences.filepaths.save_version
+        context.preferences.filepaths.save_version = 0
+        dest = os.path.join(models_path, "Custom", f"{filename}.blend")
+        if Path(bpy.data.filepath) == Path(dest):
+            filepath_origin = None
+            bpy.ops.wm.save_mainfile()
+        else:
+            filepath_origin = bpy.data.filepath
+            bpy.ops.wm.save_as_mainfile(filepath=dest)
+            # shutil.copy(bpy.data.filepath, dest)
+        context.preferences.filepaths.save_version = save_version
+
         # 加载预览
         if data.ENT_PREVIEWS.get(filename):
             data.ENT_PREVIEWS.pop(filename)
@@ -1419,7 +1505,17 @@ class OT_SetAsPrefab(bpy.types.Operator):
         )
         data.gen_ent_enum()
 
+        if filepath_origin:
+            L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (inter_name,))
+            bpy.ops.wm.open_mainfile(filepath=filepath_origin)
+
         return {"FINISHED"}
+
+    @staticmethod
+    def set_ent_enum(value):
+        context = bpy.context
+        wm_data = context.window_manager.amagate_data
+        wm_data.ent_enum = next(i[0] for i in data.ENT_ENUM if i[2] == value)
 
 
 # 移除预制体
@@ -1437,7 +1533,7 @@ class OT_RemovePrefab(bpy.types.Operator):
             wm_data, "ent_enum", wm_data.ent_enum
         )
 
-        E_MANIFEST["Entities"]["Custom"].pop(inter_name)
+        item = E_MANIFEST["Entities"]["Custom"].pop(inter_name)
         json.dump(
             E_MANIFEST,
             open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
@@ -1446,8 +1542,8 @@ class OT_RemovePrefab(bpy.types.Operator):
             sort_keys=True,
         )
         wm_data.ent_enum = "0"
-        blend_path = os.path.join(models_path, "Custom", f"{inter_name}.blend")
-        preview_path = os.path.join(models_path, "Preview", f"{inter_name}.jpg")
+        blend_path = os.path.join(models_path, item[1])
+        preview_path = os.path.join(models_path, "Preview", f"{Path(item[1]).stem}.jpg")
         if Path(bpy.data.filepath) == Path(blend_path):
             bpy.ops.wm.read_homefile()
         if os.path.exists(blend_path):

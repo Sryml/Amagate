@@ -28,6 +28,7 @@ if TYPE_CHECKING:
     Object = bpy.__Object
     Image = bpy.__Image
     Scene = bpy.__Scene
+    Collection = bpy.__Collection
 
 
 class L3D_Panel:
@@ -1259,8 +1260,8 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         row = layout.row()
         row.operator(OP_L3D.OT_EntityAddToScene.bl_idname)
-        row.operator(OP_L3D.OT_EntityRemoveFromScene.bl_idname)
-        layout.operator(OP_L3D.OT_OpenPrefab.bl_idname).action = 0  # type: ignore
+        row.operator(OP_L3D.OT_OpenPrefab.bl_idname).action = 0  # type: ignore
+        # row.operator(OP_L3D.OT_EntityRemoveFromScene.bl_idname)
 
         layout.separator(type="LINE")
         #
@@ -1284,6 +1285,14 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col = row.column()
         col.enabled = inter_name in data.E_MANIFEST["Entities"]["Custom"]
         col.operator(OP_L3D.OT_RemovePrefab.bl_idname)
+
+        layout.separator(type="LINE")
+
+        # 实体属性
+        layout.label(text=f"{pgettext('Properties')}:")
+        box = layout.box()
+        column = box.column(align=True)
+        # column.prop()
 
 
 ############################
