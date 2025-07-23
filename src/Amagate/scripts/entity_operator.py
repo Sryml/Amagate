@@ -395,6 +395,8 @@ class OT_ImportBOD(bpy.types.Operator):
         ent_bm = bmesh.new()
         uv_layer = ent_bm.loops.layers.uv.verify()  # 获取或创建UV图层
         bm_verts = []  # type: list[bmesh.types.BMVert]
+        bm_verts_dup = {}
+        verts_dup_count = 0
         with open(filepath, "rb") as f:
             file_size = os.fstat(f.fileno()).st_size
             # 内部名称
@@ -425,7 +427,16 @@ class OT_ImportBOD(bpy.types.Operator):
                 try:
                     face = ent_bm.faces.new([bm_verts[i] for i in vert_idx])
                 except:
-                    face = None
+                    verts = []
+                    for i in vert_idx:
+                        vert = ent_bm.verts.new(bm_verts[i].co)
+                        verts.append(vert)
+                        bm_verts_dup.setdefault(i, []).append(
+                            verts_num + verts_dup_count
+                        )
+                        verts_dup_count += 1
+                    face = ent_bm.faces.new(verts)
+                    bm_verts.extend(verts)
                 length = unpack("I", f)[0]
                 img_name = unpack(f"{length}s", f)
                 uv_list = unpack("ffffff", f)
@@ -537,14 +548,20 @@ class OT_ImportBOD(bpy.types.Operator):
                     #     bm_matrix = matrix
                     # 设置骨骼矩阵
                     bone.matrix = matrix
-                    verts = bm_verts[vert_start : vert_start + numverts]
+                    vert_end = vert_start + numverts
+                    verts = bm_verts[vert_start:vert_end]
+                    verts_dup_idx = []
+                    for k, v in bm_verts_dup.items():
+                        if vert_start <= k < vert_end:
+                            verts_dup_idx.extend(v)
+                    verts.extend([bm_verts[i] for i in verts_dup_idx])
                     bmesh.ops.transform(
                         ent_bm,
                         matrix=matrix,
                         verts=verts,
                     )
                     # 保存顶点索引
-                    bones_vert_idx.append((vert_start, vert_start + numverts))
+                    bones_vert_idx.append((vert_start, vert_end, verts_dup_idx))
                 #
                 num = unpack("I", f)[0]
                 for j in range(num):
@@ -583,8 +600,9 @@ class OT_ImportBOD(bpy.types.Operator):
             if armature is not None:
                 for idx, name in enumerate(bones_name):
                     group = entity.vertex_groups.new(name=name)
-                    start, end = bones_vert_idx[idx]
+                    start, end, verts_dup_idx = bones_vert_idx[idx]
                     group.add(list(range(start, end)), 1.0, "REPLACE")
+                    group.add(verts_dup_idx, 1.0, "ADD")
                 # 添加骨架修改器
                 modifier = entity.modifiers.new("Armature", "ARMATURE")
                 modifier.object = armature_obj  # type: ignore
