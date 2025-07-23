@@ -236,6 +236,14 @@ def get_ent_enum2(this, context):
     for i in range(len(ent_enum) - 1, -1, -1):
         if ent_enum[i][0] == "":
             ent_enum.pop(i)
+        else:
+            ent_enum[i] = (
+                ent_enum[i][0],
+                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+                ent_enum[i][2],
+                ent_enum[i][3],
+                ent_enum[i][4],
+            )
     return ent_enum
 
 

@@ -201,6 +201,7 @@
     ("*", "Prefab Name"): "预制体名称",
     ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体相同",
     ("*", "Entity collection not found"): "实体集合未找到",
+    ("*", "Entity Type"): "实体类型",
     ("EntType", "Assigned By Script"): "由脚本分配",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",

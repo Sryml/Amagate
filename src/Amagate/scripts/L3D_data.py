@@ -1176,13 +1176,20 @@ def load_post(filepath=""):
             prop = scene_data.sector_public.textures.add()
             prop.name = "Face"
             prop.target = "SectorPublic"
+
+        ############################
+        # 初始版本
         if scene_data.version == "":
             from . import L3D_operator as OP_L3D
 
-            scene_data.atmo_id_key = scene_data.atmospheres[0].name
             OP_L3D.OT_Node_Reset.reset_node()
-        elif [int(i) for i in scene_data.version.split(".")] < [1, 3, 0]:
+            scene_data.atmo_id_key = scene_data.atmospheres[0].name
+        # 1.3.0之前版本
+        # if [int(i) for i in scene_data.version.split(".") if i] < [1, 3, 0]:
+        if scene_data.get("EntityManage") is None:
             scene_data["EntityManage"] = {}
+        ############################
+
         #
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]

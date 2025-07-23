@@ -23,11 +23,13 @@
             ],
             "BladeSword": [
                 "Sword of Ianna",
-                "3DObjs\\bladesword.blend"
+                "3DObjs\\bladesword.blend",
+                0
             ],
             "BladeSword2": [
                 "Sword of Ianna",
-                "3DObjs\\bladesword2.blend"
+                "3DObjs\\bladesword2.blend",
+                0
             ],
             "Bloodbol": [
                 "Bowl",
@@ -76,15 +78,18 @@
             ],
             "Chakram": [
                 "Chakram",
-                "3DObjs\\chakram.blend"
+                "3DObjs\\chakram.blend",
+                0
             ],
             "Chakram2": [
                 "Chakram2",
-                "3DObjs\\chakram2.blend"
+                "3DObjs\\chakram2.blend",
+                0
             ],
             "Cimitarra": [
                 "Scimitar",
-                "3DObjs\\cimitarr.blend"
+                "3DObjs\\cimitarr.blend",
+                0
             ],
             "Cincel": [
                 "Chisel",
@@ -118,7 +123,8 @@
             ],
             "CrushHammer": [
                 "Venom Hammer",
-                "3DObjs\\crushhammer.blend"
+                "3DObjs\\crushhammer.blend",
+                0
             ],
             "Cubo": [
                 "Bucket",
@@ -127,7 +133,8 @@
             ],
             "CuchillaFernando": [
                 "CuchillaFernando",
-                "3DObjs\\cuchifer.blend"
+                "3DObjs\\cuchifer.blend",
+                0
             ],
             "Cuchillo": [
                 "Knife",
@@ -146,31 +153,38 @@
             ],
             "Dagesse": [
                 "Dagesse",
-                "3DObjs\\dagesse.blend"
+                "3DObjs\\dagesse.blend",
+                0
             ],
             "DalBlade": [
                 "DalBlade",
-                "3DObjs\\DalBlade.blend"
+                "3DObjs\\DalBlade.blend",
+                0
             ],
             "DalWeapon": [
                 "Dal Gurak's Blade",
-                "3DObjs\\dalweapon.blend"
+                "3DObjs\\dalweapon.blend",
+                0
             ],
             "DeathKatar": [
                 "DeathKatar",
-                "3DObjs\\deathkatar.blend"
+                "3DObjs\\deathkatar.blend",
+                0
             ],
             "DoubleSword": [
                 "Double Sword",
-                "3DObjs\\DoubleSword.blend"
+                "3DObjs\\DoubleSword.blend",
+                0
             ],
             "EgyptSword": [
                 "Snake Sword",
-                "3DObjs\\egyptsword.blend"
+                "3DObjs\\egyptsword.blend",
+                0
             ],
             "Espada": [
                 "Heavy Sword",
-                "3DObjs\\espada.blend"
+                "3DObjs\\espada.blend",
+                0
             ],
             "EspadaMagica1": [
                 "Magic Sword",
@@ -189,23 +203,28 @@
             ],
             "Espadacurva": [
                 "Curved Sword",
-                "3DObjs\\espacurv.blend"
+                "3DObjs\\espacurv.blend",
+                0
             ],
             "Espadaelfica": [
                 "Elf Sword",
-                "3DObjs\\espadelf.blend"
+                "3DObjs\\espadelf.blend",
+                0
             ],
             "Espadafilo": [
                 "Sharp Sword",
-                "3DObjs\\espafilo.blend"
+                "3DObjs\\espafilo.blend",
+                0
             ],
             "Espadaromana": [
                 "Combat Sword",
-                "3DObjs\\esparoma.blend"
+                "3DObjs\\esparoma.blend",
+                0
             ],
             "Espadon": [
                 "Espadon",
-                "3DObjs\\espadon.blend"
+                "3DObjs\\espadon.blend",
+                0
             ],
             "Estaca": [
                 "Stake",
@@ -229,67 +248,83 @@
             ],
             "FireAxe": [
                 "Fire Axe",
-                "3DObjs\\fireaxe.blend"
+                "3DObjs\\fireaxe.blend",
+                0
             ],
             "FireSword": [
                 "Fire Sword",
-                "3DObjs\\firesword.blend"
+                "3DObjs\\firesword.blend",
+                0
             ],
             "Garropin": [
                 "Spiked Club",
-                "3DObjs\\garropin.blend"
+                "3DObjs\\garropin.blend",
+                0
             ],
             "Garrote": [
                 "Club",
-                "3DObjs\\garrote.blend"
+                "3DObjs\\garrote.blend",
+                0
             ],
             "Garrote2": [
                 "Heavy Club",
-                "3DObjs\\garrote2.blend"
+                "3DObjs\\garrote2.blend",
+                0
             ],
             "Gladius": [
                 "Gladius",
-                "3DObjs\\gladius.blend"
+                "3DObjs\\gladius.blend",
+                0
             ],
             "Hacha": [
                 "Axe",
-                "3DObjs\\hacha.blend"
+                "3DObjs\\hacha.blend",
+                0
             ],
             "Hacha2": [
                 "Combat Axe",
-                "3DObjs\\hacha2.blend"
+                "3DObjs\\hacha2.blend",
+                0
             ],
             "Hacha3": [
                 "Sharp Axe",
-                "3DObjs\\hacha3.blend"
+                "3DObjs\\hacha3.blend",
+                0
             ],
             "Hacha4": [
                 "War Axe",
-                "3DObjs\\hacha4.blend"
+                "3DObjs\\hacha4.blend",
+                0
             ],
             "Hacha5": [
                 "Biting Axe",
-                "3DObjs\\hacha5.blend"
+                "3DObjs\\hacha5.blend",
+                0
             ],
             "Hacha6": [
                 "Killer Axe",
-                "3DObjs\\hacha6.blend"
+                "3DObjs\\hacha6.blend",
+                0
             ],
             "Hachacarnicero": [
                 "Hachacarnicero",
-                "3DObjs\\Hachacarnicero.blend"
+                "3DObjs\\Hachacarnicero.blend",
+                0
             ],
             "HookSword": [
                 "Hooked Sword",
-                "3DObjs\\HookSword.blend"
+                "3DObjs\\HookSword.blend",
+                0
             ],
             "IceHammer": [
                 "Ice Hammer",
-                "3DObjs\\icehammer.blend"
+                "3DObjs\\icehammer.blend",
+                0
             ],
             "IceSword": [
                 "Ice Sword",
-                "3DObjs\\icesword.blend"
+                "3DObjs\\icesword.blend",
+                0
             ],
             "Jarra": [
                 "Jar",
@@ -303,23 +338,28 @@
             ],
             "Katana": [
                 "Katana",
-                "3DObjs\\katana.blend"
+                "3DObjs\\katana.blend",
+                0
             ],
             "Katar": [
                 "Katar",
-                "3DObjs\\katar.blend"
+                "3DObjs\\katar.blend",
+                0
             ],
             "KatarDoble": [
                 "KatarDoble",
-                "3DObjs\\katardoble.blend"
+                "3DObjs\\katardoble.blend",
+                0
             ],
             "Katarmoon": [
                 "Katarmoon",
-                "3DObjs\\katarmoon.blend"
+                "3DObjs\\katarmoon.blend",
+                0
             ],
             "KingSword": [
                 "KingSword",
-                "3DObjs\\kingsword.blend"
+                "3DObjs\\kingsword.blend",
+                0
             ],
             "Libro": [
                 "Book",
@@ -343,19 +383,23 @@
             ],
             "LightEdge": [
                 "Light Edge",
-                "3DObjs\\lightedge.blend"
+                "3DObjs\\lightedge.blend",
+                0
             ],
             "Martillo": [
                 "War Hammer",
-                "3DObjs\\martillo.blend"
+                "3DObjs\\martillo.blend",
+                0
             ],
             "Martillo2": [
                 "Great Hammer",
-                "3DObjs\\martill2.blend"
+                "3DObjs\\martill2.blend",
+                0
             ],
             "Martillo3": [
                 "Doom Hammer",
-                "3DObjs\\martillo3.blend"
+                "3DObjs\\martillo3.blend",
+                0
             ],
             "MartilloForja": [
                 "Hammer",
@@ -364,23 +408,28 @@
             ],
             "Maza": [
                 "Mace",
-                "3DObjs\\maza.blend"
+                "3DObjs\\maza.blend",
+                0
             ],
             "Maza2": [
                 "Heavy Mace",
-                "3DObjs\\maza2.blend"
+                "3DObjs\\maza2.blend",
+                0
             ],
             "Maza3": [
                 "Great Mace",
-                "3DObjs\\maza3.blend"
+                "3DObjs\\maza3.blend",
+                0
             ],
             "MazaDoble": [
                 "Double Mace",
-                "3DObjs\\mazadoble.blend"
+                "3DObjs\\mazadoble.blend",
+                0
             ],
             "Mazapiedra": [
                 "Mazapiedra",
-                "3DObjs\\mazapiedra.blend"
+                "3DObjs\\mazapiedra.blend",
+                0
             ],
             "Mortero": [
                 "Mortar",
@@ -389,11 +438,13 @@
             ],
             "Ninjato": [
                 "Zatoichi",
-                "3DObjs\\ninjato.blend"
+                "3DObjs\\ninjato.blend",
+                0
             ],
             "Orksword": [
                 "Orc Sword",
-                "3DObjs\\orksword.blend"
+                "3DObjs\\orksword.blend",
+                0
             ],
             "Pala": [
                 "Spade",
@@ -407,7 +458,8 @@
             ],
             "Pendulo": [
                 "Pendulo",
-                "3DObjs\\pendulo.blend"
+                "3DObjs\\pendulo.blend",
+                0
             ],
             "Pergamino": [
                 "Parchment",
@@ -451,27 +503,33 @@
             ],
             "PinchoManuel": [
                 "PinchoManuel",
-                "3DObjs\\pinchoma.blend"
+                "3DObjs\\pinchoma.blend",
+                0
             ],
             "PinchoMiguel": [
                 "PinchoMiguel",
-                "3DObjs\\pinchomi.blend"
+                "3DObjs\\pinchomi.blend",
+                0
             ],
             "Pivote": [
                 "Pivote",
-                "3DObjs\\pivote.blend"
+                "3DObjs\\pivote.blend",
+                0
             ],
             "QueenSword": [
                 "Queen's Sword",
-                "3DObjs\\queensword.blend"
+                "3DObjs\\queensword.blend",
+                0
             ],
             "Roca1Aurelio": [
                 "Roca1Aurelio",
-                "3DObjs\\roc1aure.blend"
+                "3DObjs\\roc1aure.blend",
+                0
             ],
             "Sablazo": [
                 "Sablazo",
-                "3DObjs\\Sablazo.blend"
+                "3DObjs\\Sablazo.blend",
+                0
             ],
             "Silla": [
                 "Chair",
@@ -515,7 +573,8 @@
             ],
             "TaiSword": [
                 "Thai Sword",
-                "3DObjs\\TaiSword.blend"
+                "3DObjs\\TaiSword.blend",
+                0
             ],
             "Tintero": [
                 "Inkwell",
@@ -995,10 +1054,6 @@
                 "Skeleton",
                 "3DChars\\Skl.blend"
             ],
-            "Skeleton_Optimiced": [
-                "Skeleton_Optimiced",
-                "3DObjs\\Skl_opt.blend"
-            ],
             "Spidersmall": [
                 "Spidersmall",
                 "3DChars\\Spd.blend"
@@ -1029,4503 +1084,4508 @@
             "AdoquinRuna": [
                 "Rune",
                 "3DObjs\\adoquinruna.blend",
-                1
+                99
             ],
             "AdoquinRuna2": [
                 "AdoquinRuna2",
                 "3DObjs\\adoquinruna2.blend",
-                1
+                99
             ],
             "AdoquinRuna3": [
                 "AdoquinRuna3",
                 "3DObjs\\Adoquinruna3.blend",
-                1
+                99
             ],
             "Adoquinpulsador": [
                 "Adoquinpulsador",
                 "3DObjs\\adoquinpulsador.blend",
-                1
+                99
             ],
             "Adoquinpulsador2": [
                 "Adoquinpulsador2",
                 "3DObjs\\Adoquinpulsador2.blend",
-                1
+                99
             ],
             "Agarramanos": [
                 "Agarramanos",
                 "3DObjs\\agarmano.blend",
-                1
+                99
             ],
             "Agarrapies": [
                 "Agarrapies",
                 "3DObjs\\agarpies.blend",
-                1
+                99
             ],
             "Alfeizar": [
                 "Alfeizar",
                 "3DObjs\\alfeizar.blend",
-                1
+                99
             ],
             "Alforjas": [
                 "Alforjas",
                 "3DObjs\\alforjas.blend",
-                1
+                99
             ],
             "Altar": [
                 "Altar",
                 "3DObjs\\altar.blend",
-                1
+                99
             ],
             "Amazon_Head": [
                 "Amazon_Head",
                 "3DObjs\\Amz_hd.blend",
-                1
+                99
             ],
             "Amz_Bng": [
                 "Amz_Bng",
                 "3DChars\\amz_bng.blend",
-                2
+                100
             ],
             "AnilloFoso": [
                 "AnilloFoso",
                 "3DObjs\\anillofoso.blend",
-                1
+                99
             ],
             "Ank_Bng": [
                 "Ank_Bng",
                 "3DChars\\Ank_Bng.blend",
-                2
+                100
             ],
             "Antidoto": [
                 "Antidoto",
                 "3DObjs\\antidoto.blend",
-                1
+                99
             ],
             "Antorcha2": [
                 "Antorcha2",
                 "3DObjs\\antorch2.blend",
-                1
+                99
             ],
             "AntorchaAtlante": [
                 "AntorchaAtlante",
                 "3DObjs\\antatlan.blend",
-                1
+                99
             ],
             "Antorchaenpared": [
                 "Torch",
                 "3DObjs\\antsopor.blend",
-                1
+                99
             ],
             "ArbolNevado2": [
                 "ArbolNevado2",
                 "3DObjs\\arbolne2.blend",
-                1
+                99
             ],
             "Arbolseco": [
                 "Arbolseco",
                 "3DObjs\\arbolse.blend",
-                1
+                99
             ],
             "Arbolseco2": [
                 "Arbolseco2",
                 "3DObjs\\arbolse2.blend",
-                1
+                99
             ],
             "Argolla": [
                 "Argolla",
                 "3DObjs\\argolla.blend",
-                1
+                99
             ],
             "Armadura": [
                 "Armadura",
                 "3DObjs\\armadura.blend",
-                1
+                99
             ],
             "ArmaduraBlade": [
                 "ArmaduraBlade",
                 "3DObjs\\armblade.blend",
-                1
+                99
             ],
             "Armero": [
                 "Armero",
                 "3DObjs\\armero.blend",
-                1
+                99
             ],
             "Armero2": [
                 "Armero2",
                 "3DObjs\\armero2.blend",
-                1
+                99
             ],
             "AroMagico": [
                 "AroMagico",
                 "3DObjs\\aromagico.blend",
-                1
+                99
             ],
             "Astillas1": [
                 "Astillas1",
                 "3DObjs\\mader1.blend",
-                1
+                99
             ],
             "Astillas2": [
                 "Astillas2",
                 "3DObjs\\mader2.blend",
-                1
+                99
             ],
             "Astillas3": [
                 "Astillas3",
                 "3DObjs\\mader3.blend",
-                1
+                99
             ],
             "Atril": [
                 "Atril",
                 "3DObjs\\atril.blend",
-                1
+                99
             ],
             "Axe_Dwf_seleccion": [
                 "Axe_Dwf_seleccion",
                 "3DObjs\\Axe_Dwf_seleccion.blend",
-                1
+                99
             ],
             "Baldosa_01": [
                 "Baldosa_01",
                 "3DObjs\\baldosa.blend",
-                1
+                99
             ],
             "Baldosa_rota": [
                 "Baldosa_rota",
                 "3DObjs\\Baldosa_rota.blend",
-                1
+                99
             ],
             "Banco": [
                 "Banco",
                 "3DObjs\\banco.blend",
-                1
+                99
             ],
             "Bar_Bng": [
                 "Bar_Bng",
                 "3DChars\\Bar_bng.blend",
-                2
+                100
             ],
             "Barbarian_Head_1": [
                 "Barbarian_Head_1",
                 "3DObjs\\Bar_hd1.blend",
-                1
+                99
             ],
             "Barbarian_Head_2": [
                 "Barbarian_Head_2",
                 "3DObjs\\Bar_hd2.blend",
-                1
+                99
             ],
             "BarraCareto": [
                 "BarraCareto",
                 "3DObjs\\BarraCareto.blend",
-                1
+                99
             ],
             "BarraElefante": [
                 "BarraElefante",
                 "3DObjs\\BarraElefante.blend",
-                1
+                99
             ],
             "BarraNarizon": [
                 "BarraNarizon",
                 "3DObjs\\BarraNarizon.blend",
-                1
+                99
             ],
             "BarraPajaro": [
                 "BarraPajaro",
                 "3DObjs\\BarraPajaro.blend",
-                1
+                99
             ],
             "Barril": [
                 "Barrel",
                 "3DObjs\\barril.blend",
-                1
+                99
             ],
             "BarroteAurelio": [
                 "BarroteAurelio",
                 "3DObjs\\barraure.blend",
-                1
+                99
             ],
             "BaseCono": [
                 "BaseCono",
                 "3DObjs\\BaseCono.blend",
-                1
+                99
             ],
             "Baston": [
                 "Baston",
                 "3DObjs\\baston.blend",
-                1
+                99
             ],
             "Baston2": [
                 "Baston2",
                 "3DObjs\\baston2.blend",
-                1
+                99
             ],
             "BladeSword2Poly": [
                 "BladeSword2Poly",
                 "3DObjs\\bladesword2Poly.blend",
-                1
+                99
             ],
             "BladeSwordPoly": [
                 "BladeSwordPoly",
                 "3DObjs\\bladeswordPoly.blend",
-                1
+                99
             ],
             "Blason1": [
                 "Blason1",
                 "3DObjs\\blason1.blend",
-                1
+                99
             ],
             "Blason2": [
                 "Blason2",
                 "3DObjs\\blason2.blend",
-                1
+                99
             ],
             "Blason3": [
                 "Blason3",
                 "3DObjs\\blason3.blend",
-                1
+                99
             ],
             "Blason4": [
                 "Blason4",
                 "3DObjs\\blason4.blend",
-                1
+                99
             ],
             "Blason5": [
                 "Blason5",
                 "3DObjs\\blason5.blend",
-                1
+                99
             ],
             "Blason6": [
                 "Blason6",
                 "3DObjs\\blason6.blend",
-                1
+                99
             ],
             "BlasonAurelio": [
                 "BlasonAurelio",
                 "3DObjs\\blasaure.blend",
-                1
+                99
             ],
             "Bloque": [
                 "Stone",
                 "3DObjs\\bloque.blend",
-                1
+                99
             ],
             "BloqueManu": [
                 "BloqueManu",
                 "3DObjs\\bloquemanu.blend",
-                1
+                99
             ],
             "BloqueTallado": [
                 "Stone",
                 "3DObjs\\bloquet.blend",
-                1
+                99
             ],
             "Boingtotem2": [
                 "Boingtotem2",
                 "3DObjs\\Boingtotem2.blend",
-                1
+                99
             ],
             "BolaDalGurak": [
                 "BolaDalGurak",
                 "3DObjs\\boladalgurak.blend",
-                1
+                99
             ],
             "BolaRayos": [
                 "BolaRayos",
                 "3DObjs\\BolaRayos.blend",
-                1
+                99
             ],
             "BoladeFuego": [
                 "BoladeFuego",
                 "3DObjs\\fireball.blend",
-                1
+                99
             ],
             "BoladeFuego2": [
                 "BoladeFuego2",
                 "3DObjs\\fireball2.blend",
-                1
+                99
             ],
             "BoladePiedra": [
                 "BoladePiedra",
                 "3DObjs\\bolapied.blend",
-                1
+                99
             ],
             "BolilladeFuego": [
                 "BolilladeFuego",
                 "3DObjs\\firybally.blend",
-                1
+                99
             ],
             "BolitadeFuego": [
                 "BolitadeFuego",
                 "3DObjs\\firebally.blend",
-                1
+                99
             ],
             "Brasero1": [
                 "Brasero1",
                 "3DObjs\\brasero1.blend",
-                1
+                99
             ],
             "Braseroaraña": [
                 "Braseroaraña",
                 "3DObjs\\brasero2.blend",
-                1
+                99
             ],
             "ButacaMago": [
                 "ButacaMago",
                 "3DObjs\\butraca.blend",
-                1
+                99
             ],
             "CabezaFernando": [
                 "CabezaFernando",
                 "3DObjs\\cabefern.blend",
-                1
+                99
             ],
             "CabezaSerpiente": [
                 "CabezaSerpiente",
                 "3DObjs\\cabserpi.blend",
-                1
+                99
             ],
             "Cabezon": [
                 "Cabezon",
                 "3DObjs\\cabezon.blend",
-                1
+                99
             ],
             "Caja_i_i": [
                 "box",
                 "3DObjs\\caja_i_i.blend",
-                1
+                99
             ],
             "Caja_i_r": [
                 "box",
                 "3DObjs\\caja_i_r.blend",
-                1
+                99
             ],
             "Cajama": [
                 "Box",
                 "3DObjs\\cajama.blend",
-                1
+                99
             ],
             "Cajon": [
                 "box",
                 "3DObjs\\cajon.blend",
-                1
+                99
             ],
             "Cajon2": [
                 "box",
                 "3DObjs\\cajon2.blend",
-                1
+                99
             ],
             "Camabad": [
                 "Camabad",
                 "3DObjs\\camabad.blend",
-                1
+                99
             ],
             "Camapaja": [
                 "Camapaja",
                 "3DObjs\\camapaja.blend",
-                1
+                99
             ],
             "Camastro": [
                 "Camastro",
                 "3DObjs\\camastro.blend",
-                1
+                99
             ],
             "Camavampiro": [
                 "Camavampiro",
                 "3DObjs\\camavamp.blend",
-                1
+                99
             ],
             "Campana": [
                 "Campana",
                 "3DObjs\\campana.blend",
-                1
+                99
             ],
             "Candelabro": [
                 "Candelabro",
                 "3DObjs\\candelab.blend",
-                1
+                99
             ],
             "Candil2": [
                 "Candil2",
                 "3DObjs\\candil2.blend",
-                1
+                99
             ],
             "CandilAurelio": [
                 "CandilAurelio",
                 "3DObjs\\candaure.blend",
-                1
+                99
             ],
             "Carburo": [
                 "Carburo",
                 "3DObjs\\carburo.blend",
-                1
+                99
             ],
             "Carcaj3": [
                 "Carcaj3",
                 "3DObjs\\carcaj3.blend",
-                1
+                99
             ],
             "CarcajEnvenenado3": [
                 "CarcajEnvenenado3",
                 "3DObjs\\carcajenvenenado3.blend",
-                1
+                99
             ],
             "CarcajFuego3": [
                 "CarcajFuego3",
                 "3DObjs\\carcajfuego3.blend",
-                1
+                99
             ],
             "Carcaj_Amz_seleccion": [
                 "Carcaj_Amz_seleccion",
                 "3DObjs\\Carcaj_Amz_seleccion.blend",
-                1
+                99
             ],
             "Carretilla": [
                 "Trolley",
                 "3DObjs\\carretil.blend",
-                1
+                99
             ],
             "Casco1": [
                 "Casco1",
                 "3DObjs\\casco1.blend",
-                1
+                99
             ],
             "Casco2": [
                 "Casco2",
                 "3DObjs\\casco2.blend",
-                1
+                99
             ],
             "Cebolla": [
                 "Cebolla",
                 "3DObjs\\cebolla.blend",
-                1
+                99
             ],
             "Cepo": [
                 "Cepo",
                 "3DObjs\\cepo.blend",
-                1
+                99
             ],
             "Cerbatana": [
                 "Cerbatana",
                 "3DObjs\\cerbatan.blend",
-                1
+                99
             ],
             "Cerradura": [
                 "Lock",
                 "3DObjs\\cerradur.blend",
-                1
+                99
             ],
             "CerraduraBlade": [
                 "CerraduraBlade",
                 "3DObjs\\cerrablade.blend",
-                1
+                99
             ],
             "Cerraduracobox": [
                 "Lock",
                 "3DObjs\\cerraduracobox.blend",
-                1
+                99
             ],
             "Cerraduracutre": [
                 "Lock",
                 "3DObjs\\cerraduracutre.blend",
-                1
+                99
             ],
             "Cerradurcob": [
                 "Lock",
                 "3DObjs\\cerradurcob.blend",
-                1
+                99
             ],
             "Cerradurdor": [
                 "Golden Lock",
                 "3DObjs\\cerradurdor.blend",
-                1
+                99
             ],
             "Cerradurpla": [
                 "Lock",
                 "3DObjs\\cerradurpla.blend",
-                1
+                99
             ],
             "ChispasBladeSword": [
                 "ChispasBladeSword",
                 "3DObjs\\chispasbladesword.blend",
-                1
+                99
             ],
             "Chk_Bng": [
                 "Chk_Bng",
                 "3DChars\\Chk_Bng.blend",
-                2
+                100
             ],
             "CilindroMagico": [
                 "CilindroMagico",
                 "3DObjs\\CilindroMagico.blend",
-                1
+                99
             ],
             "CilindroMagico2": [
                 "CilindroMagico2",
                 "3DObjs\\CilindroMagico2.blend",
-                1
+                99
             ],
             "CilindroTransportador": [
                 "CilindroTransportador",
                 "3DObjs\\cilindrotransportador.blend",
-                1
+                99
             ],
             "Cirio": [
                 "Cirio",
                 "3DObjs\\cirio.blend",
-                1
+                99
             ],
             "Cofre": [
                 "Chest",
                 "3DObjs\\cofre.blend",
-                1
+                99
             ],
             "Cofrepeque": [
                 "Small Chest",
                 "3DObjs\\cofrepe.blend",
-                1
+                99
             ],
             "ColaSerpiente": [
                 "ColaSerpiente",
                 "3DObjs\\colaserp.blend",
-                1
+                99
             ],
             "Columna": [
                 "Columna",
                 "3DObjs\\columna.blend",
-                1
+                99
             ],
             "Columnaestrecha": [
                 "Columnaestrecha",
                 "3DObjs\\columest.blend",
-                1
+                99
             ],
             "Cono1": [
                 "Cono1",
                 "3DObjs\\Cono1.blend",
-                1
+                99
             ],
             "Cos_Bng": [
                 "Cos_Bng",
                 "3DChars\\Cos_Bng.blend",
-                2
+                100
             ],
             "CristalMineral": [
                 "CristalMineral",
                 "3DObjs\\cristal.blend",
-                1
+                99
             ],
             "Cuerda": [
                 "Cuerda",
                 "3DObjs\\cuerda.blend",
-                1
+                99
             ],
             "CuerdaLarguisima": [
                 "CuerdaLarguisima",
                 "3DObjs\\cuerdalarga.blend",
-                1
+                99
             ],
             "CuerdasPuenteFernando": [
                 "CuerdasPuenteFernando",
                 "3DObjs\\cuerdaspuentefernando.blend",
-                1
+                99
             ],
             "Cupula": [
                 "Cupula",
                 "3DObjs\\cupula.blend",
-                1
+                99
             ],
             "Dardo": [
                 "Dardo",
                 "3DObjs\\dardo.blend",
-                1
+                99
             ],
             "Dgk_Bng": [
                 "Dgk_Bng",
                 "3DChars\\Dgk_Bng.blend",
-                2
+                100
             ],
             "Dkn_Bng": [
                 "Dkn_Bng",
                 "3DChars\\Dkn_Bng.blend",
-                2
+                100
             ],
             "Dok_Bng": [
                 "Dok_Bng",
                 "3DChars\\Dok_Bng.blend",
-                2
+                100
             ],
             "Dragon_estatua": [
                 "Dragon_estatua",
                 "3DObjs\\Dragon_estatua.blend",
-                1
+                99
             ],
             "Dragonsw": [
                 "Dragonsw",
                 "3DObjs\\dragonsw.blend",
-                1
+                99
             ],
             "Dwf_Bng": [
                 "Dwf_Bng",
                 "3DChars\\Dwf_bng.blend",
-                2
+                100
             ],
             "Elefante": [
                 "Elefante",
                 "3DObjs\\elefante.blend",
-                1
+                99
             ],
             "ElefantePartido": [
                 "ElefantePartido",
                 "3DObjs\\halfante.blend",
-                1
+                99
             ],
             "Ena_Bng": [
                 "Ena_Bng",
                 "3DChars\\Ena_Bng.blend",
-                2
+                100
             ],
             "Escblade3": [
                 "Escblade3",
                 "3DObjs\\escblad3.blend",
-                1
+                99
             ],
             "Escudo8x8": [
                 "Escudo8x8",
                 "3DObjs\\escudo8x8.blend",
-                1
+                99
             ],
             "EscudoBlade": [
                 "EscudoBlade",
                 "3DObjs\\escblade.blend",
-                1
+                99
             ],
             "EscudoBlade2": [
                 "EscudoBlade2",
                 "3DObjs\\escblad2.blend",
-                1
+                99
             ],
             "Escudobollado1": [
                 "Escudobollado1",
                 "3DObjs\\eskboll1.blend",
-                1
+                99
             ],
             "Escudobollado2": [
                 "Escudobollado2",
                 "3DObjs\\eskboll2.blend",
-                1
+                99
             ],
             "EscudonPoly": [
                 "EscudonPoly",
                 "3DObjs\\escudonpoly.blend",
-                1
+                99
             ],
             "Escudonx6": [
                 "Escudonx6",
                 "3DObjs\\escudonx6.blend",
-                1
+                99
             ],
             "EsferaGemaAzul": [
                 "EsferaGemaAzul",
                 "3DObjs\\EsferaGemaAzul.blend",
-                1
+                99
             ],
             "EsferaGemaRoja": [
                 "EsferaGemaRoja",
                 "3DObjs\\EsferaGemaRoja.blend",
-                1
+                99
             ],
             "EsferaGemaVerde": [
                 "EsferaGemaVerde",
                 "3DObjs\\EsferaGemaVerde.blend",
-                1
+                99
             ],
             "EsferaNegra": [
                 "EsferaNegra",
                 "3DObjs\\esferanegra.blend",
-                1
+                99
             ],
             "EsferaOrbital": [
                 "EsferaOrbital",
                 "3DObjs\\EsferaOrbital.blend",
-                1
+                99
             ],
             "Eslabon1": [
                 "Eslabon1",
                 "3DObjs\\eslabon1.blend",
-                1
+                99
             ],
             "Eslabon2": [
                 "Eslabon2",
                 "3DObjs\\eslabon2.blend",
-                1
+                99
             ],
             "Eslabon3": [
                 "Eslabon3",
                 "3DObjs\\eslabon3.blend",
-                1
+                99
             ],
             "Espada_Bar_seleccion": [
                 "Espada_Bar_seleccion",
                 "3DObjs\\Espada_Bar_seleccion.blend",
-                1
+                99
             ],
             "EspadonPoly": [
                 "EspadonPoly",
                 "3DObjs\\espadonPoly.blend",
-                1
+                99
             ],
             "Espectro": [
                 "Espectro",
                 "3DObjs\\Espectro.blend",
-                1
+                99
             ],
             "Esquirla": [
                 "Stone",
                 "3DObjs\\esquirla.blend",
-                1
+                99
             ],
             "EstacaFernando": [
                 "EstacaFernando",
                 "3DObjs\\estacafe.blend",
-                1
+                99
             ],
             "Estalact1": [
                 "Estalact1",
                 "3DObjs\\estalact1.blend",
-                1
+                99
             ],
             "Estalact2": [
                 "Estalact2",
                 "3DObjs\\estalact2.blend",
-                1
+                99
             ],
             "EstatuaGolem": [
                 "EstatuaGolem",
                 "3DObjs\\EstatuaGolem.blend",
-                1
+                99
             ],
             "FireRing": [
                 "FireRing",
                 "3DObjs\\firering.blend",
-                1
+                99
             ],
             "Flecha_Amz_seleccion": [
                 "Flecha_Amz_seleccion",
                 "3DObjs\\Flecha_Amz_seleccion.blend",
-                1
+                99
             ],
             "Fuelle": [
                 "Bellows",
                 "3DObjs\\fuelle.blend",
-                1
+                99
             ],
             "Gancho": [
                 "Gancho",
                 "3DObjs\\gancho.blend",
-                1
+                99
             ],
             "GanchoAurelio": [
                 "GanchoAurelio",
                 "3DObjs\\ganaure.blend",
-                1
+                99
             ],
             "Gancholamp": [
                 "Gancholamp",
                 "3DObjs\\lampganx.blend",
-                1
+                99
             ],
             "Garfio": [
                 "Garfio",
                 "3DObjs\\garfio.blend",
-                1
+                99
             ],
             "Garfio2": [
                 "Garfio2",
                 "3DObjs\\garfio2.blend",
-                1
+                99
             ],
             "Garfio3": [
                 "Garfio3",
                 "3DObjs\\garfio3.blend",
-                1
+                99
             ],
             "Gargola": [
                 "Gargola",
                 "3DObjs\\Gargola_estatua.blend",
-                1
+                99
             ],
             "Gargola02": [
                 "Gargola02",
                 "3DObjs\\Gargola02.blend",
-                1
+                99
             ],
             "GargolaFernando": [
                 "GargolaFernando",
                 "3DObjs\\gargola.blend",
-                1
+                99
             ],
             "GargolaNevada": [
                 "GargolaNevada",
                 "3DObjs\\gargolan.blend",
-                1
+                99
             ],
             "Gdm_Bng": [
                 "Gdm_Bng",
                 "3DChars\\Gdm_Bng.blend",
-                2
+                100
             ],
             "Geoda": [
                 "Geoda",
                 "3DObjs\\Geoda.blend",
-                1
+                99
             ],
             "GhostPointer": [
                 "?",
                 "3DObjs\\ghostpointer.blend",
-                1
+                99
             ],
             "GladiusSeleccion": [
                 "GladiusSeleccion",
                 "3DObjs\\GladiusSeleccion.blend",
-                1
+                99
             ],
             "Glm_Bng": [
                 "Glm_Bng",
                 "3DChars\\Glm_Bng.blend",
-                2
+                100
             ],
             "Globo": [
                 "Globo",
                 "3DObjs\\globo.blend",
-                1
+                99
             ],
             "Gok_Bng": [
                 "Gok_Bng",
                 "3DChars\\Gok_Bng.blend",
-                2
+                100
             ],
             "Gozne": [
                 "Gozne",
                 "3DObjs\\gozne.blend",
-                1
+                99
             ],
             "Grifoserpiente": [
                 "Grifoserpiente",
                 "3DObjs\\Grifoser.blend",
-                1
+                99
             ],
             "Halcon": [
                 "Halcon",
                 "3DObjs\\halcon.blend",
-                1
+                99
             ],
             "Halcon2": [
                 "Halcon2",
                 "3DObjs\\halcon2.blend",
-                1
+                99
             ],
             "HalfmoonTrail": [
                 "HalfmoonTrail",
                 "3DObjs\\halfmoontrail.blend",
-                1
+                99
             ],
             "Helice": [
                 "Helice",
                 "3DObjs\\helice.blend",
-                1
+                99
             ],
             "Hoguera": [
                 "Fire",
                 "3DObjs\\hoguera.blend",
-                1
+                99
             ],
             "Hornacina": [
                 "Hornacina",
                 "3DObjs\\hornacin.blend",
-                1
+                99
             ],
             "Jar_Dwf_seleccion": [
                 "Jar_Dwf_seleccion",
                 "3DObjs\\Jar_Dwf_seleccion.blend",
-                1
+                99
             ],
             "Jaula": [
                 "Jaula",
                 "3DObjs\\jaula.blend",
-                1
+                99
             ],
             "Keysup": [
                 "Keysup",
                 "3DObjs\\keysup.blend",
-                1
+                99
             ],
             "Kgt_Bng": [
                 "Kgt_Bng",
                 "3DChars\\Kgt_bng.blend",
-                2
+                100
             ],
             "LamparaAurelio": [
                 "LamparaAurelio",
                 "3DObjs\\lampaure.blend",
-                1
+                99
             ],
             "LamparaKongo": [
                 "LamparaKongo",
                 "3DObjs\\lamkongo.blend",
-                1
+                99
             ],
             "LamparaMiguel": [
                 "LamparaMiguel",
                 "3DObjs\\lampmig.blend",
-                1
+                99
             ],
             "LamparaMiguelSinPeana": [
                 "LamparaMiguelSinPeana",
                 "3DObjs\\lampmsin.blend",
-                1
+                99
             ],
             "LamparaNegra": [
                 "LamparaNegra",
                 "3DObjs\\lamparan.blend",
-                1
+                99
             ],
             "Lamparacobra": [
                 "Lamparacobra",
                 "3DObjs\\antorcob.blend",
-                1
+                99
             ],
             "Lamparaegipto": [
                 "Lamp",
                 "3DObjs\\lampegip.blend",
-                1
+                99
             ],
             "Lamparatecho": [
                 "Lamparatecho",
                 "3DObjs\\lampara.blend",
-                1
+                99
             ],
             "Lampared": [
                 "Lampared",
                 "3DObjs\\lampared.blend",
-                1
+                99
             ],
             "Lampcolg": [
                 "Lampcolg",
                 "3DObjs\\lampcolg.blend",
-                1
+                99
             ],
             "Lanzapivotes": [
                 "Lanzapivotes",
                 "3DObjs\\lanzapiv.blend",
-                1
+                99
             ],
             "Lapida": [
                 "Gravestone",
                 "3DObjs\\lapida.blend",
-                1
+                99
             ],
             "Lapida3": [
                 "Gravestone",
                 "3DObjs\\lapida3.blend",
-                1
+                99
             ],
             "LapidaAmazona": [
                 "Gravestone",
                 "3DObjs\\lapidaam.blend",
-                1
+                99
             ],
             "LapidaBarbaro": [
                 "Gravestone",
                 "3DObjs\\lapidaba.blend",
-                1
+                99
             ],
             "LapidaCaballero": [
                 "Gravestone",
                 "3DObjs\\lapidaca.blend",
-                1
+                99
             ],
             "LapidaManuel": [
                 "Gravestone",
                 "3DObjs\\lapidam.blend",
-                1
+                99
             ],
             "Lapidareina": [
                 "Gravestone",
                 "3DObjs\\tumreina.blend",
-                1
+                99
             ],
             "Lapidarey": [
                 "Gravestone",
                 "3DObjs\\tumrey.blend",
-                1
+                99
             ],
             "Lch_Bng": [
                 "Lch_Bng",
                 "3DChars\\Lch_Bng.blend",
-                2
+                100
             ],
             "Ldm_Bng": [
                 "Ldm_Bng",
                 "3DChars\\Ldm_Bng.blend",
-                2
+                100
             ],
             "LeonBronce": [
                 "LeonBronce",
                 "3DObjs\\leon.blend",
-                1
+                99
             ],
             "LibroPulsador": [
                 "Chronicles of the Ancient Land",
                 "3DObjs\\libropulsador.blend",
-                1
+                99
             ],
             "Libroabierto2": [
                 "Book",
                 "3DObjs\\openboo2.blend",
-                1
+                99
             ],
             "LlaveAmarilla_Aura": [
                 "LlaveAmarilla_Aura",
                 "3DObjs\\yellowk_a.blend",
-                1
+                99
             ],
             "LlaveDoblada": [
                 "LlaveDoblada",
                 "3DObjs\\llavedoblada.blend",
-                1
+                99
             ],
             "LlaveMarron": [
                 "LlaveMarron",
                 "3DObjs\\brownkey.blend",
-                1
+                99
             ],
             "LuzDivinaFina": [
                 "LuzDivinaFina",
                 "3DObjs\\LuzDivinaFina.blend",
-                1
+                99
             ],
             "LuzDivinaGorda": [
                 "LuzDivinaGorda",
                 "3DObjs\\LuzDivinaGorda.blend",
-                1
+                99
             ],
             "MagicShield2": [
                 "MagicShield2",
                 "3DObjs\\MagicShield2.blend",
-                1
+                99
             ],
             "MagicShield3": [
                 "MagicShield3",
                 "3DObjs\\MagicShield3.blend",
-                1
+                99
             ],
             "MagicShieldBreak": [
                 "MagicShieldBreak",
                 "3DObjs\\MagicShieldBreak.blend",
-                1
+                99
             ],
             "MandibulaSerpiente": [
                 "MandibulaSerpiente",
                 "3DObjs\\mandibulaserpiente.blend",
-                1
+                99
             ],
             "Menhir1": [
                 "Menhir1",
                 "3DObjs\\menhir1.blend",
-                1
+                99
             ],
             "Menhir2": [
                 "Menhir2",
                 "3DObjs\\menhir2.blend",
-                1
+                99
             ],
             "Menhir3": [
                 "Menhir3",
                 "3DObjs\\menhir3.blend",
-                1
+                99
             ],
             "Mesa": [
                 "Table",
                 "3DObjs\\mesa.blend",
-                1
+                99
             ],
             "Mesita": [
                 "Small Table",
                 "3DObjs\\mesita.blend",
-                1
+                99
             ],
             "Meson": [
                 "Meson",
                 "3DObjs\\meson.blend",
-                1
+                99
             ],
             "Mesonroto": [
                 "Table",
                 "3DObjs\\mesonro.blend",
-                1
+                99
             ],
             "Meteorito": [
                 "Meteorito",
                 "3DObjs\\meteorito.blend",
-                1
+                99
             ],
             "Min_Bng": [
                 "Min_Bng",
                 "3DChars\\Min_Bng.blend",
-                2
+                100
             ],
             "Monjecaliz": [
                 "Monjecaliz",
                 "3DObjs\\monjecal.blend",
-                1
+                99
             ],
             "Monjema": [
                 "Monjema",
                 "3DObjs\\monjema.blend",
-                1
+                99
             ],
             "Monjescudo": [
                 "Monjescudo",
                 "3DObjs\\monjescu.blend",
-                1
+                99
             ],
             "Monjespada": [
                 "Monjespada",
                 "3DObjs\\monjespa.blend",
-                1
+                99
             ],
             "Nube": [
                 "Nube",
                 "3DObjs\\nube.blend",
-                1
+                99
             ],
             "Obelisco": [
                 "Obelisco",
                 "3DObjs\\lapida2.blend",
-                1
+                99
             ],
             "ObeliscoGrande": [
                 "ObeliscoGrande",
                 "3DObjs\\obelisco.blend",
-                1
+                99
             ],
             "ObeliscoNevado": [
                 "ObeliscoNevado",
                 "3DObjs\\obelisne.blend",
-                1
+                99
             ],
             "OndaExpansiva": [
                 "OndaExpansiva",
                 "3DObjs\\OndaExpansiva.blend",
-                1
+                99
             ],
             "Org_Bng": [
                 "Org_Bng",
                 "3DChars\\Org_Bng.blend",
-                2
+                100
             ],
             "Ork_Bng": [
                 "Ork_Bng",
                 "3DChars\\Ork_Bng.blend",
-                2
+                100
             ],
             "Palanca1": [
                 "Lever",
                 "3DObjs\\palanca1.blend",
-                1
+                99
             ],
             "Palanca2": [
                 "Lever",
                 "3DObjs\\palanca2.blend",
-                1
+                99
             ],
             "Palanca3": [
                 "Lever",
                 "3DObjs\\palanca3.blend",
-                1
+                99
             ],
             "PalancaSuelo": [
                 "Lever",
                 "3DObjs\\palancasuelo.blend",
-                1
+                99
             ],
             "PalancaTimon": [
                 "PalancaTimon",
                 "3DObjs\\palancatimon.blend",
-                1
+                99
             ],
             "Palancatortura": [
                 "Lever",
                 "3DObjs\\palantor.blend",
-                1
+                99
             ],
             "Panoplia": [
                 "Panoplia",
                 "3DObjs\\panoplia.blend",
-                1
+                99
             ],
             "PasarelaCorta": [
                 "PasarelaCorta",
                 "3DObjs\\pasarelacorta.blend",
-                1
+                99
             ],
             "PasarelaLarga": [
                 "PasarelaLarga",
                 "3DObjs\\pasarelalarga.blend",
-                1
+                99
             ],
             "Peanapiedra": [
                 "Peanapiedra",
                 "3DObjs\\peanapie.blend",
-                1
+                99
             ],
             "Pelele": [
                 "Pelele",
                 "3DObjs\\pelele.blend",
-                1
+                99
             ],
             "PeleleNevado": [
                 "PeleleNevado",
                 "3DObjs\\pelelen.blend",
-                1
+                99
             ],
             "Pendon1": [
                 "Pendon1",
                 "3DObjs\\pendon1.blend",
-                1
+                99
             ],
             "Pendon2": [
                 "Pendon2",
                 "3DObjs\\pendon2.blend",
-                1
+                99
             ],
             "Pendon3": [
                 "Pendon3",
                 "3DObjs\\pendon3.blend",
-                1
+                99
             ],
             "Pendon4": [
                 "Pendon4",
                 "3DObjs\\pendon4.blend",
-                1
+                99
             ],
             "Pendulo2": [
                 "Pendulo2",
                 "3DObjs\\pendulo2.blend",
-                1
+                99
             ],
             "Perola": [
                 "Pan",
                 "3DObjs\\perola.blend",
-                1
+                99
             ],
             "PiedraInformativa": [
                 "PiedraInformativa",
                 "3DObjs\\Piedrainformativa.blend",
-                1
+                99
             ],
             "PiedraNevada": [
                 "PiedraNevada",
                 "3DObjs\\piednev.blend",
-                1
+                99
             ],
             "PiedraNevadaCortada": [
                 "PiedraNevadaCortada",
                 "3DObjs\\piencort.blend",
-                1
+                99
             ],
             "Piedra_01": [
                 "Piedra_01",
                 "3DObjs\\piedra_01.blend",
-                1
+                99
             ],
             "Piedra_02": [
                 "Piedra_02",
                 "3DObjs\\piedra_02.blend",
-                1
+                99
             ],
             "Piedra_03": [
                 "Piedra_03",
                 "3DObjs\\piedra_03.blend",
-                1
+                99
             ],
             "Piedra_04": [
                 "Piedra_04",
                 "3DObjs\\piedra_04.blend",
-                1
+                99
             ],
             "Piedra_05": [
                 "Piedra_05",
                 "3DObjs\\piedra_05.blend",
-                1
+                99
             ],
             "Piedra_06": [
                 "Piedra_06",
                 "3DObjs\\piedra_06.blend",
-                1
+                99
             ],
             "Piedra_07": [
                 "Piedra_07",
                 "3DObjs\\piedra_07.blend",
-                1
+                99
             ],
             "Piedra_08": [
                 "Piedra_08",
                 "3DObjs\\piedra_08.blend",
-                1
+                99
             ],
             "Piedra_09": [
                 "Piedra_09",
                 "3DObjs\\piedra_09.blend",
-                1
+                99
             ],
             "Piedra_10": [
                 "Piedra_10",
                 "3DObjs\\piedra_10.blend",
-                1
+                99
             ],
             "Piedra_Bar_seleccion": [
                 "Piedra_Bar_seleccion",
                 "3DObjs\\Piedra_Bar_seleccion.blend",
-                1
+                99
             ],
             "PiedrasBarbaro": [
                 "PiedrasBarbaro",
                 "3DObjs\\PiedrasBarbaro.blend",
-                1
+                99
             ],
             "PinchoSotano": [
                 "PinchoSotano",
                 "3DObjs\\pinchoso.blend",
-                1
+                99
             ],
             "Pinchos": [
                 "Pinchos",
                 "3DObjs\\pinchos.blend",
-                1
+                99
             ],
             "Pivote2": [
                 "Pivote2",
                 "3DObjs\\pivote2.blend",
-                1
+                99
             ],
             "PivoteEnvenenado": [
                 "PivoteEnvenenado",
                 "3DObjs\\pivotenv.blend",
-                1
+                99
             ],
             "PlacaTallada": [
                 "Stone",
                 "3DObjs\\placa.blend",
-                1
+                99
             ],
             "Planta1": [
                 "Planta1",
                 "3DObjs\\planta1.blend",
-                1
+                99
             ],
             "Planta2": [
                 "Planta2",
                 "3DObjs\\planta2.blend",
-                1
+                99
             ],
             "Planta3": [
                 "Planta3",
                 "3DObjs\\planta3.blend",
-                1
+                99
             ],
             "Plantita": [
                 "Plantita",
                 "3DObjs\\plantita.blend",
-                1
+                99
             ],
             "Plataforma": [
                 "Plataforma",
                 "3DObjs\\platafor.blend",
-                1
+                99
             ],
             "PlataformaFernando": [
                 "PlataformaFernando",
                 "3DObjs\\platafern.blend",
-                1
+                99
             ],
             "PlataformaRail": [
                 "PlataformaRail",
                 "3DObjs\\platafrail.blend",
-                1
+                99
             ],
             "Pluma": [
                 "Pluma",
                 "3DObjs\\pluma.blend",
-                1
+                99
             ],
             "Polea": [
                 "Polea",
                 "3DObjs\\polea.blend",
-                1
+                99
             ],
             "PowerupGold": [
                 "PowerupGold",
                 "3DObjs\\powerupgold.blend",
-                1
+                99
             ],
             "PowerupSilver": [
                 "PowerupSilver",
                 "3DObjs\\powerupsilver.blend",
-                1
+                99
             ],
             "Prs_Bng": [
                 "Prs_Bng",
                 "3DChars\\Prs_Bng.blend",
-                2
+                100
             ],
             "PuenteAdolfoDerecho": [
                 "PuenteAdolfoDerecho",
                 "3DObjs\\puentead.blend",
-                1
+                99
             ],
             "PuenteAdolfoIzquierdo": [
                 "PuenteAdolfoIzquierdo",
                 "3DObjs\\puenteai.blend",
-                1
+                99
             ],
             "PuenteAurelio": [
                 "PuenteAurelio",
                 "3DObjs\\puenteau.blend",
-                1
+                99
             ],
             "PuenteFernando": [
                 "PuenteFernando",
                 "3DObjs\\puentefernando.blend",
-                1
+                99
             ],
             "Puenteau_Plano": [
                 "Puenteau_Plano",
                 "3DObjs\\puenteaup.blend",
-                1
+                99
             ],
             "PuertaFernando": [
                 "PuertaFernando",
                 "3DObjs\\puertafernando.blend",
-                1
+                99
             ],
             "PuertaMiguelDerecha": [
                 "PuertaMiguelDerecha",
                 "3DObjs\\puertamiguelderecha.blend",
-                1
+                99
             ],
             "PuertaMiguelIzquierda": [
                 "PuertaMiguelIzquierda",
                 "3DObjs\\puertamiguelizquierda.blend",
-                1
+                99
             ],
             "Rail": [
                 "Rail",
                 "3DObjs\\rail.blend",
-                1
+                99
             ],
             "Rail2": [
                 "Rail2",
                 "3DObjs\\rail2.blend",
-                1
+                99
             ],
             "Rama1": [
                 "Rama1",
                 "3DObjs\\rama1.blend",
-                1
+                99
             ],
             "Rama2": [
                 "Rama2",
                 "3DObjs\\rama2.blend",
-                1
+                99
             ],
             "RamaNevada": [
                 "RamaNevada",
                 "3DObjs\\ramane.blend",
-                1
+                99
             ],
             "Rastrillo": [
                 "Rastrillo",
                 "3DObjs\\rastrill.blend",
-                1
+                99
             ],
             "Rastrillo10": [
                 "Rastrillo10",
                 "3DObjs\\rastrillo10.blend",
-                1
+                99
             ],
             "Rastrillo102": [
                 "Rastrillo102",
                 "3DObjs\\rastrillo102.blend",
-                1
+                99
             ],
             "Rastrillo2": [
                 "Rastrillo2",
                 "3DObjs\\rastrillo2.blend",
-                1
+                99
             ],
             "Rastrillo3": [
                 "Rastrillo3",
                 "3DObjs\\rastrillo3.blend",
-                1
+                99
             ],
             "Rastrillo32": [
                 "Rastrillo32",
                 "3DObjs\\rastrillo32.blend",
-                1
+                99
             ],
             "ReinaAurelio": [
                 "ReinaAurelio",
                 "3DObjs\\reinaure.blend",
-                1
+                99
             ],
             "Reja": [
                 "Reja",
                 "3DObjs\\reja.blend",
-                1
+                99
             ],
             "Restos": [
                 "Mortal Remains",
                 "3DObjs\\restos.blend",
-                1
+                99
             ],
             "Reyaurelio": [
                 "Reyaurelio",
                 "3DObjs\\reyaure.blend",
-                1
+                99
             ],
             "Rgn_Bng": [
                 "Rgn_Bng",
                 "3DChars\\Rgn_Bng.blend",
-                2
+                100
             ],
             "Roca1": [
                 "Roca1",
                 "3DObjs\\roca1.blend",
-                1
+                99
             ],
             "Roca2": [
                 "Roca2",
                 "3DObjs\\roca2.blend",
-                1
+                99
             ],
             "Roca2Aurelio": [
                 "Roca2Aurelio",
                 "3DObjs\\roc2aure.blend",
-                1
+                99
             ],
             "Roca3": [
                 "Roca3",
                 "3DObjs\\roca3.blend",
-                1
+                99
             ],
             "RollodeCuerda": [
                 "Coil",
                 "3DObjs\\rollo.blend",
-                1
+                99
             ],
             "SectorVolcan": [
                 "SectorVolcan",
                 "3DObjs\\sectorvolcan.blend",
-                1
+                99
             ],
             "SemiBolaRayos": [
                 "SemiBolaRayos",
                 "3DObjs\\SemiBolaRayos.blend",
-                1
+                99
             ],
             "Semipuxero": [
                 "Semipuxero",
                 "3DObjs\\semipuxe.blend",
-                1
+                99
             ],
             "Shield_Kgt_seleccion": [
                 "Shield_Kgt_seleccion",
                 "3DObjs\\Shield_Kgt_seleccion.blend",
-                1
+                99
             ],
             "Shn_Bng": [
                 "Shn_Bng",
                 "3DChars\\Shn_Bng.blend",
-                2
+                100
+            ],
+            "Skeleton_Optimiced": [
+                "Skeleton_Optimiced",
+                "3DObjs\\Skl_opt.blend",
+                99
             ],
             "Skl_Bng": [
                 "Skl_Bng",
                 "3DChars\\skl_bng.blend",
-                2
+                100
             ],
             "Slm_Bng": [
                 "Slm_Bng",
                 "3DChars\\Slm_Bng.blend",
-                2
+                100
             ],
             "SoporteOrbe": [
                 "Pedestal",
                 "3DObjs\\soporteorbe.blend",
-                1
+                99
             ],
             "Soporteantorcha": [
                 "Soporteantorcha",
                 "3DObjs\\sopantor.blend",
-                1
+                99
             ],
             "Spd_Bng": [
                 "Spd_Bng",
                 "3DChars\\Spd_Bng.blend",
-                2
+                100
             ],
             "Supositorio": [
                 "Supositorio",
                 "3DObjs\\supsitor.blend",
-                1
+                99
             ],
             "Tabla_rota2": [
                 "Tabla_rota2",
                 "3DObjs\\Tabla_rota2.blend",
-                1
+                99
             ],
             "Tablatortura": [
                 "Tablatortura",
                 "3DObjs\\tablator.blend",
-                1
+                99
             ],
             "TabureteSeleccion": [
                 "TabureteSeleccion",
                 "3DObjs\\TabureteSeleccion.blend",
-                1
+                99
             ],
             "Taburete_Dwf_seleccion": [
                 "Taburete_Dwf_seleccion",
                 "3DObjs\\Taburete_Dwf_seleccion.blend",
-                1
+                99
             ],
             "Tapiz": [
                 "Tapiz",
                 "3DObjs\\tapiz.blend",
-                1
+                99
             ],
             "Tapiz2": [
                 "Tapiz2",
                 "3DObjs\\tapiz2.blend",
-                1
+                99
             ],
             "Tapiz3": [
                 "Tapiz3",
                 "3DObjs\\tapiz3.blend",
-                1
+                99
             ],
             "Tapiz4": [
                 "Tapiz4",
                 "3DObjs\\tapiz4.blend",
-                1
+                99
             ],
             "Tapiz5": [
                 "Tapiz5",
                 "3DObjs\\tapiz5.blend",
-                1
+                99
             ],
             "Tapiz6": [
                 "Tapiz6",
                 "3DObjs\\tapiz6.blend",
-                1
+                99
             ],
             "TapizAurelio": [
                 "TapizAurelio",
                 "3DObjs\\tapizau.blend",
-                1
+                99
             ],
             "TapizEscorpion": [
                 "TapizEscorpion",
                 "3DObjs\\tapizesc.blend",
-                1
+                99
             ],
             "Tapizkemado1": [
                 "Tapizkemado1",
                 "3DObjs\\tapizke1.blend",
-                1
+                99
             ],
             "Tapizkemado2": [
                 "Tapizkemado2",
                 "3DObjs\\tapizke2.blend",
-                1
+                99
             ],
             "TelaranyaCuadrada": [
                 "TelaranyaCuadrada",
                 "3DObjs\\telaranyacuadrada.blend",
-                1
+                99
             ],
             "TelaranyaCuadrada2": [
                 "TelaranyaCuadrada2",
                 "3DObjs\\telaranyacuadrada2.blend",
-                1
+                99
             ],
             "TelaranyaEsquina": [
                 "TelaranyaEsquina",
                 "3DObjs\\telaranyaesquina.blend",
-                1
+                99
             ],
             "TelaranyaTriangular": [
                 "TelaranyaTriangular",
                 "3DObjs\\telaranyatriangular.blend",
-                1
+                99
             ],
             "Telescopio": [
                 "Telescopio",
                 "3DObjs\\telesco.blend",
-                1
+                99
             ],
             "Timon": [
                 "Timon",
                 "3DObjs\\timon.blend",
-                1
+                99
             ],
             "Tinaja": [
                 "Large Earthern Jar",
                 "3DObjs\\tinaja.blend",
-                1
+                99
             ],
             "Tkn_Bng": [
                 "Tkn_Bng",
                 "3DChars\\Tkn_Bng.blend",
-                2
+                100
             ],
             "Tocon": [
                 "Tocon",
                 "3DObjs\\tocon.blend",
-                1
+                99
             ],
             "Totem": [
                 "Totem",
                 "3DObjs\\totem.blend",
-                1
+                99
             ],
             "Totem2": [
                 "Totem2",
                 "3DObjs\\Totem2.blend",
-                1
+                99
             ],
             "Trampilla": [
                 "Trampilla",
                 "3DObjs\\trampilla.blend",
-                1
+                99
             ],
             "Trillo": [
                 "Trillo",
                 "3DObjs\\trillo.blend",
-                1
+                99
             ],
             "Trl_Bng": [
                 "Trl_Bng",
                 "3DChars\\Trl_Bng.blend",
-                2
+                100
             ],
             "Tronchy": [
                 "Tronchy",
                 "3DObjs\\tronchog.blend",
-                1
+                99
             ],
             "TroncoGrande": [
                 "TroncoGrande",
                 "3DObjs\\troncogrande.blend",
-                1
+                99
             ],
             "TroncoTrampa": [
                 "TroncoTrampa",
                 "3DObjs\\troncotrampa.blend",
-                1
+                99
             ],
             "Tronera": [
                 "Tronera",
                 "3DObjs\\tronera.blend",
-                1
+                99
             ],
             "Tronera2": [
                 "Tronera2",
                 "3DObjs\\tronera2.blend",
-                1
+                99
             ],
             "Trono": [
                 "Trono",
                 "3DObjs\\trono.blend",
-                1
+                99
             ],
             "TronoEscarabeu": [
                 "TronoEscarabeu",
                 "3DObjs\\tronegi2.blend",
-                1
+                99
             ],
             "TronoManuel": [
                 "Throne",
                 "3DObjs\\tronoma.blend",
-                1
+                99
             ],
             "Tronoliso": [
                 "Tronoliso",
                 "3DObjs\\tronegi1.blend",
-                1
+                99
             ],
             "Tumbacobra": [
                 "Tumbacobra",
                 "3DObjs\\tumbacob.blend",
-                1
+                99
             ],
             "Vagoneta": [
                 "Vagoneta",
                 "3DObjs\\vagoneta.blend",
-                1
+                99
             ],
             "Vampire_Head": [
                 "Vampire_Head",
                 "3DObjs\\vmp_hd.blend",
-                1
+                99
             ],
             "Varilla": [
                 "Varilla",
                 "3DObjs\\varilla.blend",
-                1
+                99
             ],
             "Varillaancha": [
                 "Varillaancha",
                 "3DObjs\\varillan.blend",
-                1
+                99
             ],
             "Viga": [
                 "Viga",
                 "3DObjs\\viga.blend",
-                1
+                99
             ],
             "VigaPlana": [
                 "VigaPlana",
                 "3DObjs\\vigaplan.blend",
-                1
+                99
             ],
             "Vigaro1": [
                 "Vigaro1",
                 "3DObjs\\vigaro1.blend",
-                1
+                99
             ],
             "Vigaro2": [
                 "Vigaro2",
                 "3DObjs\\vigaro2.blend",
-                1
+                99
             ],
             "Vmp_Bng": [
                 "Vmp_Bng",
                 "3DChars\\Vmp_Bng.blend",
-                2
+                100
             ],
             "Vortice1": [
                 "Vortice1",
                 "3DObjs\\vortice1.blend",
-                1
+                99
             ],
             "Vortice2": [
                 "Vortice2",
                 "3DObjs\\vortice2.blend",
-                1
+                99
             ],
             "Xkorpyon": [
                 "Xkorpyon",
                 "3DObjs\\xkorpyon.blend",
-                1
+                99
             ],
             "Yunque": [
                 "Yunque",
                 "3DObjs\\yunque.blend",
-                1
+                99
             ],
             "Zkn_Bng": [
                 "Zkn_Bng",
                 "3DChars\\Zkn_Bng.blend",
-                2
+                100
             ],
             "Zocalo1": [
                 "Zocalo1",
                 "3DObjs\\zocalo1.blend",
-                1
+                99
             ],
             "Zocalo2": [
                 "Zocalo2",
                 "3DObjs\\zocalo2.blend",
-                1
+                99
             ],
             "Zocalo3": [
                 "Zocalo3",
                 "3DObjs\\zocalo3.blend",
-                1
+                99
             ],
             "ZocaloSerpiente": [
                 "ZocaloSerpiente",
                 "3DObjs\\zocaloserpiente.blend",
-                1
+                99
             ],
             "ZocaloSuelo": [
                 "ZocaloSuelo",
                 "3DObjs\\zocalosuelo.blend",
-                1
+                99
             ],
             "ZocaloTimon": [
                 "ZocaloTimon",
                 "3DObjs\\zocalotimon.blend",
-                1
+                99
             ],
             "puertagran": [
                 "puertagran",
                 "3DObjs\\puertagran.blend",
-                1
+                99
             ],
             "puertamed": [
                 "puertamed",
                 "3DObjs\\puertamed.blend",
-                1
+                99
             ],
             "puertapeque1": [
                 "puertapeque1",
                 "3DObjs\\puertapeque1.blend",
-                1
+                99
             ],
             "puertapeque2": [
                 "puertapeque2",
                 "3DObjs\\puertapeque2.blend",
-                1
+                99
             ],
             "puertapeque3": [
                 "puertapeque3",
                 "3DObjs\\puertapeque3.blend",
-                1
+                99
             ],
             "puertapeque4": [
                 "puertapeque4",
                 "3DObjs\\puertapeque4.blend",
-                1
+                99
             ],
             "trozogran1": [
                 "trozogran1",
                 "3DObjs\\trozogran1.blend",
-                1
+                99
             ],
             "trozogran10": [
                 "trozogran10",
                 "3DObjs\\trozogran10.blend",
-                1
+                99
             ],
             "trozogran11": [
                 "trozogran11",
                 "3DObjs\\trozogran11.blend",
-                1
+                99
             ],
             "trozogran12": [
                 "trozogran12",
                 "3DObjs\\trozogran12.blend",
-                1
+                99
             ],
             "trozogran2": [
                 "trozogran2",
                 "3DObjs\\trozogran2.blend",
-                1
+                99
             ],
             "trozogran3": [
                 "trozogran3",
                 "3DObjs\\trozogran3.blend",
-                1
+                99
             ],
             "trozogran4": [
                 "trozogran4",
                 "3DObjs\\trozogran4.blend",
-                1
+                99
             ],
             "trozogran5": [
                 "trozogran5",
                 "3DObjs\\trozogran5.blend",
-                1
+                99
             ],
             "trozogran6": [
                 "trozogran6",
                 "3DObjs\\trozogran6.blend",
-                1
+                99
             ],
             "trozogran7": [
                 "trozogran7",
                 "3DObjs\\trozogran7.blend",
-                1
+                99
             ],
             "trozogran8": [
                 "trozogran8",
                 "3DObjs\\trozogran8.blend",
-                1
+                99
             ],
             "trozogran9": [
                 "trozogran9",
                 "3DObjs\\trozogran9.blend",
-                1
+                99
             ],
             "trozope1": [
                 "trozope1",
                 "3DObjs\\trozope1.blend",
-                1
+                99
             ],
             "trozope2": [
                 "trozope2",
                 "3DObjs\\trozope2.blend",
-                1
+                99
             ],
             "trozope3": [
                 "trozope3",
                 "3DObjs\\trozope3.blend",
-                1
+                99
             ],
             "trozope4": [
                 "trozope4",
                 "3DObjs\\trozope4.blend",
-                1
+                99
             ],
             "trozope5": [
                 "trozope5",
                 "3DObjs\\trozope5.blend",
-                1
+                99
             ],
             "trozope6": [
                 "trozope6",
                 "3DObjs\\trozope6.blend",
-                1
+                99
             ],
             "trozope7": [
                 "trozope7",
                 "3DObjs\\trozope7.blend",
-                1
+                99
             ],
             "trozope8": [
                 "trozope8",
                 "3DObjs\\trozope8.blend",
-                1
+                99
             ]
         },
         "Pieces": {
             "AlabardaPieza1": [
                 "AlabardaPieza1",
                 "3DObjs\\AlabardaPieza1.blend",
-                1
+                99
             ],
             "AlabardaPieza2": [
                 "AlabardaPieza2",
                 "3DObjs\\AlabardaPieza2.blend",
-                1
+                99
             ],
             "AlabardaPieza3": [
                 "AlabardaPieza3",
                 "3DObjs\\AlabardaPieza3.blend",
-                1
+                99
             ],
             "AlfanjePieza1": [
                 "AlfanjePieza1",
                 "3DObjs\\alfanjepieza1.blend",
-                1
+                99
             ],
             "AlfanjePieza2": [
                 "AlfanjePieza2",
                 "3DObjs\\alfanjepieza2.blend",
-                1
+                99
             ],
             "AlfanjePieza3": [
                 "AlfanjePieza3",
                 "3DObjs\\alfanjepieza3.blend",
-                1
+                99
             ],
             "AltarPieza1": [
                 "AltarPieza1",
                 "3DObjs\\altarPieza1.blend",
-                1
+                99
             ],
             "AltarPieza10": [
                 "AltarPieza10",
                 "3DObjs\\altarPieza10.blend",
-                1
+                99
             ],
             "AltarPieza11": [
                 "AltarPieza11",
                 "3DObjs\\altarPieza11.blend",
-                1
+                99
             ],
             "AltarPieza12": [
                 "AltarPieza12",
                 "3DObjs\\altarPieza12.blend",
-                1
+                99
             ],
             "AltarPieza13": [
                 "AltarPieza13",
                 "3DObjs\\altarPieza13.blend",
-                1
+                99
             ],
             "AltarPieza14": [
                 "AltarPieza14",
                 "3DObjs\\altarPieza14.blend",
-                1
+                99
             ],
             "AltarPieza15": [
                 "AltarPieza15",
                 "3DObjs\\altarPieza15.blend",
-                1
+                99
             ],
             "AltarPieza16": [
                 "AltarPieza16",
                 "3DObjs\\altarPieza16.blend",
-                1
+                99
             ],
             "AltarPieza17": [
                 "AltarPieza17",
                 "3DObjs\\altarPieza17.blend",
-                1
+                99
             ],
             "AltarPieza18": [
                 "AltarPieza18",
                 "3DObjs\\altarPieza18.blend",
-                1
+                99
             ],
             "AltarPieza19": [
                 "AltarPieza19",
                 "3DObjs\\altarPieza19.blend",
-                1
+                99
             ],
             "AltarPieza2": [
                 "AltarPieza2",
                 "3DObjs\\altarPieza2.blend",
-                1
+                99
             ],
             "AltarPieza20": [
                 "AltarPieza20",
                 "3DObjs\\altarPieza20.blend",
-                1
+                99
             ],
             "AltarPieza3": [
                 "AltarPieza3",
                 "3DObjs\\altarPieza3.blend",
-                1
+                99
             ],
             "AltarPieza4": [
                 "AltarPieza4",
                 "3DObjs\\altarPieza4.blend",
-                1
+                99
             ],
             "AltarPieza5": [
                 "AltarPieza5",
                 "3DObjs\\altarPieza5.blend",
-                1
+                99
             ],
             "AltarPieza6": [
                 "AltarPieza6",
                 "3DObjs\\altarPieza6.blend",
-                1
+                99
             ],
             "AltarPieza7": [
                 "AltarPieza7",
                 "3DObjs\\altarPieza7.blend",
-                1
+                99
             ],
             "AltarPieza8": [
                 "AltarPieza8",
                 "3DObjs\\altarPieza8.blend",
-                1
+                99
             ],
             "AltarPieza9": [
                 "AltarPieza9",
                 "3DObjs\\altarPieza9.blend",
-                1
+                99
             ],
             "Armero2Pieza1": [
                 "Armero2Pieza1",
                 "3DObjs\\Armero2pie1.blend",
-                1
+                99
             ],
             "Armero2Pieza2": [
                 "Armero2Pieza2",
                 "3DObjs\\Armero2pie2.blend",
-                1
+                99
             ],
             "Armero2Pieza3": [
                 "Armero2Pieza3",
                 "3DObjs\\Armero2pie3.blend",
-                1
+                99
             ],
             "Armero2Pieza4": [
                 "Armero2Pieza4",
                 "3DObjs\\Armero2pie4.blend",
-                1
+                99
             ],
             "Armero2Pieza5": [
                 "Armero2Pieza5",
                 "3DObjs\\Armero2pie5.blend",
-                1
+                99
             ],
             "ArmeroPieza1": [
                 "ArmeroPieza1",
                 "3DObjs\\Armeropie1.blend",
-                1
+                99
             ],
             "ArmeroPieza2": [
                 "ArmeroPieza2",
                 "3DObjs\\Armeropie2.blend",
-                1
+                99
             ],
             "ArmeroPieza3": [
                 "ArmeroPieza3",
                 "3DObjs\\Armeropie3.blend",
-                1
+                99
             ],
             "ArmeroPieza4": [
                 "ArmeroPieza4",
                 "3DObjs\\Armeropie4.blend",
-                1
+                99
             ],
             "ArponPieza1": [
                 "ArponPieza1",
                 "3DObjs\\arponpieza1.blend",
-                1
+                99
             ],
             "ArponPieza2": [
                 "ArponPieza2",
                 "3DObjs\\arponpieza2.blend",
-                1
+                99
             ],
             "ArponPieza3": [
                 "ArponPieza3",
                 "3DObjs\\arponpieza3.blend",
-                1
+                99
             ],
             "ArponPieza4": [
                 "ArponPieza4",
                 "3DObjs\\arponpieza4.blend",
-                1
+                99
             ],
             "AxpearPieza1": [
                 "AxpearPieza1",
                 "3DObjs\\axpearPieza1.blend",
-                1
+                99
             ],
             "AxpearPieza2": [
                 "AxpearPieza2",
                 "3DObjs\\axpearPieza2.blend",
-                1
+                99
             ],
             "AxpearPieza3": [
                 "AxpearPieza3",
                 "3DObjs\\axpearPieza3.blend",
-                1
+                99
             ],
             "AxpearPieza4": [
                 "AxpearPieza4",
                 "3DObjs\\axpearPieza4.blend",
-                1
+                99
             ],
             "BancoPieza1": [
                 "BancoPieza1",
                 "3DObjs\\bancopieza1.blend",
-                1
+                99
             ],
             "BancoPieza2": [
                 "BancoPieza2",
                 "3DObjs\\bancopieza2.blend",
-                1
+                99
             ],
             "BancoPieza3": [
                 "BancoPieza3",
                 "3DObjs\\bancopieza3.blend",
-                1
+                99
             ],
             "BancoPieza4": [
                 "BancoPieza4",
                 "3DObjs\\bancopieza4.blend",
-                1
+                99
             ],
             "BarrilPieza1": [
                 "BarrilPieza1",
                 "3DObjs\\Bpieza1.blend",
-                1
+                99
             ],
             "BarrilPieza2": [
                 "BarrilPieza2",
                 "3DObjs\\Bpieza2.blend",
-                1
+                99
             ],
             "BarrilPieza3": [
                 "BarrilPieza3",
                 "3DObjs\\Bpieza3.blend",
-                1
+                99
             ],
             "BarrilPieza4": [
                 "BarrilPieza4",
                 "3DObjs\\Bpieza4.blend",
-                1
+                99
             ],
             "BarrilPieza5": [
                 "BarrilPieza5",
                 "3DObjs\\Bpieza5.blend",
-                1
+                99
             ],
             "BarrilPieza6": [
                 "BarrilPieza6",
                 "3DObjs\\Bpieza6.blend",
-                1
+                99
             ],
             "BicheroPieza1": [
                 "BicheroPieza1",
                 "3DObjs\\bicheropieza1.blend",
-                1
+                99
             ],
             "BicheroPieza2": [
                 "BicheroPieza2",
                 "3DObjs\\bicheropieza2.blend",
-                1
+                99
             ],
             "BicheroPieza3": [
                 "BicheroPieza3",
                 "3DObjs\\bicheropieza3.blend",
-                1
+                99
             ],
             "BigSwordPieza1": [
                 "BigSwordPieza1",
                 "3DObjs\\bigswordpieza1.blend",
-                1
+                99
             ],
             "BigSwordPieza2": [
                 "BigSwordPieza2",
                 "3DObjs\\bigswordpieza2.blend",
-                1
+                99
             ],
             "BigSwordPieza3": [
                 "BigSwordPieza3",
                 "3DObjs\\bigswordpieza3.blend",
-                1
+                99
             ],
             "BoPieza1": [
                 "BoPieza1",
                 "3DObjs\\BoPieza1.blend",
-                1
+                99
             ],
             "BoPieza2": [
                 "BoPieza2",
                 "3DObjs\\BoPieza2.blend",
-                1
+                99
             ],
             "CajamaPieza1": [
                 "CajamaPieza1",
                 "3DObjs\\Cmpieza1.blend",
-                1
+                99
             ],
             "CajamaPieza10": [
                 "CajamaPieza10",
                 "3DObjs\\Cmpieza10.blend",
-                1
+                99
             ],
             "CajamaPieza11": [
                 "CajamaPieza11",
                 "3DObjs\\Cmpieza11.blend",
-                1
+                99
             ],
             "CajamaPieza12": [
                 "CajamaPieza12",
                 "3DObjs\\Cmpieza12.blend",
-                1
+                99
             ],
             "CajamaPieza13": [
                 "CajamaPieza13",
                 "3DObjs\\Cmpieza13.blend",
-                1
+                99
             ],
             "CajamaPieza14": [
                 "CajamaPieza14",
                 "3DObjs\\Cmpieza14.blend",
-                1
+                99
             ],
             "CajamaPieza15": [
                 "CajamaPieza15",
                 "3DObjs\\Cmpieza15.blend",
-                1
+                99
             ],
             "CajamaPieza16": [
                 "CajamaPieza16",
                 "3DObjs\\Cmpieza16.blend",
-                1
+                99
             ],
             "CajamaPieza17": [
                 "CajamaPieza17",
                 "3DObjs\\Cmpieza17.blend",
-                1
+                99
             ],
             "CajamaPieza18": [
                 "CajamaPieza18",
                 "3DObjs\\Cmpieza18.blend",
-                1
+                99
             ],
             "CajamaPieza2": [
                 "CajamaPieza2",
                 "3DObjs\\Cmpieza2.blend",
-                1
+                99
             ],
             "CajamaPieza3": [
                 "CajamaPieza3",
                 "3DObjs\\Cmpieza3.blend",
-                1
+                99
             ],
             "CajamaPieza4": [
                 "CajamaPieza4",
                 "3DObjs\\Cmpieza4.blend",
-                1
+                99
             ],
             "CajamaPieza5": [
                 "CajamaPieza5",
                 "3DObjs\\Cmpieza5.blend",
-                1
+                99
             ],
             "CajamaPieza6": [
                 "CajamaPieza6",
                 "3DObjs\\Cmpieza6.blend",
-                1
+                99
             ],
             "CajamaPieza7": [
                 "CajamaPieza7",
                 "3DObjs\\Cmpieza7.blend",
-                1
+                99
             ],
             "CajamaPieza8": [
                 "CajamaPieza8",
                 "3DObjs\\Cmpieza8.blend",
-                1
+                99
             ],
             "CajamaPieza9": [
                 "CajamaPieza9",
                 "3DObjs\\Cmpieza9.blend",
-                1
+                99
             ],
             "CajonPieza1": [
                 "CajonPieza1",
                 "3DObjs\\Cpieza1.blend",
-                1
+                99
             ],
             "CajonPieza10": [
                 "CajonPieza10",
                 "3DObjs\\Cpieza10.blend",
-                1
+                99
             ],
             "CajonPieza11": [
                 "CajonPieza11",
                 "3DObjs\\Cpieza11.blend",
-                1
+                99
             ],
             "CajonPieza12": [
                 "CajonPieza12",
                 "3DObjs\\Cpieza12.blend",
-                1
+                99
             ],
             "CajonPieza13": [
                 "CajonPieza13",
                 "3DObjs\\Cpieza13.blend",
-                1
+                99
             ],
             "CajonPieza14": [
                 "CajonPieza14",
                 "3DObjs\\Cpieza14.blend",
-                1
+                99
             ],
             "CajonPieza15": [
                 "CajonPieza15",
                 "3DObjs\\Cpieza15.blend",
-                1
+                99
             ],
             "CajonPieza16": [
                 "CajonPieza16",
                 "3DObjs\\Cpieza16.blend",
-                1
+                99
             ],
             "CajonPieza17": [
                 "CajonPieza17",
                 "3DObjs\\Cpieza17.blend",
-                1
+                99
             ],
             "CajonPieza18": [
                 "CajonPieza18",
                 "3DObjs\\Cpieza18.blend",
-                1
+                99
             ],
             "CajonPieza2": [
                 "CajonPieza2",
                 "3DObjs\\Cpieza2.blend",
-                1
+                99
             ],
             "CajonPieza3": [
                 "CajonPieza3",
                 "3DObjs\\Cpieza3.blend",
-                1
+                99
             ],
             "CajonPieza4": [
                 "CajonPieza4",
                 "3DObjs\\Cpieza4.blend",
-                1
+                99
             ],
             "CajonPieza5": [
                 "CajonPieza5",
                 "3DObjs\\Cpieza5.blend",
-                1
+                99
             ],
             "CajonPieza6": [
                 "CajonPieza6",
                 "3DObjs\\Cpieza6.blend",
-                1
+                99
             ],
             "CajonPieza7": [
                 "CajonPieza7",
                 "3DObjs\\Cpieza7.blend",
-                1
+                99
             ],
             "CajonPieza8": [
                 "CajonPieza8",
                 "3DObjs\\Cpieza8.blend",
-                1
+                99
             ],
             "CajonPieza9": [
                 "CajonPieza9",
                 "3DObjs\\Cpieza9.blend",
-                1
+                99
             ],
             "Chakram2Pieza1": [
                 "Chakram2Pieza1",
                 "3DObjs\\chakram2Pieza1.blend",
-                1
+                99
             ],
             "Chakram2Pieza2": [
                 "Chakram2Pieza2",
                 "3DObjs\\chakram2Pieza2.blend",
-                1
+                99
             ],
             "ChakramPieza1": [
                 "ChakramPieza1",
                 "3DObjs\\chakramPieza1.blend",
-                1
+                99
             ],
             "ChakramPieza2": [
                 "ChakramPieza2",
                 "3DObjs\\chakramPieza2.blend",
-                1
+                99
             ],
             "ChaoswordPieza1": [
                 "ChaoswordPieza1",
                 "3DObjs\\ChaoswordPieza1.blend",
-                1
+                99
             ],
             "ChaoswordPieza2": [
                 "ChaoswordPieza2",
                 "3DObjs\\ChaoswordPieza2.blend",
-                1
+                99
             ],
             "CimitarraPieza1": [
                 "CimitarraPieza1",
                 "3DObjs\\CimitarraPieza1.blend",
-                1
+                99
             ],
             "CimitarraPieza2": [
                 "CimitarraPieza2",
                 "3DObjs\\CimitarraPieza2.blend",
-                1
+                99
             ],
             "CofrePieza1": [
                 "CofrePieza1",
                 "3DObjs\\Cofrepie1.blend",
-                1
+                99
             ],
             "CofrePieza2": [
                 "CofrePieza2",
                 "3DObjs\\Cofrepie2.blend",
-                1
+                99
             ],
             "CofrePieza3": [
                 "CofrePieza3",
                 "3DObjs\\Cofrepie3.blend",
-                1
+                99
             ],
             "CrosspearPieza1": [
                 "CrosspearPieza1",
                 "3DObjs\\crosspearpieza1.blend",
-                1
+                99
             ],
             "CrosspearPieza2": [
                 "CrosspearPieza2",
                 "3DObjs\\crosspearpieza2.blend",
-                1
+                99
             ],
             "CrosspearPieza3": [
                 "CrosspearPieza3",
                 "3DObjs\\crosspearpieza3.blend",
-                1
+                99
             ],
             "CrosspearPieza4": [
                 "CrosspearPieza4",
                 "3DObjs\\crosspearpieza4.blend",
-                1
+                99
             ],
             "CrushBoPieza1": [
                 "CrushBoPieza1",
                 "3DObjs\\crushbopieza1.blend",
-                1
+                99
             ],
             "CrushBoPieza2": [
                 "CrushBoPieza2",
                 "3DObjs\\crushbopieza2.blend",
-                1
+                99
             ],
             "CrushBoPieza3": [
                 "CrushBoPieza3",
                 "3DObjs\\crushbopieza3.blend",
-                1
+                99
             ],
             "CrushHammerPieza1": [
                 "CrushHammerPieza1",
                 "3DObjs\\crushhammerPieza1.blend",
-                1
+                99
             ],
             "CrushHammerPieza2": [
                 "CrushHammerPieza2",
                 "3DObjs\\crushhammerPieza2.blend",
-                1
+                99
             ],
             "CrushHammerPieza3": [
                 "CrushHammerPieza3",
                 "3DObjs\\crushhammerPieza3.blend",
-                1
+                99
             ],
             "CuchilloPieza1": [
                 "CuchilloPieza1",
                 "3DObjs\\CuchilloPieza1.blend",
-                1
+                99
             ],
             "CuchilloPieza2": [
                 "CuchilloPieza2",
                 "3DObjs\\CuchilloPieza2.blend",
-                1
+                99
             ],
             "DagaPieza1": [
                 "DagaPieza1",
                 "3DObjs\\DagaPieza1.blend",
-                1
+                99
             ],
             "DagaPieza2": [
                 "DagaPieza2",
                 "3DObjs\\DagaPieza2.blend",
-                1
+                99
             ],
             "DagarrojarPieza1": [
                 "DagarrojarPieza1",
                 "3DObjs\\dagarrojarPieza1.blend",
-                1
+                99
             ],
             "DagarrojarPieza2": [
                 "DagarrojarPieza2",
                 "3DObjs\\dagarrojarPieza2.blend",
-                1
+                99
             ],
             "DagessePieza1": [
                 "DagessePieza1",
                 "3DObjs\\dagessePieza1.blend",
-                1
+                99
             ],
             "DagessePieza2": [
                 "DagessePieza2",
                 "3DObjs\\dagessePieza2.blend",
-                1
+                99
             ],
             "DalShieldPieza1": [
                 "DalShieldPieza1",
                 "3DObjs\\dalshieldPieza1.blend",
-                1
+                99
             ],
             "DalShieldPieza2": [
                 "DalShieldPieza2",
                 "3DObjs\\dalshieldPieza2.blend",
-                1
+                99
             ],
             "DalShieldPieza3": [
                 "DalShieldPieza3",
                 "3DObjs\\dalshieldPieza3.blend",
-                1
+                99
             ],
             "DalWeaponPieza1": [
                 "DalWeaponPieza1",
                 "3DObjs\\dalweaponPieza1.blend",
-                1
+                99
             ],
             "DalWeaponPieza2": [
                 "DalWeaponPieza2",
                 "3DObjs\\dalweaponPieza2.blend",
-                1
+                99
             ],
             "DeathBoPieza1": [
                 "DeathBoPieza1",
                 "3DObjs\\deathboPieza1.blend",
-                1
+                99
             ],
             "DeathBoPieza2": [
                 "DeathBoPieza2",
                 "3DObjs\\deathboPieza2.blend",
-                1
+                99
             ],
             "DeathBoPieza3": [
                 "DeathBoPieza3",
                 "3DObjs\\deathboPieza3.blend",
-                1
+                99
             ],
             "DeathKatarPieza1": [
                 "DeathKatarPieza1",
                 "3DObjs\\deathkatarPieza1.blend",
-                1
+                99
             ],
             "DeathKatarPieza2": [
                 "DeathKatarPieza2",
                 "3DObjs\\deathkatarPieza2.blend",
-                1
+                99
             ],
             "DeathSwordPieza1": [
                 "DeathSwordPieza1",
                 "3DObjs\\deathswordPieza1.blend",
-                1
+                99
             ],
             "DeathSwordPieza2": [
                 "DeathSwordPieza2",
                 "3DObjs\\deathswordPieza2.blend",
-                1
+                99
             ],
             "DoubleSwordPieza1": [
                 "DoubleSwordPieza1",
                 "3DObjs\\DoubleSwordPieza1.blend",
-                1
+                99
             ],
             "DoubleSwordPieza2": [
                 "DoubleSwordPieza2",
                 "3DObjs\\DoubleSwordPieza2.blend",
-                1
+                99
             ],
             "DoubleSwordPieza3": [
                 "DoubleSwordPieza3",
                 "3DObjs\\DoubleSwordPieza3.blend",
-                1
+                99
             ],
             "DoubleSwordPieza4": [
                 "DoubleSwordPieza4",
                 "3DObjs\\DoubleSwordPieza4.blend",
-                1
+                99
             ],
             "EclipsePieza1": [
                 "EclipsePieza1",
                 "3DObjs\\eclipsePieza1.blend",
-                1
+                99
             ],
             "EclipsePieza2": [
                 "EclipsePieza2",
                 "3DObjs\\eclipsePieza2.blend",
-                1
+                99
             ],
             "EgyptSwordPieza1": [
                 "EgyptSwordPieza1",
                 "3DObjs\\egyptswordPieza1.blend",
-                1
+                99
             ],
             "EgyptSwordPieza2": [
                 "EgyptSwordPieza2",
                 "3DObjs\\egyptswordPieza2.blend",
-                1
+                99
             ],
             "Escudo1Pieza1": [
                 "Escudo1Pieza1",
                 "3DObjs\\Escudo1Pieza1.blend",
-                1
+                99
             ],
             "Escudo1Pieza2": [
                 "Escudo1Pieza2",
                 "3DObjs\\Escudo1Pieza2.blend",
-                1
+                99
             ],
             "Escudo2Pieza1": [
                 "Escudo2Pieza1",
                 "3DObjs\\Escudo2Pieza1.blend",
-                1
+                99
             ],
             "Escudo2Pieza2": [
                 "Escudo2Pieza2",
                 "3DObjs\\Escudo2Pieza2.blend",
-                1
+                99
             ],
             "Escudo3Pieza1": [
                 "Escudo3Pieza1",
                 "3DObjs\\Escudo3Pieza1.blend",
-                1
+                99
             ],
             "Escudo3Pieza2": [
                 "Escudo3Pieza2",
                 "3DObjs\\Escudo3Pieza2.blend",
-                1
+                99
             ],
             "Escudo4Pieza1": [
                 "Escudo4Pieza1",
                 "3DObjs\\Escudo4Pieza1.blend",
-                1
+                99
             ],
             "Escudo4Pieza2": [
                 "Escudo4Pieza2",
                 "3DObjs\\Escudo4Pieza2.blend",
-                1
+                99
             ],
             "Escudo5Pieza1": [
                 "Escudo5Pieza1",
                 "3DObjs\\Escudo5Pieza1.blend",
-                1
+                99
             ],
             "Escudo5Pieza2": [
                 "Escudo5Pieza2",
                 "3DObjs\\Escudo5Pieza2.blend",
-                1
+                99
             ],
             "Escudo6Pieza1": [
                 "Escudo6Pieza1",
                 "3DObjs\\escudo6Pieza1.blend",
-                1
+                99
             ],
             "Escudo6Pieza2": [
                 "Escudo6Pieza2",
                 "3DObjs\\escudo6Pieza2.blend",
-                1
+                99
             ],
             "Escudo6Pieza3": [
                 "Escudo6Pieza3",
                 "3DObjs\\escudo6Pieza3.blend",
-                1
+                99
             ],
             "Escudo7Pieza1": [
                 "Escudo7Pieza1",
                 "3DObjs\\escudo7Pieza1.blend",
-                1
+                99
             ],
             "Escudo7Pieza2": [
                 "Escudo7Pieza2",
                 "3DObjs\\escudo7Pieza2.blend",
-                1
+                99
             ],
             "Escudo8Pieza1": [
                 "Escudo8Pieza1",
                 "3DObjs\\escudo8Pieza1.blend",
-                1
+                99
             ],
             "Escudo8Pieza2": [
                 "Escudo8Pieza2",
                 "3DObjs\\escudo8Pieza2.blend",
-                1
+                99
             ],
             "Escudo8Pieza3": [
                 "Escudo8Pieza3",
                 "3DObjs\\escudo8Pieza3.blend",
-                1
+                99
             ],
             "Escudo9Pieza1": [
                 "Escudo9Pieza1",
                 "3DObjs\\escudo9Pieza1.blend",
-                1
+                99
             ],
             "Escudo9Pieza2": [
                 "Escudo9Pieza2",
                 "3DObjs\\escudo9Pieza2.blend",
-                1
+                99
             ],
             "Escudo9Pieza3": [
                 "Escudo9Pieza3",
                 "3DObjs\\escudo9Pieza3.blend",
-                1
+                99
             ],
             "EspadaMagica1Pieza1": [
                 "EspadaMagica1Pieza1",
                 "3DObjs\\EspadaMagica1Pieza1.blend",
-                1
+                99
             ],
             "EspadaMagica1Pieza2": [
                 "EspadaMagica1Pieza2",
                 "3DObjs\\EspadaMagica1Pieza2.blend",
-                1
+                99
             ],
             "EspadaMagica2Pieza1": [
                 "EspadaMagica2Pieza1",
                 "3DObjs\\EspadaMagica2Pieza1.blend",
-                1
+                99
             ],
             "EspadaMagica2Pieza2": [
                 "EspadaMagica2Pieza2",
                 "3DObjs\\EspadaMagica2Pieza2.blend",
-                1
+                99
             ],
             "EspadaMagica3Pieza1": [
                 "EspadaMagica3Pieza1",
                 "3DObjs\\EspadaMagica3Pieza1.blend",
-                1
+                99
             ],
             "EspadaMagica3Pieza2": [
                 "EspadaMagica3Pieza2",
                 "3DObjs\\EspadaMagica3Pieza2.blend",
-                1
+                99
             ],
             "EspadaPieza1": [
                 "EspadaPieza1",
                 "3DObjs\\EspadaPieza1.blend",
-                1
+                99
             ],
             "EspadaPieza2": [
                 "EspadaPieza2",
                 "3DObjs\\EspadaPieza2.blend",
-                1
+                99
             ],
             "EspadacurvaPieza1": [
                 "EspadacurvaPieza1",
                 "3DObjs\\EspadacurvaPieza1.blend",
-                1
+                99
             ],
             "EspadacurvaPieza2": [
                 "EspadacurvaPieza2",
                 "3DObjs\\EspadacurvaPieza2.blend",
-                1
+                99
             ],
             "EspadaelficaPieza1": [
                 "EspadaelficaPieza1",
                 "3DObjs\\EspadaelficaPieza1.blend",
-                1
+                99
             ],
             "EspadaelficaPieza2": [
                 "EspadaelficaPieza2",
                 "3DObjs\\EspadaelficaPieza2.blend",
-                1
+                99
             ],
             "EspadafiloPieza1": [
                 "EspadafiloPieza1",
                 "3DObjs\\EspadafiloPieza1.blend",
-                1
+                99
             ],
             "EspadafiloPieza2": [
                 "EspadafiloPieza2",
                 "3DObjs\\EspadafiloPieza2.blend",
-                1
+                99
             ],
             "EspadaromanaPieza1": [
                 "EspadaromanaPieza1",
                 "3DObjs\\EspadaromanaPieza1.blend",
-                1
+                99
             ],
             "EspadaromanaPieza2": [
                 "EspadaromanaPieza2",
                 "3DObjs\\EspadaromanaPieza2.blend",
-                1
+                99
             ],
             "EsqueletoPieza1": [
                 "EsqueletoPieza1",
                 "3DObjs\\esqueletopieza1.blend",
-                1
+                99
             ],
             "EsqueletoPieza10": [
                 "EsqueletoPieza10",
                 "3DObjs\\esqueletopieza10.blend",
-                1
+                99
             ],
             "EsqueletoPieza2": [
                 "EsqueletoPieza2",
                 "3DObjs\\esqueletopieza2.blend",
-                1
+                99
             ],
             "EsqueletoPieza3": [
                 "EsqueletoPieza3",
                 "3DObjs\\esqueletopieza3.blend",
-                1
+                99
             ],
             "EsqueletoPieza4": [
                 "EsqueletoPieza4",
                 "3DObjs\\esqueletopieza4.blend",
-                1
+                99
             ],
             "EsqueletoPieza5": [
                 "EsqueletoPieza5",
                 "3DObjs\\esqueletopieza5.blend",
-                1
+                99
             ],
             "EsqueletoPieza6": [
                 "EsqueletoPieza6",
                 "3DObjs\\esqueletopieza6.blend",
-                1
+                99
             ],
             "EsqueletoPieza7": [
                 "EsqueletoPieza7",
                 "3DObjs\\esqueletopieza7.blend",
-                1
+                99
             ],
             "EsqueletoPieza8": [
                 "EsqueletoPieza8",
                 "3DObjs\\esqueletopieza8.blend",
-                1
+                99
             ],
             "EsqueletoPieza9": [
                 "EsqueletoPieza9",
                 "3DObjs\\esqueletopieza9.blend",
-                1
+                99
             ],
             "FireAxePieza1": [
                 "FireAxePieza1",
                 "3DObjs\\fireaxePieza1.blend",
-                1
+                99
             ],
             "FireAxePieza2": [
                 "FireAxePieza2",
                 "3DObjs\\fireaxePieza2.blend",
-                1
+                99
             ],
             "FireAxePieza3": [
                 "FireAxePieza3",
                 "3DObjs\\fireaxePieza3.blend",
-                1
+                99
             ],
             "FireBigSwordPieza1": [
                 "FireBigSwordPieza1",
                 "3DObjs\\FireBigSwordPieza1.blend",
-                1
+                99
             ],
             "FireBigSwordPieza2": [
                 "FireBigSwordPieza2",
                 "3DObjs\\FireBigSwordPieza2.blend",
-                1
+                99
             ],
             "FireBigSwordPieza3": [
                 "FireBigSwordPieza3",
                 "3DObjs\\FireBigSwordPieza3.blend",
-                1
+                99
             ],
             "FireBoPieza1": [
                 "FireBoPieza1",
                 "3DObjs\\firebopieza1.blend",
-                1
+                99
             ],
             "FireBoPieza2": [
                 "FireBoPieza2",
                 "3DObjs\\firebopieza2.blend",
-                1
+                99
             ],
             "FireSwordPieza1": [
                 "FireSwordPieza1",
                 "3DObjs\\fireswordpieza1.blend",
-                1
+                99
             ],
             "FireSwordPieza2": [
                 "FireSwordPieza2",
                 "3DObjs\\fireswordpieza2.blend",
-                1
+                99
             ],
             "FireSwordPieza3": [
                 "FireSwordPieza3",
                 "3DObjs\\fireswordpieza3.blend",
-                1
+                99
             ],
             "FireSwordPieza4": [
                 "FireSwordPieza4",
                 "3DObjs\\fireswordpieza4.blend",
-                1
+                99
             ],
             "FlatSwordPieza1": [
                 "FlatSwordPieza1",
                 "3DObjs\\FlatSwordPieza1.blend",
-                1
+                99
             ],
             "FlatSwordPieza2": [
                 "FlatSwordPieza2",
                 "3DObjs\\FlatSwordPieza2.blend",
-                1
+                99
             ],
             "GarropinPieza1": [
                 "GarropinPieza1",
                 "3DObjs\\GarropinPieza1.blend",
-                1
+                99
             ],
             "GarropinPieza2": [
                 "GarropinPieza2",
                 "3DObjs\\GarropinPieza2.blend",
-                1
+                99
             ],
             "Garrote2Pieza1": [
                 "Garrote2Pieza1",
                 "3DObjs\\Garrote2Pieza1.blend",
-                1
+                99
             ],
             "Garrote2Pieza2": [
                 "Garrote2Pieza2",
                 "3DObjs\\Garrote2Pieza2.blend",
-                1
+                99
             ],
             "GarrotePieza1": [
                 "GarrotePieza1",
                 "3DObjs\\GarrotePieza1.blend",
-                1
+                99
             ],
             "GarrotePieza2": [
                 "GarrotePieza2",
                 "3DObjs\\GarrotePieza2.blend",
-                1
+                99
             ],
             "GeodaPieza1": [
                 "GeodaPieza1",
                 "3DObjs\\GeodaPieza1.blend",
-                1
+                99
             ],
             "GeodaPieza2": [
                 "GeodaPieza2",
                 "3DObjs\\GeodaPieza2.blend",
-                1
+                99
             ],
             "GeodaPieza3": [
                 "GeodaPieza3",
                 "3DObjs\\GeodaPieza3.blend",
-                1
+                99
             ],
             "GeodaPieza4": [
                 "GeodaPieza4",
                 "3DObjs\\GeodaPieza4.blend",
-                1
+                99
             ],
             "GeodaPieza5": [
                 "GeodaPieza5",
                 "3DObjs\\GeodaPieza5.blend",
-                1
+                99
             ],
             "GladiusPieza1": [
                 "GladiusPieza1",
                 "3DObjs\\GladiusPieza1.blend",
-                1
+                99
             ],
             "GladiusPieza2": [
                 "GladiusPieza2",
                 "3DObjs\\GladiusPieza2.blend",
-                1
+                99
             ],
             "GuadanyaPieza1": [
                 "GuadanyaPieza1",
                 "3DObjs\\guadanyaPieza1.blend",
-                1
+                99
             ],
             "GuadanyaPieza2": [
                 "GuadanyaPieza2",
                 "3DObjs\\guadanyaPieza2.blend",
-                1
+                99
             ],
             "GuadanyaPieza3": [
                 "GuadanyaPieza3",
                 "3DObjs\\guadanyaPieza3.blend",
-                1
+                99
             ],
             "Hacha2Pieza1": [
                 "Hacha2Pieza1",
                 "3DObjs\\Hacha2Pieza1.blend",
-                1
+                99
             ],
             "Hacha2Pieza2": [
                 "Hacha2Pieza2",
                 "3DObjs\\Hacha2Pieza2.blend",
-                1
+                99
             ],
             "Hacha2hojasPieza1": [
                 "Hacha2hojasPieza1",
                 "3DObjs\\Hacha2hojasPieza1.blend",
-                1
+                99
             ],
             "Hacha2hojasPieza2": [
                 "Hacha2hojasPieza2",
                 "3DObjs\\Hacha2hojasPieza2.blend",
-                1
+                99
             ],
             "Hacha2hojasPieza3": [
                 "Hacha2hojasPieza3",
                 "3DObjs\\Hacha2hojasPieza3.blend",
-                1
+                99
             ],
             "Hacha3Pieza1": [
                 "Hacha3Pieza1",
                 "3DObjs\\Hacha3Pieza1.blend",
-                1
+                99
             ],
             "Hacha3Pieza2": [
                 "Hacha3Pieza2",
                 "3DObjs\\Hacha3Pieza2.blend",
-                1
+                99
             ],
             "Hacha4Pieza1": [
                 "Hacha4Pieza1",
                 "3DObjs\\Hacha4Pieza1.blend",
-                1
+                99
             ],
             "Hacha4Pieza2": [
                 "Hacha4Pieza2",
                 "3DObjs\\Hacha4Pieza2.blend",
-                1
+                99
             ],
             "Hacha5Pieza1": [
                 "Hacha5Pieza1",
                 "3DObjs\\Hacha5Pieza1.blend",
-                1
+                99
             ],
             "Hacha5Pieza2": [
                 "Hacha5Pieza2",
                 "3DObjs\\Hacha5Pieza2.blend",
-                1
+                99
             ],
             "Hacha6Pieza1": [
                 "Hacha6Pieza1",
                 "3DObjs\\Hacha6Pieza1.blend",
-                1
+                99
             ],
             "Hacha6Pieza2": [
                 "Hacha6Pieza2",
                 "3DObjs\\Hacha6Pieza2.blend",
-                1
+                99
             ],
             "HachaPieza1": [
                 "HachaPieza1",
                 "3DObjs\\HachaPieza1.blend",
-                1
+                99
             ],
             "HachaPieza2": [
                 "HachaPieza2",
                 "3DObjs\\HachaPieza2.blend",
-                1
+                99
             ],
             "HachacarniceroPieza1": [
                 "HachacarniceroPieza1",
                 "3DObjs\\HachacarniceroPieza1.blend",
-                1
+                99
             ],
             "HachacarniceroPieza2": [
                 "HachacarniceroPieza2",
                 "3DObjs\\HachacarniceroPieza2.blend",
-                1
+                99
             ],
             "HachacarniceroPieza3": [
                 "HachacarniceroPieza3",
                 "3DObjs\\HachacarniceroPieza3.blend",
-                1
+                99
             ],
             "HachacarniceroPieza4": [
                 "HachacarniceroPieza4",
                 "3DObjs\\HachacarniceroPieza4.blend",
-                1
+                99
             ],
             "HachacuchillaPieza1": [
                 "HachacuchillaPieza1",
                 "3DObjs\\HachacuchillaPieza1.blend",
-                1
+                99
             ],
             "HachacuchillaPieza2": [
                 "HachacuchillaPieza2",
                 "3DObjs\\HachacuchillaPieza2.blend",
-                1
+                99
             ],
             "HacharrajadaPieza1": [
                 "HacharrajadaPieza1",
                 "3DObjs\\HacharrajadaPieza1.blend",
-                1
+                99
             ],
             "HacharrajadaPieza2": [
                 "HacharrajadaPieza2",
                 "3DObjs\\HacharrajadaPieza2.blend",
-                1
+                99
             ],
             "HacharrajadaPieza3": [
                 "HacharrajadaPieza3",
                 "3DObjs\\HacharrajadaPieza3.blend",
-                1
+                99
             ],
             "HookSwordPieza1": [
                 "HookSwordPieza1",
                 "3DObjs\\HookSwordPieza1.blend",
-                1
+                99
             ],
             "HookSwordPieza2": [
                 "HookSwordPieza2",
                 "3DObjs\\HookSwordPieza2.blend",
-                1
+                99
             ],
             "HookSwordPieza3": [
                 "HookSwordPieza3",
                 "3DObjs\\HookSwordPieza3.blend",
-                1
+                99
             ],
             "HookSwordPieza4": [
                 "HookSwordPieza4",
                 "3DObjs\\HookSwordPieza4.blend",
-                1
+                99
             ],
             "IceAxePieza1": [
                 "IceAxePieza1",
                 "3DObjs\\IceAxePieza1.blend",
-                1
+                99
             ],
             "IceAxePieza2": [
                 "IceAxePieza2",
                 "3DObjs\\IceAxePieza2.blend",
-                1
+                99
             ],
             "IceAxePieza3": [
                 "IceAxePieza3",
                 "3DObjs\\IceAxePieza3.blend",
-                1
+                99
             ],
             "IceAxePieza4": [
                 "IceAxePieza4",
                 "3DObjs\\IceAxePieza4.blend",
-                1
+                99
             ],
             "IceAxePieza5": [
                 "IceAxePieza5",
                 "3DObjs\\IceAxePieza5.blend",
-                1
+                99
             ],
             "IceHammerPieza1": [
                 "IceHammerPieza1",
                 "3DObjs\\icehammerPieza1.blend",
-                1
+                99
             ],
             "IceHammerPieza2": [
                 "IceHammerPieza2",
                 "3DObjs\\icehammerPieza2.blend",
-                1
+                99
             ],
             "IceHammerPieza3": [
                 "IceHammerPieza3",
                 "3DObjs\\icehammerPieza3.blend",
-                1
+                99
             ],
             "IceHammerPieza4": [
                 "IceHammerPieza4",
                 "3DObjs\\icehammerPieza4.blend",
-                1
+                99
             ],
             "IceHammerPieza5": [
                 "IceHammerPieza5",
                 "3DObjs\\icehammerPieza5.blend",
-                1
+                99
             ],
             "IceHammerPieza6": [
                 "IceHammerPieza6",
                 "3DObjs\\icehammerPieza6.blend",
-                1
+                99
             ],
             "IceSwordPieza1": [
                 "IceSwordPieza1",
                 "3DObjs\\iceswordPieza1.blend",
-                1
+                99
             ],
             "IceSwordPieza2": [
                 "IceSwordPieza2",
                 "3DObjs\\iceswordPieza2.blend",
-                1
+                99
             ],
             "IceSwordPieza3": [
                 "IceSwordPieza3",
                 "3DObjs\\iceswordPieza3.blend",
-                1
+                99
             ],
             "IceSwordPieza4": [
                 "IceSwordPieza4",
                 "3DObjs\\iceswordPieza4.blend",
-                1
+                99
             ],
             "IceWandPieza1": [
                 "IceWandPieza1",
                 "3DObjs\\icewandpieza1.blend",
-                1
+                99
             ],
             "IceWandPieza2": [
                 "IceWandPieza2",
                 "3DObjs\\icewandpieza2.blend",
-                1
+                99
             ],
             "IceWandPieza3": [
                 "IceWandPieza3",
                 "3DObjs\\icewandpieza3.blend",
-                1
+                99
             ],
             "KatanaPieza1": [
                 "KatanaPieza1",
                 "3DObjs\\KatanaPieza1.blend",
-                1
+                99
             ],
             "KatanaPieza2": [
                 "KatanaPieza2",
                 "3DObjs\\KatanaPieza2.blend",
-                1
+                99
             ],
             "KatarDoblePieza1": [
                 "KatarDoblePieza1",
                 "3DObjs\\KatarDoblePieza1.blend",
-                1
+                99
             ],
             "KatarDoblePieza2": [
                 "KatarDoblePieza2",
                 "3DObjs\\KatarDoblePieza2.blend",
-                1
+                99
             ],
             "KatarDoblePieza3": [
                 "KatarDoblePieza3",
                 "3DObjs\\KatarDoblePieza3.blend",
-                1
+                99
             ],
             "KatarDoblePieza4": [
                 "KatarDoblePieza4",
                 "3DObjs\\KatarDoblePieza4.blend",
-                1
+                99
             ],
             "KatarPieza1": [
                 "KatarPieza1",
                 "3DObjs\\katarPieza1.blend",
-                1
+                99
             ],
             "KatarPieza2": [
                 "KatarPieza2",
                 "3DObjs\\katarPieza2.blend",
-                1
+                99
             ],
             "KatarPieza3": [
                 "KatarPieza3",
                 "3DObjs\\katarPieza3.blend",
-                1
+                99
             ],
             "KatarmoonPieza1": [
                 "KatarmoonPieza1",
                 "3DObjs\\katarmoonPieza1.blend",
-                1
+                99
             ],
             "KatarmoonPieza2": [
                 "KatarmoonPieza2",
                 "3DObjs\\katarmoonPieza2.blend",
-                1
+                99
             ],
             "KatarmoonPieza3": [
                 "KatarmoonPieza3",
                 "3DObjs\\katarmoonPieza3.blend",
-                1
+                99
             ],
             "KatarmoonPieza4": [
                 "KatarmoonPieza4",
                 "3DObjs\\katarmoonPieza4.blend",
-                1
+                99
             ],
             "KingShieldPieza1": [
                 "KingShieldPieza1",
                 "3DObjs\\kingshieldPieza1.blend",
-                1
+                99
             ],
             "KingShieldPieza2": [
                 "KingShieldPieza2",
                 "3DObjs\\kingshieldPieza2.blend",
-                1
+                99
             ],
             "KingShieldPieza3": [
                 "KingShieldPieza3",
                 "3DObjs\\kingshieldPieza3.blend",
-                1
+                99
             ],
             "KingSwordPieza1": [
                 "KingSwordPieza1",
                 "3DObjs\\kingswordPieza1.blend",
-                1
+                99
             ],
             "KingSwordPieza2": [
                 "KingSwordPieza2",
                 "3DObjs\\kingswordPieza2.blend",
-                1
+                99
             ],
             "KingSwordPieza3": [
                 "KingSwordPieza3",
                 "3DObjs\\kingswordPieza3.blend",
-                1
+                99
             ],
             "LanzaAnchaPieza1": [
                 "LanzaAnchaPieza1",
                 "3DObjs\\lanzaanchaPieza1.blend",
-                1
+                99
             ],
             "LanzaAnchaPieza2": [
                 "LanzaAnchaPieza2",
                 "3DObjs\\lanzaanchaPieza2.blend",
-                1
+                99
             ],
             "LanzaAnchaPieza3": [
                 "LanzaAnchaPieza3",
                 "3DObjs\\lanzaanchaPieza3.blend",
-                1
+                99
             ],
             "LanzaAnchaPieza4": [
                 "LanzaAnchaPieza4",
                 "3DObjs\\lanzaanchaPieza4.blend",
-                1
+                99
             ],
             "LanzaPieza1": [
                 "LanzaPieza1",
                 "3DObjs\\LanzaPieza1.blend",
-                1
+                99
             ],
             "LanzaPieza2": [
                 "LanzaPieza2",
                 "3DObjs\\lanzaPieza2.blend",
-                1
+                99
             ],
             "LightEdgePieza1": [
                 "LightEdgePieza1",
                 "3DObjs\\lightedgepieza1.blend",
-                1
+                99
             ],
             "LightEdgePieza2": [
                 "LightEdgePieza2",
                 "3DObjs\\lightedgepieza2.blend",
-                1
+                99
             ],
             "LightEdgePieza3": [
                 "LightEdgePieza3",
                 "3DObjs\\lightedgepieza3.blend",
-                1
+                99
             ],
             "LongSwordPieza1": [
                 "LongSwordPieza1",
                 "3DObjs\\longswordpieza1.blend",
-                1
+                99
             ],
             "LongSwordPieza2": [
                 "LongSwordPieza2",
                 "3DObjs\\longswordpieza2.blend",
-                1
+                99
             ],
             "LongSwordPieza3": [
                 "LongSwordPieza3",
                 "3DObjs\\longswordpieza3.blend",
-                1
+                99
             ],
             "Martillo2Pieza1": [
                 "Martillo2Pieza1",
                 "3DObjs\\Martillo2Pieza1.blend",
-                1
+                99
             ],
             "Martillo2Pieza2": [
                 "Martillo2Pieza2",
                 "3DObjs\\Martillo2Pieza2.blend",
-                1
+                99
             ],
             "Martillo3Pieza1": [
                 "Martillo3Pieza1",
                 "3DObjs\\martillo3Pieza1.blend",
-                1
+                99
             ],
             "Martillo3Pieza2": [
                 "Martillo3Pieza2",
                 "3DObjs\\martillo3Pieza2.blend",
-                1
+                99
             ],
             "MartilloForjaPieza1": [
                 "MartilloForjaPieza1",
                 "3DObjs\\MartilloForjaPieza1.blend",
-                1
+                99
             ],
             "MartilloForjaPieza2": [
                 "MartilloForjaPieza2",
                 "3DObjs\\MartilloForjaPieza2.blend",
-                1
+                99
             ],
             "MartilloPieza1": [
                 "MartilloPieza1",
                 "3DObjs\\MartilloPieza1.blend",
-                1
+                99
             ],
             "MartilloPieza2": [
                 "MartilloPieza2",
                 "3DObjs\\MartilloPieza2.blend",
-                1
+                99
             ],
             "Maza2Pieza1": [
                 "Maza2Pieza1",
                 "3DObjs\\Maza2Pieza1.blend",
-                1
+                99
             ],
             "Maza2Pieza2": [
                 "Maza2Pieza2",
                 "3DObjs\\Maza2Pieza2.blend",
-                1
+                99
             ],
             "Maza3Pieza1": [
                 "Maza3Pieza1",
                 "3DObjs\\Maza3Pieza1.blend",
-                1
+                99
             ],
             "Maza3Pieza2": [
                 "Maza3Pieza2",
                 "3DObjs\\Maza3Pieza2.blend",
-                1
+                99
             ],
             "MazaDoblePieza1": [
                 "MazaDoblePieza1",
                 "3DObjs\\mazadoblePieza1.blend",
-                1
+                99
             ],
             "MazaDoblePieza2": [
                 "MazaDoblePieza2",
                 "3DObjs\\mazadoblePieza2.blend",
-                1
+                99
             ],
             "MazaPieza1": [
                 "MazaPieza1",
                 "3DObjs\\MazaPieza1.blend",
-                1
+                99
             ],
             "MazaPieza2": [
                 "MazaPieza2",
                 "3DObjs\\MazaPieza2.blend",
-                1
+                99
             ],
             "MazapiedraPieza1": [
                 "MazapiedraPieza1",
                 "3DObjs\\mazapiedraPieza1.blend",
-                1
+                99
             ],
             "MazapiedraPieza2": [
                 "MazapiedraPieza2",
                 "3DObjs\\mazapiedraPieza2.blend",
-                1
+                99
             ],
             "MazapiedraPieza3": [
                 "MazapiedraPieza3",
                 "3DObjs\\mazapiedraPieza3.blend",
-                1
+                99
             ],
             "MesaPieza1": [
                 "MesaPieza1",
                 "3DObjs\\Mesapie1.blend",
-                1
+                99
             ],
             "MesaPieza2": [
                 "MesaPieza2",
                 "3DObjs\\Mesapie2.blend",
-                1
+                99
             ],
             "MesaPieza3": [
                 "MesaPieza3",
                 "3DObjs\\Mesapie3.blend",
-                1
+                99
             ],
             "MesaPieza4": [
                 "MesaPieza4",
                 "3DObjs\\Mesapie4.blend",
-                1
+                99
             ],
             "MesaPieza5": [
                 "MesaPieza5",
                 "3DObjs\\Mesapie5.blend",
-                1
+                99
             ],
             "MesitaPieza1": [
                 "MesitaPieza1",
                 "3DObjs\\Mesitapie1.blend",
-                1
+                99
             ],
             "MesitaPieza2": [
                 "MesitaPieza2",
                 "3DObjs\\Mesitapie2.blend",
-                1
+                99
             ],
             "MesitaPieza3": [
                 "MesitaPieza3",
                 "3DObjs\\Mesitapie3.blend",
-                1
+                99
             ],
             "MesitaPieza4": [
                 "MesitaPieza4",
                 "3DObjs\\Mesitapie4.blend",
-                1
+                99
             ],
             "MesonPieza1": [
                 "MesonPieza1",
                 "3DObjs\\Mesonpie1.blend",
-                1
+                99
             ],
             "MesonPieza2": [
                 "MesonPieza2",
                 "3DObjs\\Mesonpie2.blend",
-                1
+                99
             ],
             "Naginata2Pieza1": [
                 "Naginata2Pieza1",
                 "3DObjs\\Naginata2pieza1.blend",
-                1
+                99
             ],
             "Naginata2Pieza2": [
                 "Naginata2Pieza2",
                 "3DObjs\\Naginata2pieza2.blend",
-                1
+                99
             ],
             "Naginata2Pieza3": [
                 "Naginata2Pieza3",
                 "3DObjs\\Naginata2pieza3.blend",
-                1
+                99
             ],
             "NaginataPieza1": [
                 "NaginataPieza1",
                 "3DObjs\\NaginataPieza1.blend",
-                1
+                99
             ],
             "NaginataPieza2": [
                 "NaginataPieza2",
                 "3DObjs\\NaginataPieza2.blend",
-                1
+                99
             ],
             "NinjatoPieza1": [
                 "NinjatoPieza1",
                 "3DObjs\\NinjatoPieza1.blend",
-                1
+                99
             ],
             "NinjatoPieza2": [
                 "NinjatoPieza2",
                 "3DObjs\\NinjatoPieza2.blend",
-                1
+                99
             ],
             "OrkswordPieza1": [
                 "OrkswordPieza1",
                 "3DObjs\\orkswordPieza1.blend",
-                1
+                99
             ],
             "OrkswordPieza2": [
                 "OrkswordPieza2",
                 "3DObjs\\orkswordPieza2.blend",
-                1
+                99
             ],
             "PhurbhuPieza1": [
                 "PhurbhuPieza1",
                 "3DObjs\\phurbhuPieza1.blend",
-                1
+                99
             ],
             "PhurbhuPieza2": [
                 "PhurbhuPieza2",
                 "3DObjs\\phurbhuPieza2.blend",
-                1
+                99
             ],
             "QueenSwordPieza1": [
                 "QueenSwordPieza1",
                 "3DObjs\\queenswordPieza1.blend",
-                1
+                99
             ],
             "QueenSwordPieza2": [
                 "QueenSwordPieza2",
                 "3DObjs\\queenswordPieza2.blend",
-                1
+                99
             ],
             "QueenSwordPieza3": [
                 "QueenSwordPieza3",
                 "3DObjs\\queenswordPieza3.blend",
-                1
+                99
             ],
             "RhinoClubPieza1": [
                 "RhinoClubPieza1",
                 "3DObjs\\rhinoclubpieza1.blend",
-                1
+                99
             ],
             "RhinoClubPieza2": [
                 "RhinoClubPieza2",
                 "3DObjs\\rhinoclubpieza2.blend",
-                1
+                99
             ],
             "SablazoPieza1": [
                 "SablazoPieza1",
                 "3DObjs\\SablazoPieza1.blend",
-                1
+                99
             ],
             "SablazoPieza2": [
                 "SablazoPieza2",
                 "3DObjs\\SablazoPieza2.blend",
-                1
+                99
             ],
             "SawSwordPieza1": [
                 "SawSwordPieza1",
                 "3DObjs\\SawswordPieza1.blend",
-                1
+                99
             ],
             "SawSwordPieza2": [
                 "SawSwordPieza2",
                 "3DObjs\\SawswordPieza2.blend",
-                1
+                99
             ],
             "SillaPieza1": [
                 "SillaPieza1",
                 "3DObjs\\sillaPieza1.blend",
-                1
+                99
             ],
             "SillaPieza2": [
                 "SillaPieza2",
                 "3DObjs\\sillaPieza2.blend",
-                1
+                99
             ],
             "SillaPieza3": [
                 "SillaPieza3",
                 "3DObjs\\SillaPieza3.blend",
-                1
+                99
             ],
             "SillaPieza4": [
                 "SillaPieza4",
                 "3DObjs\\SillaPieza4.blend",
-                1
+                99
             ],
             "SillaPieza5": [
                 "SillaPieza5",
                 "3DObjs\\SillaPieza5.blend",
-                1
+                99
             ],
             "SillaPieza6": [
                 "SillaPieza6",
                 "3DObjs\\SillaPieza6.blend",
-                1
+                99
             ],
             "SteelFeatherPieza1": [
                 "SteelFeatherPieza1",
                 "3DObjs\\steelfeatherPieza1.blend",
-                1
+                99
             ],
             "SteelFeatherPieza2": [
                 "SteelFeatherPieza2",
                 "3DObjs\\steelfeatherPieza2.blend",
-                1
+                99
             ],
             "SteelFeatherPieza3": [
                 "SteelFeatherPieza3",
                 "3DObjs\\steelfeatherPieza3.blend",
-                1
+                99
             ],
             "SteelFeatherPieza4": [
                 "SteelFeatherPieza4",
                 "3DObjs\\steelfeatherPieza4.blend",
-                1
+                99
             ],
             "Tabla_xPieza1": [
                 "Tabla_xPieza1",
                 "3DObjs\\Tabla_xPieza1.blend",
-                1
+                99
             ],
             "Tabla_xlpieza2": [
                 "Tabla_xlpieza2",
                 "3DObjs\\Tabla_xlpieza2.blend",
-                1
+                99
             ],
             "TaburetePieza1": [
                 "TaburetePieza1",
                 "3DObjs\\TaburetePieza1.blend",
-                1
+                99
             ],
             "TaburetePieza2": [
                 "TaburetePieza2",
                 "3DObjs\\TaburetePieza2.blend",
-                1
+                99
             ],
             "TaburetePieza3": [
                 "TaburetePieza3",
                 "3DObjs\\TaburetePieza3.blend",
-                1
+                99
             ],
             "TaburetePieza4": [
                 "TaburetePieza4",
                 "3DObjs\\TaburetePieza4.blend",
-                1
+                99
             ],
             "TaiSwordPieza1": [
                 "TaiSwordPieza1",
                 "3DObjs\\TaiSwordPieza1.blend",
-                1
+                99
             ],
             "TaiSwordPieza2": [
                 "TaiSwordPieza2",
                 "3DObjs\\TaiSwordPieza2.blend",
-                1
+                99
             ],
             "TaiSwordPieza3": [
                 "TaiSwordPieza3",
                 "3DObjs\\TaiSwordPieza3.blend",
-                1
+                99
             ],
             "TaiSwordPieza4": [
                 "TaiSwordPieza4",
                 "3DObjs\\TaiSwordPieza4.blend",
-                1
+                99
             ],
             "TinajaPieza1": [
                 "TinajaPieza1",
                 "3DObjs\\Tpieza1.blend",
-                1
+                99
             ],
             "TinajaPieza2": [
                 "TinajaPieza2",
                 "3DObjs\\Tpieza2.blend",
-                1
+                99
             ],
             "TinajaPieza3": [
                 "TinajaPieza3",
                 "3DObjs\\Tpieza3.blend",
-                1
+                99
             ],
             "TinajaPieza4": [
                 "TinajaPieza4",
                 "3DObjs\\Tpieza4.blend",
-                1
+                99
             ],
             "TinajaPieza5": [
                 "TinajaPieza5",
                 "3DObjs\\Tpieza5.blend",
-                1
+                99
             ],
             "TridentePieza1": [
                 "TridentePieza1",
                 "3DObjs\\TridentePieza1.blend",
-                1
+                99
             ],
             "TridentePieza2": [
                 "TridentePieza2",
                 "3DObjs\\TridentePieza2.blend",
-                1
+                99
             ],
             "VampShieldPieza1": [
                 "VampShieldPieza1",
                 "3DObjs\\vampshieldPieza1.blend",
-                1
+                99
             ],
             "VampShieldPieza2": [
                 "VampShieldPieza2",
                 "3DObjs\\vampshieldPieza2.blend",
-                1
+                99
             ],
             "VampWeaponPieza1": [
                 "VampWeaponPieza1",
                 "3DObjs\\vampweaponPieza1.blend",
-                1
+                99
             ],
             "VampWeaponPieza2": [
                 "VampWeaponPieza2",
                 "3DObjs\\vampweaponPieza2.blend",
-                1
+                99
             ],
             "Varita1Pieza1": [
                 "Varita1Pieza1",
                 "3DObjs\\varita1Pieza1.blend",
-                1
+                99
             ],
             "Varita1Pieza2": [
                 "Varita1Pieza2",
                 "3DObjs\\varita1Pieza2.blend",
-                1
+                99
             ],
             "Varita2Pieza1": [
                 "Varita2Pieza1",
                 "3DObjs\\varita2Pieza1.blend",
-                1
+                99
             ],
             "Varita2Pieza2": [
                 "Varita2Pieza2",
                 "3DObjs\\varita2Pieza2.blend",
-                1
+                99
             ],
             "Varita5Pieza1": [
                 "Varita5Pieza1",
                 "3DObjs\\varita5Pieza1.blend",
-                1
+                99
             ],
             "Varita5Pieza2": [
                 "Varita5Pieza2",
                 "3DObjs\\varita5Pieza2.blend",
-                1
+                99
             ],
             "Varita6Pieza1": [
                 "Varita6Pieza1",
                 "3DObjs\\varita6Pieza1.blend",
-                1
+                99
             ],
             "Varita6Pieza2": [
                 "Varita6Pieza2",
                 "3DObjs\\varita6Pieza2.blend",
-                1
+                99
             ],
             "Varita7Pieza1": [
                 "Varita7Pieza1",
                 "3DObjs\\varita7Pieza1.blend",
-                1
+                99
             ],
             "Varita7Pieza2": [
                 "Varita7Pieza2",
                 "3DObjs\\varita7Pieza2.blend",
-                1
+                99
             ]
         },
         "Props": {
             "Amuleto": [
                 "Amulet",
                 "3DObjs\\amuleto.blend",
-                1
+                8
             ],
             "Amuletofantasma": [
                 "Ghost Medallion",
                 "3DObjs\\amuletfa.blend",
-                1
+                8
             ],
             "Amuletoserpiente": [
                 "Snake Medallion",
                 "3DObjs\\amuletse.blend",
-                1
+                8
             ],
             "ArmaduraAmazonaLigera": [
                 "Amazon Light Armor",
                 "3DObjs\\ArmaduraAL.blend",
-                11
+                12
             ],
             "ArmaduraBarbaroLigera": [
                 "Barbarian Light Armor",
                 "3DObjs\\ArmaduraBL.blend",
-                11
+                12
             ],
             "ArmaduraCaballeroCompleta": [
                 "Knight Heavy Armor",
                 "3DObjs\\ArmaduraKF.blend",
-                11
+                12
             ],
             "ArmaduraCaballeroLigera": [
                 "Knight Light Armor",
                 "3DObjs\\ArmaduraKL.blend",
-                11
+                12
             ],
             "ArmaduraCaballeroMedia": [
                 "Knight Medium Armor",
                 "3DObjs\\ArmaduraKM.blend",
-                11
+                12
             ],
             "ArmaduraEnanoLigera": [
                 "Dwarf Light Armor",
                 "3DObjs\\ArmaduraDL.blend",
-                11
+                12
             ],
             "ArmaduraEnanoMedia": [
                 "Dwarf Medium Armor",
                 "3DObjs\\ArmaduraDM.blend",
-                11
+                12
             ],
             "BotellaSagrada": [
                 "Holy Bottle",
                 "3DObjs\\botellasagrada.blend",
-                1
+                8
             ],
             "Brazalete": [
                 "Bracelet",
                 "3DObjs\\brazalet.blend",
-                1
+                8
             ],
             "Casco3": [
                 "Casco3",
                 "3DObjs\\casco3.blend",
-                1
+                9
             ],
             "Casco4": [
                 "Casco4",
                 "3DObjs\\casco4.blend",
-                1
+                9
             ],
             "Casco5": [
                 "Casco5",
                 "3DObjs\\casco5.blend",
-                1
+                9
             ],
             "CascoBlade": [
                 "CascoBlade",
                 "3DObjs\\casblade.blend",
-                1
+                9
             ],
             "Coraza1": [
                 "Light Armor",
                 "3DObjs\\coraza1.blend",
-                1
+                9
             ],
             "Coraza2": [
                 "Combat Armor",
                 "3DObjs\\coraza2.blend",
-                1
+                9
             ],
             "Coraza3": [
                 "Heavy Armor",
                 "3DObjs\\coraza3.blend",
-                1
+                9
             ],
             "CorazaBlade": [
                 "CorazaBlade",
                 "3DObjs\\corblade.blend",
-                1
+                9
             ],
             "Corona": [
                 "Crown",
                 "3DObjs\\corona.blend",
-                1
+                8
             ],
             "Fetiche": [
                 "Fetish",
                 "3DObjs\\fetiche.blend",
-                1
+                8
             ],
             "Gema": [
                 "Green Gem",
                 "3DObjs\\gema.blend",
-                1
+                8
             ],
             "Gemaazul": [
                 "Blue Gem",
                 "3DObjs\\gemaa.blend",
-                1
+                8
             ],
             "Gemapurpura": [
                 "Purple Gem",
                 "3DObjs\\gemap.blend",
-                1
+                8
             ],
             "Gemaroja": [
                 "Red Gem",
                 "3DObjs\\gemar.blend",
-                1
+                8
             ],
             "Hogaza": [
                 "Crust",
                 "3DObjs\\hogaza.blend",
-                1
+                9
             ],
             "Llave": [
                 "Key",
                 "3DObjs\\llave.blend",
-                5
+                10
             ],
             "LlaveAmarilla": [
                 "Special Key",
                 "3DObjs\\yellowk.blend",
-                6
+                13
             ],
             "LlaveAzul": [
                 "Special Key",
                 "3DObjs\\bluekey.blend",
-                6
+                13
             ],
             "LlaveBlanca": [
                 "Special Key",
                 "3DObjs\\whitekey.blend",
-                6
+                13
             ],
             "LlaveNegra": [
                 "Special Key",
                 "3DObjs\\blackkey.blend",
-                6
+                13
             ],
             "Llavecob": [
                 "Key",
                 "3DObjs\\llavecob.blend",
-                5
+                10
             ],
             "Llavecobox": [
                 "Key",
                 "3DObjs\\llavecobox.blend",
-                5
+                10
             ],
             "Llavecutre": [
                 "Key",
                 "3DObjs\\llavecutre.blend",
-                5
+                10
             ],
             "Llavedor": [
                 "Golden Key",
                 "3DObjs\\llavedor.blend",
-                5
+                10
             ],
             "Llavepla": [
                 "Key",
                 "3DObjs\\llavepla.blend",
-                5
+                10
             ],
             "Llavero": [
                 "Llavero",
                 "3DObjs\\Llavero.blend",
-                1
+                8
             ],
             "Manzana": [
                 "Apple",
                 "3DObjs\\manzana.blend",
-                1
+                9
             ],
             "Orbe": [
                 "Orb",
                 "3DObjs\\orbe.blend",
-                1
+                8
             ],
             "Paletilla": [
                 "Meat",
                 "3DObjs\\paletilla.blend",
-                1
+                9
             ],
             "Pergamino2": [
                 "Parchment",
                 "3DObjs\\pergami2.blend",
-                1
+                8
             ],
             "Pocima100": [
                 "Life Potion 500",
                 "3DObjs\\pocima100.blend",
-                1
+                8
             ],
             "Pocima200": [
                 "Life Potion 1000",
                 "3DObjs\\pocima200.blend",
-                1
+                8
             ],
             "Pocima25": [
                 "Life Potion 50",
                 "3DObjs\\pocima25.blend",
-                1
+                9
             ],
             "Pocima50": [
                 "Life Potion 150",
                 "3DObjs\\pocima50.blend",
-                1
+                9
             ],
             "PocimaTodo": [
                 "Full Life Potion",
                 "3DObjs\\pocimatodo.blend",
-                1
+                8
             ],
             "PowerPotion": [
                 "Power Potion",
                 "3DObjs\\powerpotion.blend",
-                1
+                8
             ],
             "Queso": [
                 "Cheese",
                 "3DObjs\\queso.blend",
-                1
+                9
             ],
             "Rabano": [
                 "Radish",
                 "3DObjs\\rabano.blend",
-                1
+                9
             ],
             "Raiz": [
                 "Health root",
                 "3DObjs\\raiz.blend",
-                1
+                9
             ],
             "Saquito": [
                 "Travel rations",
                 "3DObjs\\saquito.blend",
-                1
+                9
             ],
             "Seta": [
                 "Little mushroom",
                 "3DObjs\\seta.blend",
-                1
+                9
             ],
             "Setas": [
                 "Mushroom",
                 "3DObjs\\setas.blend",
-                1
+                9
             ],
             "Tablilla1": [
                 "Tablilla1",
                 "3DObjs\\tablilla1.blend",
-                10
+                14
             ],
             "Tablilla2": [
                 "Tablilla2",
                 "3DObjs\\tablilla2.blend",
-                10
+                14
             ],
             "Tablilla3": [
                 "Tablilla3",
                 "3DObjs\\tablilla3.blend",
-                10
+                14
             ],
             "Tablilla4": [
                 "Tablilla4",
                 "3DObjs\\tablilla4.blend",
-                10
+                14
             ],
             "Tablilla5": [
                 "Tablilla5",
                 "3DObjs\\tablilla5.blend",
-                10
+                14
             ],
             "Tablilla6": [
                 "Tablilla6",
                 "3DObjs\\tablilla6.blend",
-                10
+                14
             ]
         },
         "Shields & Bows": {
             "Arco": [
                 "Light Bow",
                 "3DObjs\\arco.blend",
-                8
+                7
             ],
             "Arco2": [
                 "Heavy Bow",
                 "3DObjs\\arco2.blend",
-                8
+                7
             ],
             "Arco3": [
                 "Medium Bow",
                 "3DObjs\\arco3.blend",
-                8
+                7
             ],
             "Arco_Amz_seleccion": [
                 "Heavy Bow",
                 "3DObjs\\Arco_Amz_seleccion.blend",
-                8
+                7
             ],
             "Carcaj": [
                 "Quiver",
                 "3DObjs\\carcaj.blend",
-                3
+                6
             ],
             "Carcaj1": [
                 "Quiver",
                 "3DObjs\\carcaj1.blend",
-                3
+                6
             ],
             "Carcaj2": [
                 "Quiver",
                 "3DObjs\\carcaj2.blend",
-                3
+                6
             ],
             "CarcajEnvenenado": [
                 "Poison Quiver",
                 "3DObjs\\carcajenvenenado.blend",
-                3
+                6
             ],
             "CarcajEnvenenado1": [
                 "Poison Quiver",
                 "3DObjs\\carcajenvenenado1.blend",
-                3
+                6
             ],
             "CarcajEnvenenado2": [
                 "Poison Quiver",
                 "3DObjs\\carcajenvenenado2.blend",
-                3
+                6
             ],
             "CarcajEnvenenado_E": [
                 "Poison Quiver",
                 "3DObjs\\carcajenvenenado_e.blend",
-                3
+                6
             ],
             "CarcajFuego": [
                 "Flame Quiver",
                 "3DObjs\\carcajfuego.blend",
-                3
+                6
             ],
             "CarcajFuego1": [
                 "Flame Quiver",
                 "3DObjs\\carcajfuego1.blend",
-                3
+                6
             ],
             "CarcajFuego2": [
                 "Flame Quiver",
                 "3DObjs\\carcajfuego2.blend",
-                3
+                6
             ],
             "CarcajFuego_E": [
                 "Flame Quiver",
                 "3DObjs\\carcajfuego_e.blend",
-                3
+                6
             ],
             "Carcaj_E": [
                 "Quiver",
                 "3DObjs\\carcaj_e.blend",
-                3
+                6
             ],
             "DalShield": [
                 "Dal Gurak's Shield",
                 "3DObjs\\dalshield.blend",
-                1
+                5
             ],
             "Escudo1": [
                 "Round Shield",
                 "3DObjs\\escudo1.blend",
-                1
+                5
             ],
             "Escudo2": [
                 "Wood Shield",
                 "3DObjs\\escudo2.blend",
-                1
+                5
             ],
             "Escudo3": [
                 "Small Shield",
                 "3DObjs\\escudo3.blend",
-                1
+                5
             ],
             "Escudo4": [
                 "Wall Shield",
                 "3DObjs\\escudo4.blend",
-                1
+                5
             ],
             "Escudo5": [
                 "Comet Shield",
                 "3DObjs\\escudo5.blend",
-                1
+                5
             ],
             "Escudo6": [
                 "Heater Shield",
                 "3DObjs\\escudo6.blend",
-                1
+                5
             ],
             "Escudo7": [
                 "Skull Shield",
                 "3DObjs\\escudo7.blend",
-                1
+                5
             ],
             "Escudo8": [
                 "Shield",
                 "3DObjs\\escudo8.blend",
-                1
+                5
             ],
             "Escudo9": [
                 "Barbarian Shield",
                 "3DObjs\\escudo9.blend",
-                1
+                5
             ],
             "Escudon": [
                 "Escudon",
                 "3DObjs\\escudon.blend",
-                1
+                5
             ],
             "Flecha": [
                 "Arrow",
                 "3DObjs\\flecha.blend",
-                9
+                11
             ],
             "FlechaEnvenenada": [
                 "Poisoned Arrow",
                 "3DObjs\\flechaenvenenada.blend",
-                9
+                11
             ],
             "FlechaFuego": [
                 "Fire Arrow",
                 "3DObjs\\flechafuego.blend",
-                9
+                11
             ],
             "KingShield": [
                 "King's Shield",
                 "3DObjs\\kingshield.blend",
-                1
+                5
             ],
             "MagicShield": [
                 "MagicShield",
                 "3DObjs\\MagicShield.blend",
-                1
+                5
             ],
             "VampShield": [
                 "Vampire Shield",
                 "3DObjs\\vampshield.blend",
-                1
+                5
             ]
         }
     }

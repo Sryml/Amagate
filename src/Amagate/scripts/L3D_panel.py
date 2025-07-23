@@ -1291,8 +1291,15 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         # 实体属性
         layout.label(text=f"{pgettext('Properties')}:")
         box = layout.box()
-        column = box.column(align=True)
-        # column.prop()
+        column = box.column()
+
+        column.prop(wm_data.EntityData, "Kind", text="Kind")
+        column.prop(wm_data.EntityData, "Name", text="Name")
+        row = column.row()
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Entity Type')}:")
+        row.prop(wm_data.EntityData, "EntType", text="")
 
 
 ############################
