@@ -14,6 +14,7 @@ import contextlib
 import shutil
 import threading
 import time
+from pathlib import Path
 from pprint import pprint
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -378,13 +379,15 @@ class OT_ImportBOD(bpy.types.Operator):
             bpy.ops.object.select_all(action="DESELECT")
             #
             bpy.ops.view3d.view_all(center=True)
-            return entity, lack_texture
+            return entity, lack_texture, dup_face
 
         #
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
         context.space_data.shading.type = "WIREFRAME"  # type: ignore
+        #
         lack_texture = False
+        dup_face = False
         # 局部空间
         local_space = Matrix.Rotation(-math.pi / 2, 4, "X")
         # local_space_inv = local_space.inverted()
@@ -427,6 +430,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 try:
                     face = ent_bm.faces.new([bm_verts[i] for i in vert_idx])
                 except:
+                    dup_face = True
                     verts = []
                     for i in vert_idx:
                         vert = ent_bm.verts.new(bm_verts[i].co)
@@ -461,10 +465,12 @@ class OT_ImportBOD(bpy.types.Operator):
                         ent_mesh.materials.append(mat)
                         slot_index = len(ent_mesh.materials) - 1
                     face.material_index = slot_index
-                    if not os.path.exists(
-                        bpy.path.abspath(f"//textures/{img_name}.bmp")
-                    ):
-                        lack_texture = True
+                    # 调试代码
+                    # if not os.path.exists(
+                    #     bpy.path.abspath(f"//textures/{img_name}.bmp")
+                    # ):
+                    #     if not Path("D:/tmp/temp").joinpath(f"{img_name}.bmp").exists():
+                    #         lack_texture = True
                 # 跳过0
                 f.seek(4, 1)
             # 骨架

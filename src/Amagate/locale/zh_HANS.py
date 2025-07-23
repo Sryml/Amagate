@@ -199,6 +199,7 @@
     ("Operator", "Remove from Scene"): "从场景中移除",
     ("*", "Internal Name"): "内部名称",
     ("*", "Prefab Name"): "预制体名称",
+    ("*", "Prefab Type"): "预制体类型",
     ("*", "Internal name is the same as the built-in entity"): "内部名称与内置实体相同",
     ("*", "Entity collection not found"): "实体集合未找到",
     ("*", "Entity Type"): "实体类型",

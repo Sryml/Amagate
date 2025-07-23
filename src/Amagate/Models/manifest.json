@@ -792,291 +792,363 @@
         "Characters": {
             "Amazon_L": [
                 "Amazon_L",
-                "3DChars\\Amz_l.blend"
+                "3DChars\\Amz_l.blend",
+                99
             ],
             "Amazon_N": [
                 "Amazon_N",
-                "3DChars\\Amz_N.blend"
+                "3DChars\\Amz_N.blend",
+                99
             ],
             "AmzSkin1": [
                 "AmzSkin1",
-                "3DChars\\Amzskin1.blend"
+                "3DChars\\Amzskin1.blend",
+                99
             ],
             "AmzSkin2": [
                 "AmzSkin2",
-                "3DChars\\Amzskin2.blend"
+                "3DChars\\Amzskin2.blend",
+                99
             ],
             "Ank2": [
                 "Ank2",
-                "3DChars\\Ank2.blend"
+                "3DChars\\Ank2.blend",
+                99
             ],
             "BarSkin1": [
                 "BarSkin1",
-                "3DChars\\Barskin1.blend"
+                "3DChars\\Barskin1.blend",
+                99
             ],
             "BarSkin2": [
                 "BarSkin2",
-                "3DChars\\Barskin2.blend"
+                "3DChars\\Barskin2.blend",
+                99
             ],
             "Barbarian": [
                 "Barbarian",
-                "3DChars\\Bar.blend"
+                "3DChars\\Bar.blend",
+                99
             ],
             "Barbarian_L": [
                 "Barbarian_L",
-                "3DChars\\Bar_L.blend"
+                "3DChars\\Bar_L.blend",
+                99
             ],
             "Barbarian_N": [
                 "Barbarian_N",
-                "3DChars\\Bar_N.blend"
+                "3DChars\\Bar_N.blend",
+                99
             ],
             "Bat": [
                 "Bat",
-                "3DChars\\bat.blend"
+                "3DChars\\bat.blend",
+                99
             ],
             "ChaosKnight": [
                 "ChaosKnight",
-                "3DChars\\Chk.blend"
+                "3DChars\\Chk.blend",
+                99
             ],
             "Cos": [
                 "Cos",
-                "3DChars\\cos.blend"
+                "3DChars\\cos.blend",
+                99
             ],
             "Crw": [
                 "Crw",
-                "3DChars\\Crw.blend"
+                "3DChars\\Crw.blend",
+                99
             ],
             "DalGurak": [
                 "DalGurak",
-                "3DChars\\Dgk.blend"
+                "3DChars\\Dgk.blend",
+                99
             ],
             "DarkLord": [
                 "DarkLord",
-                "3DChars\\Ank.blend"
+                "3DChars\\Ank.blend",
+                99
             ],
             "Dark_Knight": [
                 "Dark_Knight",
-                "3DChars\\Dkn.blend"
+                "3DChars\\Dkn.blend",
+                99
             ],
             "Dark_Ork": [
                 "Dark_Ork",
-                "3DChars\\Dok.blend"
+                "3DChars\\Dok.blend",
+                99
             ],
             "Dragon": [
                 "Dragon",
-                "3DChars\\Drg_stone.blend"
+                "3DChars\\Drg_stone.blend",
+                99
             ],
             "Duque": [
                 "Duque",
-                "3DChars\\Duk.blend"
+                "3DChars\\Duk.blend",
+                99
             ],
             "Dwarf_L": [
                 "Dwarf_L",
-                "3DChars\\Dwf_L.blend"
+                "3DChars\\Dwf_L.blend",
+                99
             ],
             "Dwarf_M": [
                 "Dwarf_M",
-                "3DChars\\Dwf_M.blend"
+                "3DChars\\Dwf_M.blend",
+                99
             ],
             "Dwarf_N": [
                 "Dwarf_N",
-                "3DChars\\Dwf_N.blend"
+                "3DChars\\Dwf_N.blend",
+                99
             ],
             "DwfSkin1": [
                 "DwfSkin1",
-                "3DChars\\Dwfskin1.blend"
+                "3DChars\\Dwfskin1.blend",
+                99
             ],
             "DwfSkin2": [
                 "DwfSkin2",
-                "3DChars\\Dwfskin2.blend"
+                "3DChars\\Dwfskin2.blend",
+                99
             ],
             "Enano1": [
                 "Enano1",
-                "3DChars\\enano1.blend"
+                "3DChars\\enano1.blend",
+                99
             ],
             "Enano2": [
                 "Enano2",
-                "3DChars\\enano2.blend"
+                "3DChars\\enano2.blend",
+                99
             ],
             "Enano3": [
                 "Enano3",
-                "3DChars\\enano3.blend"
+                "3DChars\\enano3.blend",
+                99
             ],
             "Enano4": [
                 "Enano4",
-                "3DChars\\enano4.blend"
+                "3DChars\\enano4.blend",
+                99
             ],
             "Gargoyle_Stone_Form": [
                 "Gargoyle_Stone_Form",
-                "3DChars\\Gargoyle_Stone_Form.blend"
+                "3DChars\\Gargoyle_Stone_Form.blend",
+                99
             ],
             "Gold_Ork": [
                 "Gold_Ork",
-                "3DChars\\Org.blend"
+                "3DChars\\Org.blend",
+                99
             ],
             "Golem_clay": [
                 "Golem_clay",
-                "3DChars\\Glm_cl.blend"
+                "3DChars\\Glm_cl.blend",
+                99
             ],
             "Golem_ice": [
                 "Golem_ice",
-                "3DChars\\Glm_ic.blend"
+                "3DChars\\Glm_ic.blend",
+                99
             ],
             "Golem_lava": [
                 "Golem_lava",
-                "3DChars\\Glm_lv.blend"
+                "3DChars\\Glm_lv.blend",
+                99
             ],
             "Golem_metal": [
                 "Golem_metal",
-                "3DChars\\Glm_mt.blend"
+                "3DChars\\Glm_mt.blend",
+                99
             ],
             "Golem_stone": [
                 "Golem_stone",
-                "3DChars\\Glm_st.blend"
+                "3DChars\\Glm_st.blend",
+                99
             ],
             "Great_Demon": [
                 "Great_Demon",
-                "3DChars\\Gdm.blend"
+                "3DChars\\Gdm.blend",
+                99
             ],
             "Great_Ork": [
                 "Great_Ork",
-                "3DChars\\Gok.blend"
+                "3DChars\\Gok.blend",
+                99
             ],
             "KgtSkin1": [
                 "KgtSkin1",
-                "3DChars\\Kgtskin1.blend"
+                "3DChars\\Kgtskin1.blend",
+                99
             ],
             "KgtSkin2": [
                 "KgtSkin2",
-                "3DChars\\Kgtskin2.blend"
+                "3DChars\\Kgtskin2.blend",
+                99
             ],
             "Knight_F": [
                 "Knight_F",
-                "3DChars\\Kgt_F.blend"
+                "3DChars\\Kgt_F.blend",
+                99
             ],
             "Knight_L": [
                 "Knight_L",
-                "3DChars\\Kgt_L.blend"
+                "3DChars\\Kgt_L.blend",
+                99
             ],
             "Knight_M": [
                 "Knight_M",
-                "3DChars\\kgt_M.blend"
+                "3DChars\\kgt_M.blend",
+                99
             ],
             "Knight_N": [
                 "Knight_N",
-                "3DChars\\Kgt_N.blend"
+                "3DChars\\Kgt_N.blend",
+                99
             ],
             "Knight_Traitor": [
                 "Knight_Traitor",
-                "3DChars\\Tkn.blend"
+                "3DChars\\Tkn.blend",
+                99
             ],
             "Knight_Zombie": [
                 "Knight_Zombie",
-                "3DChars\\Zkn.blend"
+                "3DChars\\Zkn.blend",
+                99
             ],
             "Knight_traitor": [
                 "Knight_traitor",
-                "3DChars\\Kgt_tr.blend"
+                "3DChars\\Kgt_tr.blend",
+                99
             ],
             "Lich": [
                 "Lich",
-                "3DChars\\Lch.blend"
+                "3DChars\\Lch.blend",
+                99
             ],
             "Little_Demon": [
                 "Little_Demon",
-                "3DChars\\Ldm.blend"
+                "3DChars\\Ldm.blend",
+                99
             ],
             "Minotaur": [
                 "Minotaur",
-                "3DChars\\Min.blend"
+                "3DChars\\Min.blend",
+                99
             ],
             "Mortimer": [
                 "Mortimer",
-                "3DChars\\Mor.blend"
+                "3DChars\\Mor.blend",
+                99
             ],
             "NP_Knight": [
                 "NP_Knight",
-                "3DChars\\Npk.blend"
+                "3DChars\\Npk.blend",
+                99
             ],
             "Ork": [
                 "Ork",
-                "3DChars\\Ork.blend"
+                "3DChars\\Ork.blend",
+                99
             ],
             "Pio": [
                 "Pio",
-                "3DChars\\pio.blend"
+                "3DChars\\pio.blend",
+                99
             ],
             "Prisoner_1": [
                 "Prisoner_1",
-                "3DChars\\Prs_1.blend"
+                "3DChars\\Prs_1.blend",
+                99
             ],
             "Prisoner_2": [
                 "Prisoner_2",
-                "3DChars\\Prs_2.blend"
+                "3DChars\\Prs_2.blend",
+                99
             ],
             "Prisoner_3": [
                 "Prisoner_3",
-                "3DChars\\Prs_3.blend"
+                "3DChars\\Prs_3.blend",
+                99
             ],
             "Prisoner_4": [
                 "Prisoner_4",
-                "3DChars\\Prs_4.blend"
+                "3DChars\\Prs_4.blend",
+                99
             ],
             "Prisoner_5": [
                 "Prisoner_5",
-                "3DChars\\Prs_5.blend"
+                "3DChars\\Prs_5.blend",
+                99
             ],
             "Prisoner_6": [
                 "Prisoner_6",
-                "3DChars\\Prs_6.blend"
+                "3DChars\\Prs_6.blend",
+                99
             ],
             "Ragnar": [
                 "Ragnar",
-                "3DChars\\Rgn.blend"
+                "3DChars\\Rgn.blend",
+                99
             ],
             "Rat": [
                 "Rat",
-                "3DChars\\rat.blend"
+                "3DChars\\rat.blend",
+                99
             ],
             "Salamander": [
                 "Salamander",
-                "3DChars\\Slm.blend"
+                "3DChars\\Slm.blend",
+                99
             ],
             "Sgl": [
                 "Sgl",
-                "3DChars\\seagull.blend"
+                "3DChars\\seagull.blend",
+                99
             ],
             "Shank": [
                 "Shank",
-                "3DChars\\Shn.blend"
+                "3DChars\\Shn.blend",
+                99
             ],
             "Skeleton": [
                 "Skeleton",
-                "3DChars\\Skl.blend"
+                "3DChars\\Skl.blend",
+                99
             ],
             "Spidersmall": [
                 "Spidersmall",
-                "3DChars\\Spd.blend"
+                "3DChars\\Spd.blend",
+                99
             ],
             "Troll_Dark": [
                 "Troll_Dark",
-                "3DChars\\Trl_dk.blend"
+                "3DChars\\Trl_dk.blend",
+                99
             ],
             "Troll_snow": [
                 "Troll_snow",
-                "3DChars\\Trl_sn.blend"
+                "3DChars\\Trl_sn.blend",
+                99
             ],
             "Vamp": [
                 "Vamp",
-                "3DChars\\Vmp.blend"
+                "3DChars\\Vmp.blend",
+                99
             ],
             "Vejete": [
                 "Vejete",
-                "3DChars\\vejete.blend"
+                "3DChars\\vejete.blend",
+                99
             ],
             "Wyvern": [
                 "Wyvern",
-                "3DChars\\Wyv.blend"
+                "3DChars\\Wyv.blend",
+                99
             ]
         },
         "Custom": {},

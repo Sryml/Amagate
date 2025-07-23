@@ -811,6 +811,14 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         translation_context="Entity", items=get_ent_preview
     )  # type: ignore
     prefab_name: StringProperty(default="")  # type: ignore
+    prefab_type: EnumProperty(
+        name="",
+        items=[
+            ("99", "None", ""),
+            ("0", "Weapon", ""),
+            ("8", "Prop", ""),
+        ],
+    )  # type: ignore
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
 
     ############################

@@ -1271,6 +1271,12 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col.label(text=f"{pgettext('Prefab Name')}:")
         row.prop(wm_data, "prefab_name", text="")
 
+        row = layout.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Prefab Type')}:")
+        row.prop(wm_data, "prefab_type", text="")
+
         row = layout.row()
         # col = row.column()
         # col.alignment = "LEFT"

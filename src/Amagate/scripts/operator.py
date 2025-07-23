@@ -16,6 +16,7 @@ import threading
 import time
 import json
 from pprint import pprint
+from pathlib import Path
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -297,7 +298,6 @@ class OT_Test(bpy.types.Operator):
         description="",
         items=[
             ("1", "Batch Import BOD", ""),
-            # ("2", "Export BOD as ...", ""),
         ],
         options={"HIDDEN"},
     )  # type: ignore
@@ -338,25 +338,23 @@ class OT_Test(bpy.types.Operator):
 
         models_path = os.path.join(data.ADDON_PATH, "Models")
         preview_dir = os.path.join(models_path, "Preview")
-        manifest = json.load(
-            open(os.path.join(models_path, "manifest.json"), encoding="utf-8")
-        )
+        # manifest = json.load(
+        #     open(os.path.join(models_path, "manifest.json"), encoding="utf-8")
+        # )
         ent_dir = ("3DChars", "3DObjs")[1]
         root = os.path.join(models_path, ent_dir)
-        manifest_dict = manifest["Entities"]
-        # key = sorted(manifest_dict.keys(), key=int)
-        # if key:
-        #     key = int(key[-1]) + 1
-        # else:
-        #     key = 1
+        # manifest_dict = manifest["Entities"]
+
         #
         DefaultSelectionData = {}
-        exec(open(os.path.join(models_path, "EnglishUS.py")).read())
+        # exec(open(os.path.join(models_path, "EnglishUS.py")).read())
 
         count = 0
-        # rv3d = context.region_data  # type: bpy.types.RegionView3D
+        rv3d = context.region_data  # type: bpy.types.RegionView3D
         scene = context.scene  # type: Scene
         padding = 0.05
+        x_axis = Vector((1, 0, 0))
+        y_axis = Vector((0, 1, 0))
         z_axis = Vector((0, 0, 1))
         #
         scene.eevee.taa_render_samples = 8
@@ -371,10 +369,17 @@ class OT_Test(bpy.types.Operator):
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 90
 
-        for f_name in os.listdir(root):
-            if not f_name.lower().endswith(".bod"):
-                continue
-
+        save_version = context.preferences.filepaths.save_version
+        context.preferences.filepaths.save_version = 0
+        lack_texture_lst = []
+        dup_face_lst = []
+        name_lst = []
+        print(len(name_lst))
+        # for f_name in os.listdir(root):
+        #     if not f_name.lower().endswith(".bod"):
+        #         continue
+        for i in name_lst:
+            f_name = i + ".bod"
             count += 1
             filepath = os.path.join(root, f_name)
             if context.mode != "OBJECT":
@@ -396,69 +401,101 @@ class OT_Test(bpy.types.Operator):
                     d.remove(d[-1])  # type: ignore
 
             # 导入
-            obj, lack_texture = OP_ENTITY.OT_ImportBOD.import_bod(context, filepath)
+            entity, lack_texture, dup_face = OP_ENTITY.OT_ImportBOD.import_bod(
+                context, filepath
+            )
+            # if lack_texture:
+            #     lack_texture_lst.append(Path(filepath).stem)
+            # if dup_face:
+            #     dup_face_lst.append(Path(filepath).stem)
+            # continue
 
             skeleton = bpy.data.objects.get("Blade_Skeleton")
-            view = "TOP"
+            view = "Top"
             if skeleton:
-                anchor = bpy.data.objects.get("Blade_Anchor_ViewPoint")
-                if anchor:
-                    if abs(anchor.matrix_world.col[1].xyz.dot(z_axis)) > 0.7:
-                        view = "FRONT"
-                # bone = skeleton.pose.bones.get("Center")
-                # if bone:
-                #     if abs(bone.matrix.col[1].xyz.dot(z_axis)) > 0.7:
+                pass
+                # anchor = bpy.data.objects.get("Blade_Anchor_ViewPoint")
+                # if anchor:
+                #     if abs(anchor.matrix_world.col[1].xyz.dot(z_axis)) > 0.7:
                 #         view = "FRONT"
             else:
                 anchor = bpy.data.objects.get("Blade_Anchor_1H_R")
-                if anchor and abs(anchor.matrix_world.col[2].xyz.dot(z_axis)) > 0.7:
-                    view = "FRONT"
+                if anchor:
+                    dir_y = anchor.matrix_world.col[1].xyz
+                    if abs(dir_y.dot(y_axis)) > 0.7:
+                        view = "Front"
+                    elif abs(dir_y.dot(x_axis)) > 0.7:
+                        view = "Right"
 
-            bpy.ops.view3d.view_axis(type=view)
+            # bpy.ops.view3d.view_axis(type=view)
 
             #
-            verts = [obj.matrix_world @ Vector(v) for v in obj.bound_box]
-            min_x = min(v.x for v in verts)
-            max_x = max(v.x for v in verts)
-            min_z = min(v.z for v in verts)
-            max_z = max(v.z for v in verts)
-            min_y = min(v.y for v in verts)
-            max_y = max(v.y for v in verts)
-
             camera = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
             scene.collection.objects.link(camera)
             scene.camera = camera  # 设置活动摄像机
+            rv3d.view_perspective = "CAMERA"
             camera.hide_set(True)
             fov = math.degrees(camera.data.angle)  # type: ignore
 
-            if view == "FRONT":
-                width = max_x - min_x
-                height = max_z - min_z
-                max_dimension = max(width, height) + padding
-                distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
-                x = (min_x + max_x) / 2
-                z = (min_z + max_z) / 2
-                camera.rotation_euler = Euler((math.pi / 2, 0.0, 0.0))
-                camera.location = (x, min_y - distance, z)
-            else:
-                width = max_x - min_x
-                height = max_y - min_y
-                max_dimension = max(width, height) + padding
-                distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
-                x = (min_x + max_x) / 2
-                y = (min_y + max_y) / 2
-                camera.rotation_euler = Euler((0.0, 0.0, 0.0))
-                camera.location = (x, y, max_z + distance)
+            verts = [entity.matrix_world @ Vector(v) for v in entity.bound_box]
+
+            if view == "Top":
+                look_at = Vector((0, 0, -1))
+                u, v = Vector((1, 0, 0)), Vector((0, 1, 0))
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Front":
+                look_at = Vector((0, 1, 0))
+                u, v = Vector((1, 0, 0)), Vector((0, 0, 1))
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Front 45°":
+                look_at = Vector((0, 1, -1)).normalized()
+                u, v = Vector((1, 0, 0)), Vector((0, 1, 1)).normalized()
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Right":
+                look_at = Vector((-1, 0, 0))
+                u, v = Vector((0, 1, 0)), Vector((0, 0, 1))
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Right 45°":
+                look_at = Vector((-1, 0, -1)).normalized()
+                u, v = Vector((0, 1, 0)), Vector((-1, 0, 1)).normalized()
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Back":
+                look_at = Vector((0, -1, 0))
+                u, v = Vector((-1, 0, 0)), Vector((0, 0, 1))
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Left":
+                look_at = Vector((1, 0, 0))
+                u, v = Vector((0, -1, 0)), Vector((0, 0, 1))
+                base_len = min(v.dot(look_at) for v in verts)
+            elif view == "Bottom":
+                look_at = Vector((0, 0, 1))
+                u, v = Vector((1, 0, 0)), Vector((0, -1, 0))
+                base_len = min(v.dot(look_at) for v in verts)
+
+            verts = [Vector((vert.dot(u), vert.dot(v))) for vert in verts]
+            min_x = min(v.x for v in verts)
+            max_x = max(v.x for v in verts)
+            min_y = min(v.y for v in verts)
+            max_y = max(v.y for v in verts)
+            width = max_x - min_x
+            height = max_y - min_y
+            max_dimension = max(width, height) + padding
+            distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
+            x = (min_x + max_x) * 0.5 * u
+            y = (min_y + max_y) * 0.5 * v
+            z = look_at * (base_len - distance)
+            camera.rotation_euler = look_at.to_track_quat("-Z", "Y").to_euler()
+            camera.location = x + y + z  # type: ignore
 
             #
             scene.render.filepath = "//tmp"
             context.space_data.shading.type = "MATERIAL"  # type: ignore
             save_name = f"{f_name[:-4]}.blend"
             bpy.ops.wm.save_as_mainfile(filepath=os.path.join(root, save_name))
-            manifest_dict[obj.name] = [
-                DefaultSelectionData.get(obj.name, (0, 0, obj.name))[2],
-                os.path.join(ent_dir, save_name),
-            ]
+            # manifest_dict[obj.name] = [
+            #     DefaultSelectionData.get(obj.name, (0, 0, obj.name))[2],
+            #     os.path.join(ent_dir, save_name),
+            # ]
             # key += 1
             #
 
@@ -470,7 +507,7 @@ class OT_Test(bpy.types.Operator):
             # 渲染
             for mat in bpy.data.materials:
                 mat.use_backface_culling = False
-            ag_utils.select_active(context, obj)  # type: ignore
+            ag_utils.select_active(context, entity)  # type: ignore
             camera.select_set(True)
             bpy.ops.object.select_all(action="INVERT")
             bpy.ops.object.delete()
@@ -480,14 +517,17 @@ class OT_Test(bpy.types.Operator):
             )
             bpy.ops.render.render(write_still=True)
 
+        context.preferences.filepaths.save_version = save_version
+        # print(f"dup face: {dup_face_lst}")
+        # print(f"lack texture: {lack_texture_lst}")
         #
-        json.dump(
-            manifest,
-            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
-            indent=4,
-            ensure_ascii=False,
-            sort_keys=True,
-        )
+        # json.dump(
+        #     manifest,
+        #     open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+        #     indent=4,
+        #     ensure_ascii=False,
+        #     sort_keys=True,
+        # )
 
     def test1(self, context: Context):
         from . import L3D_ext_operator as OP_L3D_EXT

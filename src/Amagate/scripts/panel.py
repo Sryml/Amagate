@@ -277,6 +277,8 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         return data.DEBUG
 
     def draw(self, context):
+        from . import L3D_operator as OP_L3D
+
         layout = self.layout
 
         col = layout.column(align=True)
@@ -286,6 +288,10 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
         # col.operator(OP.OT_ImportNode.bl_idname)
         # col.operator(OP.OT_Test.bl_idname)
         col.operator_menu_enum(OP.OT_Test.bl_idname, "action")
+        col.operator_menu_enum(
+            OP_L3D.OT_SetAsPrefab.bl_idname,
+            "action",
+        ).builtin = True  # type: ignore
         #
         # col.operator(OP.OT_Test.bl_idname, icon="EMPTY_SINGLE_ARROW")
         # col.operator(OP.OT_Test.bl_idname, icon="EMPTY_ARROWS")

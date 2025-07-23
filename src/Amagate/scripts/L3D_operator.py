@@ -1253,24 +1253,29 @@ class OT_OpenPrefab(bpy.types.Operator):
     action: IntProperty(default=0)  # type: ignore
 
     @staticmethod
-    def set_ent_enum(value):
+    def set_ent_enum(ent_enum, cat, prefab_type):
         context = bpy.context
         wm_data = context.window_manager.amagate_data
-        wm_data.ent_enum = value
+        wm_data.ent_enum = ent_enum
+        if cat == "Custom":
+            wm_data.prefab_type = prefab_type
 
     def execute(self, context: Context):
         E_MANIFEST = data.E_MANIFEST
         wm_data = context.window_manager.amagate_data
-        value = wm_data.ent_enum
+        ent_enum = wm_data.ent_enum
         inter_name = bpy.types.UILayout.enum_item_description(
-            wm_data, "ent_enum", value
+            wm_data, "ent_enum", ent_enum
         )
         for cat in E_MANIFEST["Entities"]:
             item = E_MANIFEST["Entities"][cat].get(inter_name)
             if item:
                 filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
                 if os.path.exists(filepath):
-                    L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (value,))
+                    L3D_data.LOAD_POST_CALLBACK = (
+                        self.set_ent_enum,
+                        (ent_enum, cat, str(item[2])),
+                    )
                     bpy.ops.wm.open_mainfile(filepath=filepath)
                 else:
                     self.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
@@ -1315,6 +1320,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
     bl_description = ""
     bl_options = {"INTERNAL"}
 
+    builtin: BoolProperty(default=False)  # type: ignore
     action: EnumProperty(
         name="",
         description="",
@@ -1338,36 +1344,41 @@ class OT_SetAsPrefab(bpy.types.Operator):
         scene = context.scene
 
         # 检查是否为无标题文件
-        if not bpy.data.filepath or bpy.data.is_dirty:
+        if not self.builtin and (not bpy.data.filepath or bpy.data.is_dirty):
             self.report({"WARNING"}, "Please save the file first")
             return {"CANCELLED"}
 
         ent_coll, entity = OP_ENTITY.get_ent_data()
         if entity is None:
-            self.report({"WARNING"}, "There are no visible entities objects")
+            self.report({"WARNING"}, "No visible entity Mesh")
             return {"CANCELLED"}
 
         inter_name = ent_coll.name[13:]
         models_path = os.path.join(data.ADDON_PATH, "Models")
         preview_dir = os.path.join(models_path, "Preview")
-        # 转crc32，避免文件名大小写冲突
-        filename = format(zlib.crc32(inter_name.encode("utf-8")) & 0xFFFFFFFF, "08x")
-        # filename = os.path.basename(bpy.data.filepath)
+        if self.builtin:
+            filename = Path(bpy.data.filepath).stem
+        else:
+            # 转crc32，避免文件名大小写冲突
+            filename = format(
+                zlib.crc32(inter_name.encode("utf-8")) & 0xFFFFFFFF, "08x"
+            )
         # if Path(models_path, "3DChars", filename).exists() or Path(models_path, "3DObjs", filename).exists():
         #     # 文件名与内置实体相同
         #     self.report({"WARNING"}, "File name is the same as the built-in entity")
         #     return {"CANCELLED"}
 
         E_MANIFEST = data.E_MANIFEST
-        for cat in E_MANIFEST["Entities"]:
-            if cat == "Custom":
-                continue
-            # 如果内部名称与内置实体相同，取消操作
-            if E_MANIFEST["Entities"][cat].get(inter_name):
-                self.report(
-                    {"WARNING"}, "Internal name is the same as the built-in entity"
-                )
-                return {"CANCELLED"}
+        if not self.builtin:
+            for cat in E_MANIFEST["Entities"]:
+                if cat == "Custom":
+                    continue
+                # 如果内部名称与内置实体相同，取消操作
+                if E_MANIFEST["Entities"][cat].get(inter_name):
+                    self.report(
+                        {"WARNING"}, "Internal name is the same as the built-in entity"
+                    )
+                    return {"CANCELLED"}
 
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
@@ -1468,31 +1479,33 @@ class OT_SetAsPrefab(bpy.types.Operator):
             mat.use_backface_culling = True
 
         # 写入清单列表
-        prefab_name = wm_data.prefab_name.strip()
-        prefab_name = prefab_name if prefab_name else inter_name
-        E_MANIFEST["Entities"]["Custom"][inter_name] = [
-            prefab_name,
-            f"Custom\\{filename}.blend",
-        ]
-        json.dump(
-            E_MANIFEST,
-            open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
-            indent=4,
-            ensure_ascii=False,
-            sort_keys=True,
-        )
+        if not self.builtin:
+            prefab_name = wm_data.prefab_name.strip()
+            prefab_name = prefab_name if prefab_name else inter_name
+            E_MANIFEST["Entities"]["Custom"][inter_name] = [
+                prefab_name,
+                f"Custom\\{filename}.blend",
+                int(wm_data.prefab_type),
+            ]
+            json.dump(
+                E_MANIFEST,
+                open(os.path.join(models_path, "manifest.json"), "w", encoding="utf-8"),
+                indent=4,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
 
-        save_version = context.preferences.filepaths.save_version
-        context.preferences.filepaths.save_version = 0
-        dest = os.path.join(models_path, "Custom", f"{filename}.blend")
-        if Path(bpy.data.filepath) == Path(dest):
-            filepath_origin = None
-            bpy.ops.wm.save_mainfile()
-        else:
-            filepath_origin = bpy.data.filepath
-            bpy.ops.wm.save_as_mainfile(filepath=dest)
-            # shutil.copy(bpy.data.filepath, dest)
-        context.preferences.filepaths.save_version = save_version
+            save_version = context.preferences.filepaths.save_version
+            context.preferences.filepaths.save_version = 0
+            dest = os.path.join(models_path, "Custom", f"{filename}.blend")
+            if Path(bpy.data.filepath) == Path(dest):
+                filepath_origin = None
+                bpy.ops.wm.save_mainfile()
+            else:
+                filepath_origin = bpy.data.filepath
+                bpy.ops.wm.save_as_mainfile(filepath=dest)
+                # shutil.copy(bpy.data.filepath, dest)
+            context.preferences.filepaths.save_version = save_version
 
         # 加载预览
         if data.ENT_PREVIEWS.get(filename):
@@ -1505,7 +1518,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         )
         data.gen_ent_enum()
 
-        if filepath_origin:
+        if not self.builtin and filepath_origin:
             L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (inter_name,))
             bpy.ops.wm.open_mainfile(filepath=filepath_origin)
 
