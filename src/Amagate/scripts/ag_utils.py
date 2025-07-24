@@ -119,11 +119,13 @@ def pyp_install_progress_timer(start_time, total_time=25.0, fps=24, timeout=180)
                     glob["success"] = True
                 except ImportError:
                     data.PY_PACKAGES_INSTALLING = False
+                    data.area_redraw("VIEW_3D")
                     return None
             # 超时情况
             elif elapsed_time > timeout:
                 scene_data.progress_bar.pyp_install_progress = 0
                 data.PY_PACKAGES_INSTALLING = False
+                data.area_redraw("VIEW_3D")
                 return None
 
         pre_v = scene_data.progress_bar.pyp_install_progress
@@ -141,6 +143,7 @@ def pyp_install_progress_timer(start_time, total_time=25.0, fps=24, timeout=180)
         if new_v == 1.0:
             data.PY_PACKAGES_INSTALLING = False
             data.PY_PACKAGES_INSTALLED = True
+            # data.area_redraw("VIEW_3D")
             return None
         else:
             return interval
@@ -171,8 +174,9 @@ def install_packages():
     else:
         args = ""
     # 构建命令
+    target = bpy.utils.user_resource("SCRIPTS", path="site-packages", create=True)
     requirements = os.path.join(data.ADDON_PATH, "_BAT", "requirements.txt")
-    combined_cmd = f'"{python_exe}" -m pip install -r "{requirements}"{args}'
+    combined_cmd = f'"{python_exe}" -m pip install --no-deps --target="{target}" -r "{requirements}"{args}'
     # --no-cache-dir
     # 写入批处理文件
     bat_path = os.path.join(data.ADDON_PATH, "_BAT", "install_py_package.bat")

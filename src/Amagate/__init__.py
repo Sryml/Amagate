@@ -9,11 +9,17 @@ from typing import Any, TYPE_CHECKING
 import importlib
 import time
 import os
+import sys
 
 import bpy
 
 if TYPE_CHECKING:
     from .scripts import data, operator, panel, translations
+
+#
+target = bpy.utils.user_resource("SCRIPTS", path="site-packages", create=True)
+if target not in sys.path:
+    sys.path.append(target)
 
 module_list = ("data", "operator", "panel", "translations")
 for module in module_list:
