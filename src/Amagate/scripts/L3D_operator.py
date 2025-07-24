@@ -1177,6 +1177,8 @@ class OT_EntityAddToScene(bpy.types.Operator):
             item = E_MANIFEST["Entities"][cat].get(inter_name)
             if item:
                 filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
+                Category = cat
+                ItemType = item[2]
                 break
         #
         if not (filepath and os.path.exists(filepath)):
@@ -1217,6 +1219,14 @@ class OT_EntityAddToScene(bpy.types.Operator):
         #
         ent_data.Name = obj_name
         ent_data.Kind = inter_name
+        if Category == "Characters":
+            ent_data.ObjType = "0"  # "Person"
+        elif 0 <= ItemType <= 7:
+            ent_data.ObjType = "1"  # "Weapon"
+        elif 8 <= ItemType <= 10:
+            ent_data.ObjType = "2"  # "Physic"
+        else:
+            ent_data.ObjType = "6"  # "Assigned By Script"
 
         return {"FINISHED"}
 

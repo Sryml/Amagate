@@ -13,7 +13,7 @@ import bmesh
 from bpy.app.translations import pgettext
 
 
-from . import data, L3D_data
+from . import data, L3D_data, entity_data
 from . import L3D_operator as OP_L3D
 from . import L3D_ext_operator as OP_L3D_EXT
 from . import L3D_imp_operator as OP_L3D_IMP
@@ -1239,6 +1239,13 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         layout = self.layout
         wm_data = context.window_manager.amagate_data
 
+        #
+        selected_entities = [
+            obj for obj in context.selected_objects if obj.amagate_data.is_entity
+        ]
+        entity_data.SELECTED_ENTITIES = selected_entities
+        #
+
         column = layout.column(align=True)
         row = column.row(align=True)
         # row.prop(wm_data, "ent_enum",text="")
@@ -1297,6 +1304,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         # 实体属性
         layout.label(text=f"{pgettext('Properties')}:")
         box = layout.box()
+        box.enabled = len(selected_entities) != 0
         column = box.column()
 
         column.prop(wm_data.EntityData, "Kind", text="Kind")
@@ -1305,7 +1313,50 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col = row.column()
         col.alignment = "LEFT"
         col.label(text=f"{pgettext('Entity Type')}:")
-        row.prop(wm_data.EntityData, "EntType", text="")
+        row.prop(wm_data.EntityData, "ObjType", text="")
+
+        column.separator(type="LINE")
+
+        # 通用
+        column.label(text=f"{pgettext('General')}:")
+        grid = column.grid_flow(row_major=True, columns=2, align=True)
+        grid.prop(wm_data.EntityData, "Alpha", slider=True)
+        grid.prop(wm_data.EntityData, "SelfIlum")
+        row = column.row()
+        row.prop(wm_data.EntityData, "Static")
+        row.prop(wm_data.EntityData, "CastShadows")
+
+        column.separator(type="LINE")
+
+        # 角色
+        column.label(text=f"{pgettext('Character')}:")
+        grid = column.grid_flow(row_major=True, columns=2, align=True)
+        grid.prop(wm_data.EntityData, "Life", text="Life", text_ctxt="Keep")
+        grid.prop(wm_data.EntityData, "Level", text="Level", text_ctxt="Keep")
+        grid.prop(wm_data.EntityData, "Angle", text="Angle", text_ctxt="Keep")
+        grid.label(text="")
+        grid.prop(wm_data.EntityData, "SetOnFloor", text="SetOnFloor", text_ctxt="Keep")
+        grid.label(text="")
+        grid.prop(wm_data.EntityData, "Hide", text="Hide", text_ctxt="Keep")
+        grid.prop(wm_data.EntityData, "Freeze", text="Freeze", text_ctxt="Keep")
+        grid.prop(wm_data.EntityData, "Blind", text="Blind", text_ctxt="Keep")
+        grid.prop(wm_data.EntityData, "Deaf", text="Deaf", text_ctxt="Keep")
+
+        column.separator(type="LINE")
+
+        # 演员
+        column.label(text=f"{pgettext('Actor')}:")
+        column.prop(wm_data.EntityData, "Animation", text="Animation", text_ctxt="Keep")
+
+        column.separator(type="LINE")
+
+        # 灯光
+        column.label(text=f"{pgettext('Light')}:")
+        grid = column.grid_flow(row_major=True, columns=2, align=True)
+        grid.prop(wm_data.EntityData.light_prop, "Color", text="")
+        grid.prop(wm_data.EntityData.light_prop, "Intensity")
+        grid.prop(wm_data.EntityData, "FiresIntensity", slider=True)
+        grid.prop(wm_data.EntityData.light_prop, "Precision")
 
 
 ############################
