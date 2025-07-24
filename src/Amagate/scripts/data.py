@@ -398,10 +398,11 @@ def deserialize_node(nodes, node_data):
     node.name = node_data["name"]
     # node.location = tuple(node_data["location"])
     for prop, value in node_data["properties"].items():
-        if prop == "node_tree":
-            setattr(node, prop, bpy.data.node_groups.get(value))
-        elif prop != "parent":
-            setattr(node, prop, value)
+        if hasattr(node, prop): # 兼容旧版本
+            if prop == "node_tree":
+                setattr(node, prop, bpy.data.node_groups.get(value))
+            elif prop != "parent":
+                setattr(node, prop, value)
 
     for input_data in node_data.get("inputs", []):
         input_socket = node.inputs[input_data["idx"]]
@@ -815,7 +816,7 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         name="",
         items=[
             ("99", "None", ""),
-            ("0", "Weapon", ""),
+            ("0", "Equipment", ""),
             ("8", "Prop", ""),
         ],
     )  # type: ignore
