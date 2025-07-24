@@ -216,6 +216,7 @@
     ("*", "Blind"): "瞎",
     ("*", "Deaf"): "聋",
     ("*", "Fires Intensity"): "火焰强度",
+    ("*", "Flicker"): "闪烁",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",
     ("Operator", "Stop Server"): "停止服务器",

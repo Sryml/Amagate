@@ -1357,6 +1357,18 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         grid.prop(wm_data.EntityData.light_prop, "Intensity")
         grid.prop(wm_data.EntityData, "FiresIntensity", slider=True)
         grid.prop(wm_data.EntityData.light_prop, "Precision")
+        grid.prop(
+            wm_data.EntityData.light_prop, "Flick", text="Flick", text_ctxt="Keep"
+        )
+        grid.prop(
+            wm_data.EntityData.light_prop, "Visible", text="Visible", text_ctxt="Keep"
+        )
+        grid.prop(
+            wm_data.EntityData.light_prop,
+            "CastShadows",
+            text="CastShadows",
+            text_ctxt="Keep",
+        )
 
 
 ############################

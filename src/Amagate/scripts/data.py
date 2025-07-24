@@ -398,7 +398,7 @@ def deserialize_node(nodes, node_data):
     node.name = node_data["name"]
     # node.location = tuple(node_data["location"])
     for prop, value in node_data["properties"].items():
-        if hasattr(node, prop): # 兼容旧版本
+        if hasattr(node, prop):  # 兼容旧版本
             if prop == "node_tree":
                 setattr(node, prop, bpy.data.node_groups.get(value))
             elif prop != "parent":
@@ -880,6 +880,7 @@ class ObjectProperty(bpy.types.PropertyGroup):
         if not self.EntityData:
             self.EntityData.add()
             self.EntityData[0].target = "Object"
+            self.EntityData[0].light_prop.target = "Object"
             self.is_entity = True
 
 

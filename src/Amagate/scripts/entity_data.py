@@ -95,17 +95,81 @@ OBJ_NONE = 99
 
 # 实体灯光属性
 class LightProperty(bpy.types.PropertyGroup):
-    Intensity: FloatProperty(description="Intensity of the light", default=10, min=0)  # type: ignore
-    Precision: FloatProperty(description="Precision of the light", default=0.03125, min=0.00001)  # type: ignore
-    Color: FloatVectorProperty(subtype="COLOR", default=((255 / 255, 196 / 255, 128 / 255)), min=0, max=1)  # type: ignore
-    Flick: BoolProperty(default=True)  # type: ignore
-    Visible: BoolProperty(default=True)  # type: ignore
-    CastShadows: BoolProperty(default=True)  # type: ignore
+    target: StringProperty(default="UI")  # type: ignore
+
+    Intensity: FloatProperty(
+        description="Intensity of the light",
+        default=10,
+        min=0,
+        get=lambda self: self.get_value("Intensity", 10),
+        set=lambda self, value: self.set_value(value, "Intensity"),
+    )  # type: ignore
+    Precision: FloatProperty(
+        description="Precision of the light",
+        default=0.03125,
+        min=0.00001,
+        get=lambda self: self.get_value("Precision", 0.03125),
+        set=lambda self, value: self.set_value(value, "Precision"),
+    )  # type: ignore
+    Color: FloatVectorProperty(
+        subtype="COLOR",
+        default=(1.0, 0.768, 0.501),  # (255, 196, 128)
+        min=0,
+        max=1,
+        get=lambda self: self.get_value("Color", (1.0, 0.768, 0.501)),
+        set=lambda self, value: self.set_value(value, "Color"),
+    )  # type: ignore
+    Flick: BoolProperty(
+        default=True,
+        description="Flicker",
+        get=lambda self: self.get_value("Flick", True),
+        set=lambda self, value: self.set_value(value, "Flick"),
+    )  # type: ignore
+    Visible: BoolProperty(
+        default=True,
+        description="Visible",
+        get=lambda self: self.get_value("Visible", True),
+        set=lambda self, value: self.set_value(value, "Visible"),
+    )  # type: ignore
+    CastShadows: BoolProperty(
+        default=True,
+        description="CastShadows",
+        get=lambda self: self.get_value("CastShadows", True),
+        set=lambda self, value: self.set_value(value, "CastShadows"),
+    )  # type: ignore
+
+    ############################
+    def get_value(self, key, default):
+        if self.target == "UI":
+            selected_entities = SELECTED_ENTITIES
+            if not selected_entities:
+                return default
+            #
+            active_entity = selected_entities[0]
+            ent_data = active_entity.amagate_data.get_entity_data()
+            return getattr(ent_data.light_prop, key)
+        else:
+            return self.get(key, default)
+
+    def set_value(self, value, key):
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        if self.target == "UI":
+            selected_entities = SELECTED_ENTITIES
+            if not selected_entities:
+                return
+            #
+            for ent in selected_entities:
+                ent_data = ent.amagate_data.get_entity_data()
+                ent_data.light_prop[key] = value
+        else:
+            self[key] = value
 
 
 # 实体属性
 class EntityProperty(bpy.types.PropertyGroup):
     target: StringProperty(default="UI")  # type: ignore
+
     Kind: StringProperty(description="Read Only", get=lambda self: self.get_kind(), set=lambda self, value: self.set_kind(value))  # type: ignore
     Name: StringProperty(
         name="Name",
@@ -140,27 +204,99 @@ class EntityProperty(bpy.types.PropertyGroup):
         set=lambda self, value: self.set_objtype(value),
     )  # type: ignore
     #
-    Alpha: FloatProperty(default=1.0, min=0, max=1, description="Opacity")  # type: ignore
+    Alpha: FloatProperty(
+        default=1.0,
+        min=0,
+        max=1,
+        description="Opacity",
+        get=lambda self: self.get_value("Alpha", 1),
+        set=lambda self, value: self.set_value(value, "Alpha"),
+    )  # type: ignore
     # Scale: FloatProperty(default=1.0, min=0.01, soft_max=10)  # type: ignore
-    SelfIlum: FloatProperty(default=0.0, min=-1, max=1, description="Self Illumination")  # type: ignore
-    Static: BoolProperty(default=False)  # type: ignore
-    CastShadows: BoolProperty(default=True)  # type: ignore
+    SelfIlum: FloatProperty(
+        default=0.0,
+        min=-1,
+        max=1,
+        description="Self Illumination",
+        get=lambda self: self.get_value("SelfIlum", 0),
+        set=lambda self, value: self.set_value(value, "SelfIlum"),
+    )  # type: ignore
+    Static: BoolProperty(
+        default=False,
+        get=lambda self: self.get_value("Static", False),
+        set=lambda self, value: self.set_value(value, "Static"),
+    )  # type: ignore
+    CastShadows: BoolProperty(default=True, get=lambda self: self.get_value("CastShadows", True), set=lambda self, value: self.set_value(value, "CastShadows"))  # type: ignore
 
-    Animation: StringProperty(default="", description="Name of the animation created by Bladex.LoadSampledAnimation; the game will crash if it does not exist or if the skeleton does not match")  # type: ignore
+    Animation: StringProperty(
+        default="",
+        get=lambda self: self.get_value("Animation", ""),
+        set=lambda self, value: self.set_value(value, "Animation"),
+        description="Name of the animation created by Bladex.LoadSampledAnimation; the game will crash if it does not exist or if the skeleton does not match",
+    )  # type: ignore
 
-    Life: IntProperty(min=0, description=pgettext("Life", "Property"))  # type: ignore
-    Level: IntProperty(default=0, min=0)  # type: ignore
-    Angle: FloatProperty(default=0.0, subtype="ANGLE", precision=2, step=100)  # type: ignore
-    SetOnFloor: BoolProperty(default=True, description="Set on Floor")  # type: ignore
-    Hide: BoolProperty(description="Hide", default=True)  # type: ignore
-    Blind: BoolProperty(description="Blind", default=False)  # type: ignore
-    Deaf: BoolProperty(description="Deaf", default=False)  # type: ignore
-    Freeze: BoolProperty(description="Freeze", default=False)  # type: ignore
+    Life: IntProperty(
+        min=0,
+        description=pgettext("Life", "Property"),
+        get=lambda self: self.get_value("Life", 0),
+        set=lambda self, value: self.set_value(value, "Life"),
+    )  # type: ignore
+    Level: IntProperty(
+        default=0,
+        min=0,
+        get=lambda self: self.get_value("Level", 0),
+        set=lambda self, value: self.set_value(value, "Level"),
+    )  # type: ignore
+    Angle: FloatProperty(
+        default=0.0,
+        subtype="ANGLE",
+        precision=2,
+        step=100,
+        get=lambda self: self.get_value("Angle", 0),
+        set=lambda self, value: self.set_value(value, "Angle"),
+    )  # type: ignore
+    SetOnFloor: BoolProperty(
+        default=True,
+        description="Set on Floor",
+        get=lambda self: self.get_value("SetOnFloor", True),
+        set=lambda self, value: self.set_value(value, "SetOnFloor"),
+    )  # type: ignore
+    Hide: BoolProperty(
+        description="Hide",
+        default=True,
+        get=lambda self: self.get_value("Hide", True),
+        set=lambda self, value: self.set_value(value, "Hide"),
+    )  # type: ignore
+    Blind: BoolProperty(
+        description="Blind",
+        default=False,
+        get=lambda self: self.get_value("Blind", False),
+        set=lambda self, value: self.set_value(value, "Blind"),
+    )  # type: ignore
+    Deaf: BoolProperty(
+        description="Deaf",
+        default=False,
+        get=lambda self: self.get_value("Deaf", False),
+        set=lambda self, value: self.set_value(value, "Deaf"),
+    )  # type: ignore
+    Freeze: BoolProperty(
+        description="Freeze",
+        default=False,
+        get=lambda self: self.get_value("Freeze", False),
+        set=lambda self, value: self.set_value(value, "Freeze"),
+    )  # type: ignore
 
     #
     # Orientation: FloatVectorProperty(subtype="QUATERNION")  # type: ignore
     #
-    FiresIntensity: IntProperty(default=5, min=0, soft_max=45, name="Fires Intensity")  # type: ignore
+    FiresIntensity: IntProperty(
+        default=5,
+        min=0,
+        soft_max=45,
+        name="Fires Intensity",
+        get=lambda self: self.get_value("FiresIntensity", 5),
+        set=lambda self, value: self.set_value(value, "FiresIntensity"),
+    )  # type: ignore
     #
     light_prop: PointerProperty(type=LightProperty)  # type: ignore
     #
@@ -287,6 +423,35 @@ class EntityProperty(bpy.types.PropertyGroup):
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
                 ent_data[key] = value
+        else:
+            self[key] = value
+
+    ############################
+    def get_value(self, key, default):
+        if self.target == "UI":
+            selected_entities = SELECTED_ENTITIES
+            if not selected_entities:
+                return default
+            #
+            active_entity = selected_entities[0]
+            ent_data = active_entity.amagate_data.get_entity_data()
+            return getattr(ent_data, key)
+        else:
+            return self.get(key, default)
+
+    def set_value(self, value, key):
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        if self.target == "UI":
+            selected_entities = SELECTED_ENTITIES
+            if not selected_entities:
+                return
+            #
+            for ent in selected_entities:
+                ent_data = ent.amagate_data.get_entity_data()
+                ent_data[key] = value
+                if key == "CastShadows":
+                    ent.visible_shadow = value
         else:
             self[key] = value
 
