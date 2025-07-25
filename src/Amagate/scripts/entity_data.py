@@ -79,6 +79,27 @@ OBJ_TABLET = 14
 OBJ_NONE = 99
 
 ############################
+############################
+############################
+
+
+def is_uniform(attr: str):
+    selected_entities = SELECTED_ENTITIES
+    if not selected_entities:
+        return True
+    #
+    active_entity = selected_entities[0]
+    ent_data = active_entity.amagate_data.get_entity_data()
+    active_value = eval(f"ent_data.{attr}")
+    for i in range(1, len(selected_entities)):
+        entity = selected_entities[i]
+        ent_data = entity.amagate_data.get_entity_data()
+        if active_value != eval(f"ent_data.{attr}"):
+            return False
+    return True
+
+
+############################
 ############################ 模板列表
 ############################
 
@@ -86,6 +107,11 @@ OBJ_NONE = 99
 ############################
 ############################ Collection Props
 ############################
+
+
+class EntityCollection(bpy.types.PropertyGroup):
+    obj: PointerProperty(type=bpy.types.Object)  # type: ignore
+    index: IntProperty(default=0)  # type: ignore
 
 
 ############################
@@ -169,6 +195,12 @@ class LightProperty(bpy.types.PropertyGroup):
 # 实体属性
 class EntityProperty(bpy.types.PropertyGroup):
     target: StringProperty(default="UI")  # type: ignore
+    has_fire: BoolProperty(default=False)  # type: ignore
+    has_light: BoolProperty(default=False)  # type: ignore
+    # 装备库存
+    equipment_inv: CollectionProperty(type=EntityCollection)  # type: ignore
+    # 道具库存
+    prop_inv: CollectionProperty(type=EntityCollection)  # type: ignore
 
     Kind: StringProperty(description="Read Only", get=lambda self: self.get_kind(), set=lambda self, value: self.set_kind(value))  # type: ignore
     Name: StringProperty(
@@ -193,9 +225,9 @@ class EntityProperty(bpy.types.PropertyGroup):
                     "Person",
                     "Weapon",
                     "Physic",
-                    "Static",
                     "Arrow",
                     "Actor",
+                    "None",
                     "Assigned By Script",
                 )
             )
@@ -223,10 +255,16 @@ class EntityProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     Static: BoolProperty(
         default=False,
+        description="Static",
         get=lambda self: self.get_value("Static", False),
         set=lambda self, value: self.set_value(value, "Static"),
     )  # type: ignore
-    CastShadows: BoolProperty(default=True, get=lambda self: self.get_value("CastShadows", True), set=lambda self, value: self.set_value(value, "CastShadows"))  # type: ignore
+    CastShadows: BoolProperty(
+        default=True,
+        description="CastShadows",
+        get=lambda self: self.get_value("CastShadows", True),
+        set=lambda self, value: self.set_value(value, "CastShadows"),
+    )  # type: ignore
 
     Animation: StringProperty(
         default="",
@@ -422,9 +460,36 @@ class EntityProperty(bpy.types.PropertyGroup):
             #
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
+                if ent_data[key] == value:
+                    continue
+                #
+                enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
+                curr_type = enum_items_static_ui[ent_data[key]].name
+                if enum_items_static_ui[value].name == "Person":
+                    quat = self.set_angle(ent_data.Angle)
+                    ent.rotation_euler = quat.to_euler("XYZ")
+                elif curr_type == "Person":
+                    ent.rotation_euler = 0, 0, 0
+                #
                 ent_data[key] = value
         else:
+            ent = self.id_data  # type: Object
+            ent_data = ent.amagate_data.get_entity_data()
+            if ent_data.get(key):
+                enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
+                curr_type = enum_items_static_ui[ent_data[key]].name
+                if enum_items_static_ui[value].name == "Person":
+                    quat = self.set_angle(ent_data.Angle)
+                    ent.rotation_euler = quat.to_euler("XYZ")
+                elif curr_type == "Person":
+                    ent.rotation_euler = 0, 0, 0
+            #
             self[key] = value
+
+    ############################
+    @staticmethod
+    def set_angle(angle):
+        return Quaternion((0, 0, 1), angle) @ Quaternion((0, 0, 1), math.pi) @ Quaternion((1, 0, 0), math.pi * 0.5)  # type: ignore
 
     ############################
     def get_value(self, key, default):
@@ -449,11 +514,17 @@ class EntityProperty(bpy.types.PropertyGroup):
             #
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
-                ent_data[key] = value
-                if key == "CastShadows":
-                    ent.visible_shadow = value
+                setattr(ent_data, key, value)
         else:
             self[key] = value
+            #
+            ent = self.id_data  # type: Object
+            ent_data = ent.amagate_data.get_entity_data()
+            if key == "Angle":
+                quat = self.set_angle(value)
+                ent.rotation_euler = quat.to_euler("XYZ")
+            elif key == "CastShadows":
+                ent.visible_shadow = value
 
 
 ############################

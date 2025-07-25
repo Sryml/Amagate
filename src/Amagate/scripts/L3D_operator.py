@@ -1204,6 +1204,10 @@ class OT_EntityAddToScene(bpy.types.Operator):
             self.report({"ERROR"}, "No visible entity Mesh")
             return {"CANCELLED"}
         #
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            L3D_data.update_scene_edit_mode()
+
         scene_data = context.scene.amagate_data
         obj_name = self.get_name(context, f"{inter_name}_")
         entity = bpy.data.objects.new(
@@ -1213,15 +1217,16 @@ class OT_EntityAddToScene(bpy.types.Operator):
         entity.amagate_data.set_entity_data()
         ent_data = entity.amagate_data.get_entity_data()
         scene_data["EntityManage"][obj_name] = entity
+        ag_utils.select_active(context, entity)
         # 移动到当前视图焦点
         rv3d = context.region_data
         entity.location = rv3d.view_location.to_tuple(0)
         #
         ent_data.Name = obj_name
         ent_data.Kind = inter_name
-        if Category == "Characters":
-            ent_data.ObjType = "0"  # "Person"
-        elif 0 <= ItemType <= 7:
+        # if Category == "Characters":
+        #     ent_data.ObjType = "0"  # "Person"
+        if 0 <= ItemType <= 7:
             ent_data.ObjType = "1"  # "Weapon"
         elif 8 <= ItemType <= 10:
             ent_data.ObjType = "2"  # "Physic"

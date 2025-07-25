@@ -1243,6 +1243,11 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         selected_entities = [
             obj for obj in context.selected_objects if obj.amagate_data.is_entity
         ]
+        active_entity = selected_entities[0] if selected_entities else None
+        if active_entity:
+            ent_data = active_entity.amagate_data.get_entity_data()
+        else:
+            ent_data = None
         entity_data.SELECTED_ENTITIES = selected_entities
         #
 
@@ -1305,70 +1310,190 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         layout.label(text=f"{pgettext('Properties')}:")
         box = layout.box()
         box.enabled = len(selected_entities) != 0
-        column = box.column()
 
-        column.prop(wm_data.EntityData, "Kind", text="Kind")
+        column = box.column()
+        flag = "" if entity_data.is_uniform("Kind") else "*"
+        column.prop(wm_data.EntityData, "Kind", text=f"{flag}Kind", text_ctxt="Keep")
         column.prop(wm_data.EntityData, "Name", text="Name")
         row = column.row()
         col = row.column()
         col.alignment = "LEFT"
-        col.label(text=f"{pgettext('Entity Type')}:")
+        is_uniform_objtype = entity_data.is_uniform("ObjType")
+        flag = "" if is_uniform_objtype else "*"
+        col.label(text=f"{flag}{pgettext('Entity Type')}:")
         row.prop(wm_data.EntityData, "ObjType", text="")
 
-        column.separator(type="LINE")
+        # box.separator(type="LINE")
 
         # 通用
+        sub_box = box.box()
+        column = sub_box.column()
         column.label(text=f"{pgettext('General')}:")
         grid = column.grid_flow(row_major=True, columns=2, align=True)
-        grid.prop(wm_data.EntityData, "Alpha", slider=True)
-        grid.prop(wm_data.EntityData, "SelfIlum")
-        row = column.row()
-        row.prop(wm_data.EntityData, "Static")
-        row.prop(wm_data.EntityData, "CastShadows")
 
-        column.separator(type="LINE")
+        flag = "" if entity_data.is_uniform("Alpha") else "*"
+        grid.prop(
+            wm_data.EntityData,
+            "Alpha",
+            slider=True,
+            text=f"{flag}Alpha",
+            text_ctxt="Keep",
+        )
+
+        flag = "" if entity_data.is_uniform("SelfIlum") else "*"
+        grid.prop(
+            wm_data.EntityData, "SelfIlum", text=f"{flag}SelfIlum", text_ctxt="Keep"
+        )
+
+        row = column.row()
+
+        flag = "" if entity_data.is_uniform("Static") else "*"
+        row.prop(wm_data.EntityData, "Static", text=f"{flag}Static", text_ctxt="Keep")
+
+        flag = "" if entity_data.is_uniform("CastShadows") else "*"
+        row.prop(
+            wm_data.EntityData,
+            "CastShadows",
+            text=f"{flag}CastShadows",
+            text_ctxt="Keep",
+        )
+
+        # box.separator(type="LINE")
 
         # 角色
+        sub_box = box.box()
+        if (
+            is_uniform_objtype
+            and ent_data
+            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
+        ):
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
+
+        column = sub_box.column()
         column.label(text=f"{pgettext('Character')}:")
         grid = column.grid_flow(row_major=True, columns=2, align=True)
-        grid.prop(wm_data.EntityData, "Life", text="Life", text_ctxt="Keep")
-        grid.prop(wm_data.EntityData, "Level", text="Level", text_ctxt="Keep")
-        grid.prop(wm_data.EntityData, "Angle", text="Angle", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Life") else "*"
+        grid.prop(wm_data.EntityData, "Life", text=f"{flag}Life", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Level") else "*"
+        grid.prop(wm_data.EntityData, "Level", text=f"{flag}Level", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Angle") else "*"
+        grid.prop(wm_data.EntityData, "Angle", text=f"{flag}Angle", text_ctxt="Keep")
         grid.label(text="")
-        grid.prop(wm_data.EntityData, "SetOnFloor", text="SetOnFloor", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("SetOnFloor") else "*"
+        grid.prop(
+            wm_data.EntityData, "SetOnFloor", text=f"{flag}SetOnFloor", text_ctxt="Keep"
+        )
         grid.label(text="")
-        grid.prop(wm_data.EntityData, "Hide", text="Hide", text_ctxt="Keep")
-        grid.prop(wm_data.EntityData, "Freeze", text="Freeze", text_ctxt="Keep")
-        grid.prop(wm_data.EntityData, "Blind", text="Blind", text_ctxt="Keep")
-        grid.prop(wm_data.EntityData, "Deaf", text="Deaf", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Hide") else "*"
+        grid.prop(wm_data.EntityData, "Hide", text=f"{flag}Hide", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Freeze") else "*"
+        grid.prop(wm_data.EntityData, "Freeze", text=f"{flag}Freeze", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Blind") else "*"
+        grid.prop(wm_data.EntityData, "Blind", text=f"{flag}Blind", text_ctxt="Keep")
+        flag = "" if entity_data.is_uniform("Deaf") else "*"
+        grid.prop(wm_data.EntityData, "Deaf", text=f"{flag}Deaf", text_ctxt="Keep")
 
-        column.separator(type="LINE")
+        # box.separator(type="LINE")
 
         # 演员
-        column.label(text=f"{pgettext('Actor')}:")
-        column.prop(wm_data.EntityData, "Animation", text="Animation", text_ctxt="Keep")
+        sub_box = box.box()
+        if (
+            is_uniform_objtype
+            and ent_data
+            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Actor"
+        ):
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
 
-        column.separator(type="LINE")
+        column = sub_box.column()
+        column.label(text=f"{pgettext('Actor')}:")
+        row = column.row(align=True)
+        col = row.column()
+        col.alignment = "LEFT"
+        flag = "" if entity_data.is_uniform("Animation") else "*"
+        col.label(text=f"{flag}Animation:", text_ctxt="Keep")
+        row.prop(wm_data.EntityData, "Animation", text="")
+
+        # box.separator(type="LINE")
 
         # 灯光
+        sub_box = box.box()
+
+        column = sub_box.column()
         column.label(text=f"{pgettext('Light')}:")
         grid = column.grid_flow(row_major=True, columns=2, align=True)
         grid.prop(wm_data.EntityData.light_prop, "Color", text="")
-        grid.prop(wm_data.EntityData.light_prop, "Intensity")
-        grid.prop(wm_data.EntityData, "FiresIntensity", slider=True)
-        grid.prop(wm_data.EntityData.light_prop, "Precision")
+        flag = "" if entity_data.is_uniform("light_prop.Intensity") else "*"
         grid.prop(
-            wm_data.EntityData.light_prop, "Flick", text="Flick", text_ctxt="Keep"
+            wm_data.EntityData.light_prop,
+            "Intensity",
+            text=f"{flag}{pgettext('Intensity')}",
         )
+        flag = "" if entity_data.is_uniform("FiresIntensity") else "*"
         grid.prop(
-            wm_data.EntityData.light_prop, "Visible", text="Visible", text_ctxt="Keep"
+            wm_data.EntityData,
+            "FiresIntensity",
+            slider=True,
+            text=f"{flag}{pgettext('FiresIntensity')}",
         )
+        flag = "" if entity_data.is_uniform("light_prop.Precision") else "*"
+        grid.prop(
+            wm_data.EntityData.light_prop,
+            "Precision",
+            text=f"{flag}{pgettext('Precision')}",
+        )
+        flag = "" if entity_data.is_uniform("light_prop.Flick") else "*"
+        grid.prop(
+            wm_data.EntityData.light_prop,
+            "Flick",
+            text=f"{flag}Flick",
+            text_ctxt="Keep",
+        )
+        flag = "" if entity_data.is_uniform("light_prop.Visible") else "*"
+        grid.prop(
+            wm_data.EntityData.light_prop,
+            "Visible",
+            text=f"{flag}Visible",
+            text_ctxt="Keep",
+        )
+        flag = "" if entity_data.is_uniform("light_prop.CastShadows") else "*"
         grid.prop(
             wm_data.EntityData.light_prop,
             "CastShadows",
-            text="CastShadows",
+            text=f"{flag}CastShadows",
             text_ctxt="Keep",
         )
+
+        # 装备库存
+        sub_box = box.box()
+        if (
+            is_uniform_objtype
+            and ent_data
+            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
+        ):
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
+
+        column = sub_box.column()
+        column.label(text=f"{pgettext('Equipments')}:")
+
+        # 道具库存
+        sub_box = box.box()
+        if (
+            is_uniform_objtype
+            and ent_data
+            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
+        ):
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
+
+        column = sub_box.column()
+        column.label(text=f"{pgettext('Props')}:")
 
 
 ############################
