@@ -78,7 +78,10 @@ def ensure_material(tex: Image) -> bpy.types.Material:
 # 获取实体集合和主体
 def get_ent_data(
     ent_coll=None, check_visible=True
-) -> tuple[Collection | None, Object | None]:
+) -> tuple[Collection | None, Object | None, bool, bool]:
+    entity = None
+    has_fire = False
+    has_light = False
     if ent_coll is None:
         for coll in bpy.data.collections:
             # 判断名称前缀
@@ -95,11 +98,9 @@ def get_ent_data(
             break
     #
     if ent_coll is None:
-        return None, None
+        return ent_coll, entity, has_fire, has_light
     #
-    entity = None
     prefixes = (
-        "blade_skin",
         "blade_edge_",
         "blade_spike_",
         "blade_trail_",
@@ -110,14 +111,15 @@ def get_ent_data(
             continue
         #
         if obj.type == "MESH":
-            if not obj.name.lower().startswith(prefixes):
+            if entity is None and not obj.name.lower().startswith(prefixes):
                 entity = obj
-                break
+            elif obj.name.lower().startswith("b_fire_fuego_"):
+                has_fire = True
+        elif obj.type == "EMPTY":
+            if obj.name.lower().startswith("blade_light_"):
+                has_light = True
     #
-    if entity is None:
-        return None, None
-
-    return ent_coll, entity
+    return ent_coll, entity, has_fire, has_light
 
 
 ############################
@@ -1605,6 +1607,11 @@ class OT_ExportBOD(bpy.types.Operator):
         #
         if not ent_dict["objects"]:
             self.report({"ERROR"}, "No visible entity Mesh")
+            return {"CANCELLED"}
+        if next(
+            (True for obj in ent_dict["objects"] if len(obj.data.uv_layers) == 0), False
+        ):
+            self.report({"ERROR"}, "The entity is missing UV map")
             return {"CANCELLED"}
         # print([i.name for i in ent_dict["objects"]])
         # return {"CANCELLED"}

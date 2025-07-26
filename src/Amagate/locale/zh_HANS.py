@@ -269,6 +269,7 @@
     ("*", "Not a bod file"): "不是BOD文件",
     ("*", "No collection with the prefix `Blade_Object_` was found"): "未找到以 `Blade_Object_` 为前缀的集合",
     ("*", "No visible entity Mesh"): "没有可见的实体网格",
+    ("*", "The entity is missing UV map"): "实体缺少UV贴图",
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
     ("*", "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group"): "所有顶点必须分配骨骼顶点组且只能有一个骨骼顶点组",
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",
