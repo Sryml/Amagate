@@ -17,6 +17,7 @@ from . import data, L3D_data, entity_data
 from . import L3D_operator as OP_L3D
 from . import L3D_ext_operator as OP_L3D_EXT
 from . import L3D_imp_operator as OP_L3D_IMP
+from . import entity_operator as OP_ENTITY
 from . import sector_operator as OP_SECTOR
 from . import ag_utils
 from ..service import ag_service
@@ -1421,29 +1422,48 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 灯光
         sub_box = box.box()
+        if ent_data and (ent_data.has_fire or ent_data.has_light):
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Light')}:")
-        grid = column.grid_flow(row_major=True, columns=2, align=True)
-        grid.prop(wm_data.EntityData.light_prop, "Color", text="")
+
+        flag = "" if entity_data.is_uniform("FiresIntensity") else "*"
+        row = column.row()
+        row.enabled = True if ent_data and ent_data.has_fire else False
+        row.prop(
+            wm_data.EntityData,
+            "FiresIntensity",
+            slider=True,
+            text=f"{flag}{pgettext('Fires Intensity')}",
+        )
+
+        grid = column.grid_flow(row_major=True, columns=2)
+        grid.enabled = True if ent_data and ent_data.has_light else False
         flag = "" if entity_data.is_uniform("light_prop.Intensity") else "*"
         grid.prop(
             wm_data.EntityData.light_prop,
             "Intensity",
             text=f"{flag}{pgettext('Intensity')}",
         )
-        flag = "" if entity_data.is_uniform("FiresIntensity") else "*"
-        grid.prop(
-            wm_data.EntityData,
-            "FiresIntensity",
-            slider=True,
-            text=f"{flag}{pgettext('FiresIntensity')}",
-        )
         flag = "" if entity_data.is_uniform("light_prop.Precision") else "*"
         grid.prop(
             wm_data.EntityData.light_prop,
             "Precision",
             text=f"{flag}{pgettext('Precision')}",
+        )
+        row = grid.row(align=True)
+        if not entity_data.is_uniform("light_prop.Color"):
+            row.label(text="*")
+        row.prop(wm_data.EntityData.light_prop, "Color", text="")
+        flag = "" if entity_data.is_uniform("light_prop.CastShadows") else "*"
+        grid.prop(
+            wm_data.EntityData.light_prop,
+            "CastShadows",
+            text=f"{flag}CastShadows",
+            text_ctxt="Keep",
         )
         flag = "" if entity_data.is_uniform("light_prop.Flick") else "*"
         grid.prop(
@@ -1459,33 +1479,50 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             text=f"{flag}Visible",
             text_ctxt="Keep",
         )
-        flag = "" if entity_data.is_uniform("light_prop.CastShadows") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "CastShadows",
-            text=f"{flag}CastShadows",
-            text_ctxt="Keep",
-        )
 
         # 装备库存
         sub_box = box.box()
         if (
-            is_uniform_objtype
-            and ent_data
+            ent_data
             and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
         ):
             sub_box.enabled = True
+            index = wm_data.active_equipment
+            if index >= len(ent_data.equipment_inv) or index < 0:
+                wm_data.active_equipment = 0
         else:
             sub_box.enabled = False
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Equipments')}:")
+        row = column.row()
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_Inventory",
+            "",
+            ent_data or wm_data.EntityData,
+            "equipment_inv",
+            wm_data,
+            "active_equipment",
+            rows=3,
+            maxrows=3,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column()
+        sub_col = col.column(align=True)
+        sub_col.operator(OP_ENTITY.OT_Equipment_Add.bl_idname, text="", icon="ADD")
+        sub_col.operator(
+            OP_ENTITY.OT_Equipment_Remove.bl_idname, text="", icon="REMOVE"
+        )
+        sub_col = col.column(align=True)
+        sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
+        sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
 
         # 道具库存
         sub_box = box.box()
         if (
-            is_uniform_objtype
-            and ent_data
+            ent_data
             and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
         ):
             sub_box.enabled = True

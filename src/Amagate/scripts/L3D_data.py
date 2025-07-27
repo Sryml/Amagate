@@ -685,7 +685,7 @@ def check_sector_duplicate():
     context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.app.timers.register(
-        lambda: bpy.ops.object.mode_set(mode="OBJECT") and None, first_interval=0.1
+        lambda: (bpy.ops.object.mode_set(mode="OBJECT"), None)[-1], first_interval=0.1
     )
 
     bpy.ops.ed.undo_push(message="Sector Check")
@@ -1027,7 +1027,7 @@ def check_before_save(filepath):
                 )
         # 保存内置纹理后，延迟设置文件路径
         if img_list:
-            bpy.app.timers.register(lambda: tuple(map(lambda x: setattr(x[0], "filepath", x[1]), img_list)) and None, first_interval=0.2)  # type: ignore
+            bpy.app.timers.register(lambda: (tuple(map(lambda x: setattr(x[0], "filepath", x[1]), img_list)), None)[-1], first_interval=0.2)  # type: ignore
 
 
 def draw_callback_3d():
@@ -1220,7 +1220,7 @@ def load_post(filepath=""):
         load_post_callback = LOAD_POST_CALLBACK
         LOAD_POST_CALLBACK = None
         # 延迟初始化，以免崩溃
-        bpy.app.timers.register(lambda: load_post_callback[0](*load_post_callback[1]) and None, first_interval=0.15)  # type: ignore
+        bpy.app.timers.register(lambda: (load_post_callback[0](*load_post_callback[1]), None)[-1], first_interval=0.15)  # type: ignore
 
 
 ############################

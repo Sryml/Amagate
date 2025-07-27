@@ -41,7 +41,7 @@ from bpy.props import (
 )
 from mathutils import *  # type: ignore
 
-from . import data, L3D_data
+from . import data, L3D_data, entity_data
 from . import ag_utils
 from ..service import ag_service, protocol
 
@@ -1103,8 +1103,7 @@ class OT_Entity_Search(bpy.types.Operator):
 
     enum: EnumProperty(
         translation_context="Entity",
-        items=data.get_ent_enum2,
-        update=lambda self, context: self.update_ent_enum(context),
+        items=data.get_ent_enum_search,
     )  # type: ignore
 
     def execute(self, context: Context):
@@ -1116,10 +1115,6 @@ class OT_Entity_Search(bpy.types.Operator):
     def invoke(self, context: Context, event: bpy.types.Event):
         context.window_manager.invoke_search_popup(self)
         return {"FINISHED"}
-
-    ############################
-    def update_ent_enum(self, context: Context):
-        data.WindowManagerProperty.update_ent_enum(context)
 
 
 # 实体枚举
@@ -1154,7 +1149,7 @@ class OT_Entity_Enum(bpy.types.Operator):
 # 添加到场景
 class OT_EntityAddToScene(bpy.types.Operator):
     bl_idname = "amagate.entity_add_to_scene"
-    bl_label = "Add to Scene"
+    bl_label = "Add to L3D Scene"
     bl_description = "Add to Scene"
     bl_options = {"INTERNAL"}
 
@@ -1163,15 +1158,18 @@ class OT_EntityAddToScene(bpy.types.Operator):
         return context.scene.amagate_data.is_blade
 
     def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "ent_enum", wm_data.ent_enum
+        )
+        return self.add(self, context, inter_name)[0]
+
+    @staticmethod
+    def add(this, context: Context, inter_name):
         from . import entity_operator as OP_ENTITY
 
         E_MANIFEST = data.E_MANIFEST
-        wm_data = context.window_manager.amagate_data
-        value = wm_data.ent_enum
-        inter_name = bpy.types.UILayout.enum_item_description(
-            wm_data, "ent_enum", value
-        )
-        #
+        entity = None  # type: ignore
         filepath = ""
         for cat in E_MANIFEST["Entities"]:
             item = E_MANIFEST["Entities"][cat].get(inter_name)
@@ -1182,8 +1180,17 @@ class OT_EntityAddToScene(bpy.types.Operator):
                 break
         #
         if not (filepath and os.path.exists(filepath)):
-            self.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
-            return {"CANCELLED"}
+            if this is not None:
+                this.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
+            else:
+                context.window_manager.popup_menu(
+                    lambda self, context: self.layout.label(
+                        text=f"{pgettext('File not found')}: {item[1]}"
+                    ),
+                    title="Error",
+                    icon="ERROR",
+                )
+            return {"CANCELLED"}, entity
 
         coll_name = f"Blade_Object_{inter_name}"
         coll = bpy.data.collections.get(coll_name)
@@ -1193,23 +1200,43 @@ class OT_EntityAddToScene(bpy.types.Operator):
                     (i for i in data_from.collections if i == coll_name), None
                 )
                 if not from_coll:
-                    self.report({"ERROR"}, "Entity collection not found")
-                    return {"CANCELLED"}
+                    if this is not None:
+                        this.report({"ERROR"}, "Entity collection not found")
+                    else:
+                        context.window_manager.popup_menu(
+                            lambda self, context: self.layout.label(
+                                text="Entity collection not found"
+                            ),
+                            title="Error",
+                            icon="ERROR",
+                        )
+                    return {"CANCELLED"}, entity
 
                 data_to.collections = [coll_name]
             coll = bpy.data.collections.get(coll_name)
 
-        ent_coll, entity_raw = OP_ENTITY.get_ent_data(coll, check_visible=False)
+        ent_coll, entity_raw, has_fire, has_light = OP_ENTITY.get_ent_data(
+            coll, check_visible=False
+        )
         if entity_raw is None:
-            self.report({"ERROR"}, "No visible entity Mesh")
-            return {"CANCELLED"}
+            if this is not None:
+                this.report({"ERROR"}, "No visible entity Mesh")
+            else:
+                context.window_manager.popup_menu(
+                    lambda self, context: self.layout.label(
+                        text="No visible entity Mesh"
+                    ),
+                    title="Error",
+                    icon="ERROR",
+                )
+            return {"CANCELLED"}, entity
         #
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.update_scene_edit_mode()
 
         scene_data = context.scene.amagate_data
-        obj_name = self.get_name(context, f"{inter_name}_")
+        obj_name = entity_data.get_name(context, f"{inter_name}_")
         entity = bpy.data.objects.new(
             obj_name, entity_raw.data
         )  # type: Object # type: ignore
@@ -1217,13 +1244,16 @@ class OT_EntityAddToScene(bpy.types.Operator):
         entity.amagate_data.set_entity_data()
         ent_data = entity.amagate_data.get_entity_data()
         scene_data["EntityManage"][obj_name] = entity
-        ag_utils.select_active(context, entity)
-        # 移动到当前视图焦点
-        rv3d = context.region_data
-        entity.location = rv3d.view_location.to_tuple(0)
+        if this is not None:
+            ag_utils.select_active(context, entity)
+            # 移动到当前视图焦点
+            rv3d = context.region_data
+            entity.location = rv3d.view_location.to_tuple(0)
         #
         ent_data.Name = obj_name
         ent_data.Kind = inter_name
+        ent_data.has_fire = has_fire
+        ent_data.has_light = has_light
         # if Category == "Characters":
         #     ent_data.ObjType = "0"  # "Person"
         if 0 <= ItemType <= 7:
@@ -1233,14 +1263,7 @@ class OT_EntityAddToScene(bpy.types.Operator):
         else:
             ent_data.ObjType = "6"  # "Assigned By Script"
 
-        return {"FINISHED"}
-
-    @staticmethod
-    def get_name(context: Context, prefix: str, start_id=1):
-        scene_data = context.scene.amagate_data
-        while scene_data["EntityManage"].get(f"{prefix}{start_id}"):
-            start_id += 1
-        return f"{prefix}{start_id}"
+        return {"FINISHED"}, entity
 
 
 # 从场景移除
@@ -1261,11 +1284,12 @@ class OT_EntityAddToScene(bpy.types.Operator):
 # 打开预制体文件
 class OT_OpenPrefab(bpy.types.Operator):
     bl_idname = "amagate.open_prefab"
-    bl_label = "Open File"
-    bl_description = ""
+    bl_label = "Append"
+    bl_description = "Hold Shift to Open"
     bl_options = {"INTERNAL"}
 
     action: IntProperty(default=0)  # type: ignore
+    append: BoolProperty(default=False)  # type: ignore
 
     @staticmethod
     def set_ent_enum(ent_enum, cat, prefab_type):
@@ -1285,13 +1309,35 @@ class OT_OpenPrefab(bpy.types.Operator):
         for cat in E_MANIFEST["Entities"]:
             item = E_MANIFEST["Entities"][cat].get(inter_name)
             if item:
-                filepath = os.path.join(data.ADDON_PATH, "Models", item[1])
-                if os.path.exists(filepath):
-                    L3D_data.LOAD_POST_CALLBACK = (
-                        self.set_ent_enum,
-                        (ent_enum, cat, str(item[2])),
-                    )
-                    bpy.ops.wm.open_mainfile(filepath=filepath)
+                filepath = Path(os.path.join(data.ADDON_PATH, "Models", item[1]))
+                if filepath.exists():
+                    if filepath == Path(bpy.data.filepath):
+                        self.report({"ERROR"}, "file is already open")
+                        return {"CANCELLED"}
+
+                    if self.append:
+                        coll_name = f"Blade_Object_{inter_name}"
+                        with bpy.data.libraries.load(str(filepath), link=False) as (
+                            data_from,
+                            data_to,
+                        ):
+                            ent_coll = next(
+                                (i for i in data_from.collections if i == coll_name),
+                                None,
+                            )
+                            if not ent_coll:
+                                self.report({"ERROR"}, "Entity collection not found")
+                                return {"CANCELLED"}
+
+                            data_to.collections = [coll_name]
+                        coll = data_to.collections[0]
+                        context.scene.collection.children.link(coll)  # type: ignore
+                    else:
+                        L3D_data.LOAD_POST_CALLBACK = (
+                            self.set_ent_enum,
+                            (ent_enum, cat, str(item[2])),
+                        )
+                        bpy.ops.wm.open_mainfile(filepath=str(filepath))
                 else:
                     self.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
 
@@ -1300,9 +1346,13 @@ class OT_OpenPrefab(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context: Context, event: bpy.types.Event):
+        self.append = False
         if self.action == 0:
-            if bpy.data.is_dirty:
-                return context.window_manager.invoke_popup(self, width=300)
+            if event.shift:
+                if bpy.data.is_dirty:
+                    return context.window_manager.invoke_popup(self, width=300)
+            else:
+                self.append = True
         elif self.action == 1:  # Save
             ag_utils.simulate_keypress(27)
             ret = bpy.ops.wm.save_mainfile("INVOKE_DEFAULT")  # type: ignore
@@ -1363,7 +1413,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
             self.report({"WARNING"}, "Please save the file first")
             return {"CANCELLED"}
 
-        ent_coll, entity = OP_ENTITY.get_ent_data()
+        ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
         if entity is None:
             self.report({"WARNING"}, "No visible entity Mesh")
             return {"CANCELLED"}
@@ -1532,6 +1582,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
             force_reload=True,
         )
         data.gen_ent_enum()
+        entity_data.gen_equipment()
 
         if not self.builtin and filepath_origin:
             L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (inter_name,))

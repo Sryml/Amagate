@@ -298,12 +298,16 @@ class OT_Test(bpy.types.Operator):
         description="",
         items=[
             ("1", "Batch Import BOD", ""),
+            ("2", "test1", ""),
         ],
         options={"HIDDEN"},
     )  # type: ignore
 
     def execute(self, context: Context):
-        cb_dict = {"Batch Import BOD": self.import_bod}
+        cb_dict = {
+            "Batch Import BOD": self.import_bod,
+            "test1": self.test1,
+        }
         name = bpy.types.UILayout.enum_item_name(self, "action", self.action)
         cb_dict[name](context)
 
@@ -529,79 +533,23 @@ class OT_Test(bpy.types.Operator):
         #     sort_keys=True,
         # )
 
-    def test1(self, context: Context):
-        from . import L3D_ext_operator as OP_L3D_EXT
-
-        obj = context.object
-        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
-        # bm = bmesh.from_edit_mesh(mesh)
-        bm = bmesh.new()
-        bm.from_mesh(mesh)
-        # edge = next(e for e in bm.edges if e.select)
-        # bm.faces.ensure_lookup_table()
-        face = next(e for e in bm.faces if e.select)
-        # face = bm.faces[3]
-
-        # bm = bmesh.new()
-        # bm.from_mesh(mesh)
-        # OP_L3D_EXT.hole_split(bm)
-
-        result = bmesh.ops.bisect_plane(
-            bm,
-            geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
-            dist=1e-4,
-            plane_no=Vector((0, 0, 1)),
-            plane_co=Vector((0, 0, 1)),
-            clear_inner=False,
-            clear_outer=False,
-        )
-        # bm.verts.ensure_lookup_table()
-        # for i in (8,9,10,11):
-        #     bm.verts[i].select = True
-        # bm.select_mode={"EDGE"}
-        # bm.select_flush_mode()
-        # bm.select_flush(True)
-        # bmesh.update_edit_mesh(mesh)
-        mesh_new = bpy.data.meshes.new("AG.test")
-        bm.to_mesh(mesh_new)
-        obj_new = bpy.data.objects.new("AG.test", mesh_new)
-        bpy.context.scene.collection.objects.link(obj_new)
-        bm.free()
-
-        # cut_verts = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
-        # cut_edges = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMEdge)]
-        # print(f"cut_edges: {[e.index for e in cut_edges]}")
-        # print(f"link_faces :{len(cut_edges[0].link_faces)}")
-        # bm.free()
-        # face = edges[0].link_faces[0]
-        # result = bmesh.ops.bisect_plane(
-        #     bm,
-        #     geom=list(face.verts) + list(face.edges) + [face],  # type: ignore
-        #     dist=1e-4,
-        #     plane_no=Vector((1, 0, 0)),
-        #     plane_co=Vector((0.0, 0, 0)),
-        #     clear_inner=False,
-        #     clear_outer=False,
-        # )
-        # vert = [g for g in result["geom_cut"] if isinstance(g, bmesh.types.BMVert)]
-        # print(f"edge: {[e.index for e in edge]}")
-        # bmesh.update_edit_mesh(mesh)
-
-        # 获取新生成的面
-        # new_faces = [g for g in result["geom"] if isinstance(g, bmesh.types.BMFace)]
-        # bm_new = bmesh.new()
-        # for f in new_faces:
-        #     for v in f.verts:
-        #         bm_new.verts.new(v.co)
-        #     bm_new.faces.new(bm_new.verts[-len(f.verts):])
-        # bmesh.ops.remove_doubles(bm_new, verts=bm_new.verts, dist=0.0001)
-        # mesh_new = bpy.data.meshes.new("AG.test")
-        # bm_new.to_mesh(mesh_new)
-        # obj_new = bpy.data.objects.new("AG.test", mesh_new)
-        # bpy.context.scene.collection.objects.link(obj_new)
-        # bm_new.free()
-
-        # bpy.ops.ed.undo_push(message="test1")
+    @staticmethod
+    def test1(context: Context):
+        name_lst = []
+        models_path = Path(os.path.join(data.ADDON_PATH, "Models"))
+        for dir in ("3DObjs",):
+            root = models_path / dir
+            for f_name in os.listdir(root):
+                if f_name.lower().endswith(".blend"):
+                    filepath = root / f_name
+                    with contextlib.redirect_stdout(StringIO()):
+                        bpy.ops.wm.open_mainfile(filepath=str(filepath))
+                    for img in bpy.data.images:
+                        if img.name != "Render Result":
+                            if not img.filepath.startswith("//textures"):
+                                name_lst.append(f"{dir}/{f_name}")
+                                break
+        print(name_lst)
 
     def test2(self, context: Context):
         obj = context.object
@@ -693,7 +641,7 @@ class OT_ReloadAddon(bpy.types.Operator):
         bpy.ops.preferences.addon_disable(module=data.PACKAGE)  # type: ignore
         # base_package.unregister()
         bpy.app.timers.register(
-            lambda: bpy.ops.preferences.addon_enable(module=data.PACKAGE) and None,  # type: ignore
+            lambda: (bpy.ops.preferences.addon_enable(module=data.PACKAGE), None)[-1],  # type: ignore
             first_interval=0.5,
         )
         # bpy.ops.preferences.addon_enable(module=data.PACKAGE)  # type: ignore

@@ -231,7 +231,7 @@ def get_ent_enum(this, context):
     return ENT_ENUM
 
 
-def get_ent_enum2(this, context):
+def get_ent_enum_search(this, context):
     ent_enum = ENT_ENUM.copy()
     for i in range(len(ent_enum) - 1, -1, -1):
         if ent_enum[i][0] == "":
@@ -283,10 +283,10 @@ def gen_ent_enum():
                     (
                         ENT_PREVIEWS[filename.stem].icon_id
                         if ENT_PREVIEWS.get(filename.stem)
-                        else "BLANK1"
+                        else BLANK1
                     ),
                     count,
-                    v[2] if len(v) > 2 else -1,
+                    v[2],
                 ]
             )
             count += 1
@@ -309,6 +309,7 @@ def load_ent_preview():
             )  # force_reload=True
     # 生成实体枚举
     gen_ent_enum()
+    entity_data.gen_equipment()
 
 
 ############################
@@ -808,6 +809,11 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         items=get_ent_enum,
         update=lambda self, context: self.update_ent_enum(context),
     )  # type: ignore
+    equipment_enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_equipment,
+        update=entity_data.add_equipment,
+    )  # type: ignore
     ent_preview: EnumProperty(
         translation_context="Entity", items=get_ent_preview
     )  # type: ignore
@@ -821,6 +827,8 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         ],
     )  # type: ignore
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
+    active_equipment: IntProperty(default=0)  # type: ignore
+    active_prop: IntProperty(default=0)  # type: ignore
 
     ############################
 

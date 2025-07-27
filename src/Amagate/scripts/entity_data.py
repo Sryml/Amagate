@@ -12,6 +12,7 @@ import shutil
 import pickle
 import threading
 import contextlib
+from pathlib import Path
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
 
@@ -83,6 +84,13 @@ OBJ_NONE = 99
 ############################
 
 
+def get_name(context: Context, prefix: str, start_id=1):
+    scene_data = context.scene.amagate_data
+    while scene_data["EntityManage"].get(f"{prefix}{start_id}"):
+        start_id += 1
+    return f"{prefix}{start_id}"
+
+
 def is_uniform(attr: str):
     selected_entities = SELECTED_ENTITIES
     if not selected_entities:
@@ -99,9 +107,154 @@ def is_uniform(attr: str):
     return True
 
 
+def get_equipment(this, context):
+    return EQUIPMENT_ENUM
+
+
+def get_equipment_search(this, context):
+    ent_enum = EQUIPMENT_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+        else:
+            ent_enum[i] = (
+                ent_enum[i][0],
+                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+                ent_enum[i][2],
+                ent_enum[i][3],
+                ent_enum[i][4],
+            )
+    return ent_enum
+
+
+def add_equipment(this, context: Context):
+    ag_utils.simulate_keypress(27)
+    bpy.app.timers.register(add_equipment_timer, first_interval=0.03)
+
+
+def add_equipment_timer():
+    from . import L3D_operator as OP_L3D
+
+    context = bpy.context
+    wm_data = context.window_manager.amagate_data
+    inter_name = bpy.types.UILayout.enum_item_description(
+        wm_data, "equipment_enum", wm_data.equipment_enum
+    )
+    _, inv_ent = OP_L3D.OT_EntityAddToScene.add(None, context, inter_name)
+
+    ent = SELECTED_ENTITIES[0]
+    ent_data = ent.amagate_data.get_entity_data()
+    item = ent_data.equipment_inv.add()
+    item.obj = inv_ent
+    wm_data.active_equipment = len(ent_data.equipment_inv) - 1
+
+    inv_ent.visible_camera = False
+    inv_ent.visible_shadow = False
+    inv_ent.location = ent.location + Vector((0, 0, 1.2))
+
+
+def gen_equipment():
+    global EQUIPMENT_ENUM
+    EQUIPMENT_ENUM = []
+    count = 0
+
+    for cat in (
+        "Characters",
+        "Props",
+        "1H Weapons",
+        "2H Weapons",
+        "Shields & Bows",
+        "Others",
+        "Pieces",
+        "Custom",
+    ):
+        enum = []
+        for k, v in data.E_MANIFEST["Entities"][cat].items():
+            filename = Path(v[1])
+            ItemType = v[2]
+            if 0 <= ItemType <= 7:
+                enum.append(
+                    [
+                        str(count),
+                        v[0],
+                        k,
+                        (
+                            data.ENT_PREVIEWS[filename.stem].icon_id
+                            if data.ENT_PREVIEWS.get(filename.stem)
+                            else data.BLANK1
+                        ),
+                        count,
+                        ItemType,
+                    ]
+                )
+                count += 1
+        enum.sort(key=lambda x: x[1])
+        enum.sort(key=lambda x: x[5])
+        for i in range(len(enum)):
+            enum[i] = tuple(enum[i][:-1])
+        # enum.insert(0, ("", cat, ""))
+        EQUIPMENT_ENUM.extend(enum)
+
+
 ############################
 ############################ 模板列表
 ############################
+
+
+# 库存
+class AMAGATE_UI_UL_Inventory(bpy.types.UIList):
+    def draw_filter(self, context, layout):
+        row = layout.row()
+        row.prop(self, "filter_name", text="", icon="VIEWZOOM")
+
+    def filter_items(self, context, data, propname):
+        items = getattr(data, propname)
+        #
+        flt_neworder = []
+        # 按A-Z排序
+        # if self.use_filter_sort_alpha:
+        #     flt_neworder = bpy.types.UI_UL_list.sort_items_by_name(items, "item_name")
+        # else:
+        #     flt_neworder = []
+        # 按名称过滤
+        if self.filter_name:
+            flt_flags = [self.bitflag_filter_item] * len(items)  # 默认全部显示
+            regex_pattern = re.escape(self.filter_name).replace(r"\*", ".*")
+            regex = re.compile(f"{regex_pattern}", re.IGNORECASE)  # 全匹配忽略大小写
+            for idx, item in enumerate(items):
+                if item.obj is None or not regex.search(item.obj.name):
+                    flt_flags[idx] = 0
+        elif self.use_filter_invert:
+            flt_flags = [0] * len(items)
+        else:
+            flt_flags = [self.bitflag_filter_item] * len(items)
+
+        return flt_flags, flt_neworder
+
+    def draw_item(
+        self,
+        context: Context,
+        layout: bpy.types.UILayout,
+        data_,
+        item,
+        icon,
+        active_data,
+        active_prop,
+    ):
+        from . import entity_operator as OP_Entity
+
+        scene_data = context.scene.amagate_data
+        ent = item.obj
+        if ent is None:
+            layout.alert = True
+            layout.label(text="Deleted Object", icon="ERROR")
+        else:
+            layout.alert = False
+            ent_data = ent.amagate_data.get_entity_data()
+            icon_id = next(i[3] for i in data.ENT_ENUM if i[2] == ent_data.Kind)
+            row = layout.row()
+            row.label(text=ent_data.Name, icon_value=icon_id)
+            row.operator(OP_Entity.OT_Equipment_Select.bl_idname, text="", icon="RESTRICT_SELECT_OFF", emboss=False).obj_name = ent.name  # type: ignore
 
 
 ############################
@@ -111,7 +264,7 @@ def is_uniform(attr: str):
 
 class EntityCollection(bpy.types.PropertyGroup):
     obj: PointerProperty(type=bpy.types.Object)  # type: ignore
-    index: IntProperty(default=0)  # type: ignore
+    # index: IntProperty(default=0)  # type: ignore
 
 
 ############################

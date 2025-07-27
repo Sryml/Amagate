@@ -216,7 +216,10 @@ def simulate_keypress(keycode: int):
 
     # 释放键
     bpy.app.timers.register(
-        lambda keycode=keycode: ctypes.windll.user32.keybd_event(keycode, 0, 2, 0),
+        lambda keycode=keycode: (
+            ctypes.windll.user32.keybd_event(keycode, 0, 2, 0),
+            None,
+        )[-1],
         first_interval=0.01,
     )
     # ctypes.windll.user32.keybd_event(keycode, 0, 2, 0)

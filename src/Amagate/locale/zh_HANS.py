@@ -195,8 +195,9 @@
     ("*", "Prefab"): "预制体",
     ("*", "Entity"): "实体",
     ("Operator", "Select Entity"): "选择实体",
-    ("Operator", "Add to Scene"): "添加到场景",
+    ("Operator", "Add to L3D Scene"): "添加到L3D场景",
     ("Operator", "Remove from Scene"): "从场景中移除",
+    ("*", "Hold Shift to Open"): "按住 Shift 打开",
     ("*", "Internal Name"): "内部名称",
     ("*", "Prefab Name"): "预制体名称",
     ("*", "Prefab Type"): "预制体类型",
@@ -218,6 +219,7 @@
     ("*", "Fires Intensity"): "火焰强度",
     ("*", "Flicker"): "闪烁",
     ("*", "Equipments"): "装备",
+    ("*", "Hold down shift to search"): "按住 Shift 搜索",
     ("*", "Props"): "道具",
     # 服务器面板
     ("Operator", "Start Server"): "启动服务器",

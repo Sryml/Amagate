@@ -36,7 +36,7 @@ from bpy.props import (
 )
 from mathutils import *  # type: ignore
 
-from . import data
+from . import data, entity_data
 from . import ag_utils
 
 
@@ -120,6 +120,171 @@ def get_ent_data(
                 has_light = True
     #
     return ent_coll, entity, has_fire, has_light
+
+
+############################
+############################ 预制体面板
+############################
+
+
+# 选择装备
+class OT_Equipment_Select(bpy.types.Operator):
+    bl_idname = "amagate.equipment_select"
+    bl_label = "Select"
+    bl_description = "Select equipment"
+    bl_options = {"INTERNAL"}
+
+    obj_name: StringProperty(default="")  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            ent = entity_data.SELECTED_ENTITIES[0]
+            ent_data = ent.amagate_data.get_entity_data()
+            if len(ent_data.equipment_inv) != 0:
+                return True
+        return False
+
+    def execute(self, context: Context):
+        if self.obj_name != "":
+            ag_utils.select_active(context, bpy.data.objects[self.obj_name])
+        return {"FINISHED"}
+
+
+# 添加装备
+class OT_Equipment_Add(bpy.types.Operator):
+    bl_idname = "amagate.equipment_add"
+    bl_label = "Add"
+    bl_description = "Hold down shift to search"
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            ent = entity_data.SELECTED_ENTITIES[0]
+            ent_data = ent.amagate_data.get_entity_data()
+            if (
+                bpy.types.UILayout.enum_item_name(ent_data, "ObjType", ent_data.ObjType)
+                == "Person"
+            ):
+                return True
+        return False
+
+    enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_equipment_search,
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        wm_data.equipment_enum = self.enum
+        # data.region_redraw("UI")
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        if event.shift:
+            context.window_manager.invoke_search_popup(self)
+            return {"FINISHED"}
+        return context.window_manager.invoke_popup(self, width=900)
+
+    def draw(self, context: Context):
+        layout = self.layout
+        wm_data = context.window_manager.amagate_data
+        scene_data = context.scene.amagate_data
+        ent_enum = entity_data.get_equipment(None, None)
+        row = layout.row(align=False)
+        for idx, item in enumerate(ent_enum):
+            if idx % 40 == 0:
+                col = row.column(align=True, heading_ctxt="Entity")
+            col.prop_enum(wm_data, "equipment_enum", item[0])
+
+
+# 移除装备
+class OT_Equipment_Remove(bpy.types.Operator):
+    bl_idname = "amagate.equipment_remove"
+    bl_label = "Remove"
+    bl_description = "Remove selected equipment"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            ent = entity_data.SELECTED_ENTITIES[0]
+            ent_data = ent.amagate_data.get_entity_data()
+            if len(ent_data.equipment_inv) != 0:
+                return True
+        return False
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        wm_data = context.window_manager.amagate_data
+        selected_entities = entity_data.SELECTED_ENTITIES
+        ent = selected_entities[0]
+        ent_data = ent.amagate_data.get_entity_data()
+        index = wm_data.active_equipment
+        if index < 0 or index >= len(ent_data.equipment_inv):
+            return {"FINISHED"}
+
+        item = ent_data.equipment_inv[index]
+        obj = item.obj  # type: Object
+        if obj is not None:
+            scene_data["EntityManage"].pop(obj.amagate_data.get_entity_data().Name)
+            bpy.data.objects.remove(obj)
+        ent_data.equipment_inv.remove(index)
+        if index >= len(ent_data.equipment_inv):
+            new_index = max(len(ent_data.equipment_inv) - 1, 0)
+        else:
+            new_index = index
+        wm_data.active_equipment = new_index
+
+        return {"FINISHED"}
+
+
+# 移动装备
+class OT_Equipment_Move(bpy.types.Operator):
+    bl_idname = "amagate.equipment_move"
+    bl_label = "Move"
+    bl_description = "Move selected equipment"
+    bl_options = {"INTERNAL"}
+
+    direction: EnumProperty(
+        items=[
+            ("UP", "Up", ""),
+            ("DOWN", "Down", ""),
+        ],
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            ent = entity_data.SELECTED_ENTITIES[0]
+            ent_data = ent.amagate_data.get_entity_data()
+            if len(ent_data.equipment_inv) > 1:
+                return True
+        return False
+
+    def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        selected_entities = entity_data.SELECTED_ENTITIES
+        ent = selected_entities[0]
+        ent_data = ent.amagate_data.get_entity_data()
+        index = wm_data.active_equipment
+        if index < 0 or index >= len(ent_data.equipment_inv):
+            return {"FINISHED"}
+
+        inv_list = ent_data.equipment_inv
+        length = len(inv_list)
+
+        if self.direction == "UP":
+            new_index = (index - 1) % length
+            inv_list.move(index, new_index)
+        else:
+            new_index = (index + 1) % length
+            inv_list.move(index, new_index)
+
+        wm_data.active_equipment = new_index
+        return {"FINISHED"}
 
 
 ############################
@@ -232,15 +397,15 @@ class OT_AddComponent(bpy.types.Operator):
         return {"FINISHED"}
 
 
-# TODO 预设
-class OT_Presets(bpy.types.Operator):
-    bl_idname = "amagate.ent_presets"
-    bl_label = "Presets"
-    bl_options = {"INTERNAL"}
+# 预设
+# class OT_Presets(bpy.types.Operator):
+#     bl_idname = "amagate.ent_presets"
+#     bl_label = "Presets"
+#     bl_options = {"INTERNAL"}
 
-    def execute(self, context: Context):
-        # print(f"action: {self.action}")
-        return {"FINISHED"}
+#     def execute(self, context: Context):
+#         # print(f"action: {self.action}")
+#         return {"FINISHED"}
 
 
 # 按组选择
