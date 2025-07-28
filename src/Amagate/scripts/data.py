@@ -310,6 +310,7 @@ def load_ent_preview():
     # 生成实体枚举
     gen_ent_enum()
     entity_data.gen_equipment()
+    entity_data.gen_prop()
 
 
 ############################
@@ -813,6 +814,11 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         translation_context="Entity",
         items=entity_data.get_equipment,
         update=entity_data.add_equipment,
+    )  # type: ignore
+    prop_enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_prop,
+        update=entity_data.add_prop,
     )  # type: ignore
     ent_preview: EnumProperty(
         translation_context="Entity", items=get_ent_preview

@@ -1272,7 +1272,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         row.prop(wm_data, "ent_inter_name", text="")
 
         row = layout.row()
-        row.operator(OP_L3D.OT_EntityAddToScene.bl_idname)
+        row.operator(OP_L3D.OT_EntityCreate.bl_idname)
         row.operator(OP_L3D.OT_OpenPrefab.bl_idname).action = 0  # type: ignore
         # row.operator(OP_L3D.OT_EntityRemoveFromScene.bl_idname)
 
@@ -1494,7 +1494,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             sub_box.enabled = False
 
         column = sub_box.column()
-        column.label(text=f"{pgettext('Equipments')}:")
+        column.label(text=f"{pgettext('Equipments Inventory')}:")
         row = column.row()
         col = row.column()
         col.template_list(
@@ -1526,11 +1526,35 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
         ):
             sub_box.enabled = True
+            index = wm_data.active_prop
+            if index >= len(ent_data.prop_inv) or index < 0:
+                wm_data.active_prop = 0
         else:
             sub_box.enabled = False
 
         column = sub_box.column()
-        column.label(text=f"{pgettext('Props')}:")
+        column.label(text=f"{pgettext('Props Inventory')}:")
+        row = column.row()
+        col = row.column()
+        col.template_list(
+            "AMAGATE_UI_UL_Inventory",
+            "",
+            ent_data or wm_data.EntityData,
+            "prop_inv",
+            wm_data,
+            "active_prop",
+            rows=3,
+            maxrows=3,
+        )
+
+        # 添加按钮放置在右侧
+        col = row.column()
+        sub_col = col.column(align=True)
+        sub_col.operator(OP_ENTITY.OT_Prop_Add.bl_idname, text="", icon="ADD")
+        sub_col.operator(OP_ENTITY.OT_Prop_Remove.bl_idname, text="", icon="REMOVE")
+        sub_col = col.column(align=True)
+        sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
+        sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
 
 
 ############################

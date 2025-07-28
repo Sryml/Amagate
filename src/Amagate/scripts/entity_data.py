@@ -107,6 +107,7 @@ def is_uniform(attr: str):
     return True
 
 
+############################
 def get_equipment(this, context):
     return EQUIPMENT_ENUM
 
@@ -140,7 +141,7 @@ def add_equipment_timer():
     inter_name = bpy.types.UILayout.enum_item_description(
         wm_data, "equipment_enum", wm_data.equipment_enum
     )
-    _, inv_ent = OP_L3D.OT_EntityAddToScene.add(None, context, inter_name)
+    _, inv_ent = OP_L3D.OT_EntityCreate.add(None, context, inter_name)
 
     ent = SELECTED_ENTITIES[0]
     ent_data = ent.amagate_data.get_entity_data()
@@ -152,6 +153,8 @@ def add_equipment_timer():
     inv_ent.visible_shadow = False
     inv_ent.location = ent.location + Vector((0, 0, 1.2))
 
+    bpy.ops.ed.undo_push(message="Add Inventory")
+
 
 def gen_equipment():
     global EQUIPMENT_ENUM
@@ -159,13 +162,13 @@ def gen_equipment():
     count = 0
 
     for cat in (
-        "Characters",
-        "Props",
+        # "Characters",
+        # "Props",
         "1H Weapons",
         "2H Weapons",
         "Shields & Bows",
-        "Others",
-        "Pieces",
+        # "Others",
+        # "Pieces",
         "Custom",
     ):
         enum = []
@@ -194,6 +197,98 @@ def gen_equipment():
             enum[i] = tuple(enum[i][:-1])
         # enum.insert(0, ("", cat, ""))
         EQUIPMENT_ENUM.extend(enum)
+
+
+############################
+def get_prop(this, context):
+    return PROP_ENUM
+
+
+def get_prop_search(this, context):
+    ent_enum = PROP_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+        else:
+            ent_enum[i] = (
+                ent_enum[i][0],
+                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+                ent_enum[i][2],
+                ent_enum[i][3],
+                ent_enum[i][4],
+            )
+    return ent_enum
+
+
+def add_prop(this, context: Context):
+    ag_utils.simulate_keypress(27)
+    bpy.app.timers.register(add_prop_timer, first_interval=0.03)
+
+
+def add_prop_timer():
+    from . import L3D_operator as OP_L3D
+
+    context = bpy.context
+    wm_data = context.window_manager.amagate_data
+    inter_name = bpy.types.UILayout.enum_item_description(
+        wm_data, "prop_enum", wm_data.prop_enum
+    )
+    _, inv_ent = OP_L3D.OT_EntityCreate.add(None, context, inter_name)
+
+    ent = SELECTED_ENTITIES[0]
+    ent_data = ent.amagate_data.get_entity_data()
+    item = ent_data.prop_inv.add()
+    item.obj = inv_ent
+    wm_data.active_prop = len(ent_data.prop_inv) - 1
+
+    inv_ent.visible_camera = False
+    inv_ent.visible_shadow = False
+    inv_ent.location = ent.location + Vector((0, 0, 1.2))
+
+    bpy.ops.ed.undo_push(message="Add Inventory")
+
+
+def gen_prop():
+    global PROP_ENUM
+    PROP_ENUM = []
+    count = 0
+
+    for cat in (
+        # "Characters",
+        "Props",
+        # "1H Weapons",
+        # "2H Weapons",
+        # "Shields & Bows",
+        # "Others",
+        # "Pieces",
+        "Custom",
+    ):
+        enum = []
+        for k, v in data.E_MANIFEST["Entities"][cat].items():
+            filename = Path(v[1])
+            ItemType = v[2]
+            if 8 <= ItemType <= 10:
+                enum.append(
+                    [
+                        str(count),
+                        v[0],
+                        k,
+                        (
+                            data.ENT_PREVIEWS[filename.stem].icon_id
+                            if data.ENT_PREVIEWS.get(filename.stem)
+                            else data.BLANK1
+                        ),
+                        count,
+                        ItemType,
+                    ]
+                )
+                count += 1
+        enum.sort(key=lambda x: x[1])
+        enum.sort(key=lambda x: x[5])
+        for i in range(len(enum)):
+            enum[i] = tuple(enum[i][:-1])
+        # enum.insert(0, ("", cat, ""))
+        PROP_ENUM.extend(enum)
 
 
 ############################
@@ -254,7 +349,7 @@ class AMAGATE_UI_UL_Inventory(bpy.types.UIList):
             icon_id = next(i[3] for i in data.ENT_ENUM if i[2] == ent_data.Kind)
             row = layout.row()
             row.label(text=ent_data.Name, icon_value=icon_id)
-            row.operator(OP_Entity.OT_Equipment_Select.bl_idname, text="", icon="RESTRICT_SELECT_OFF", emboss=False).obj_name = ent.name  # type: ignore
+            row.operator(OP_Entity.OT_Inventory_Select.bl_idname, text="", icon="RESTRICT_SELECT_OFF", emboss=False).obj_name = ent.name  # type: ignore
 
 
 ############################

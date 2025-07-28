@@ -1147,10 +1147,10 @@ class OT_Entity_Enum(bpy.types.Operator):
 
 
 # 添加到场景
-class OT_EntityAddToScene(bpy.types.Operator):
-    bl_idname = "amagate.entity_add_to_scene"
-    bl_label = "Add to L3D Scene"
-    bl_description = "Add to Scene"
+class OT_EntityCreate(bpy.types.Operator):
+    bl_idname = "amagate.entity_create"
+    bl_label = "Create Entity"
+    bl_description = ""
     bl_options = {"INTERNAL"}
 
     @classmethod
@@ -1162,7 +1162,10 @@ class OT_EntityAddToScene(bpy.types.Operator):
         inter_name = bpy.types.UILayout.enum_item_description(
             wm_data, "ent_enum", wm_data.ent_enum
         )
-        return self.add(self, context, inter_name)[0]
+        ret = self.add(self, context, inter_name)[0]
+
+        bpy.ops.ed.undo_push(message="Create Entity")
+        return ret
 
     @staticmethod
     def add(this, context: Context, inter_name):
@@ -1238,8 +1241,9 @@ class OT_EntityAddToScene(bpy.types.Operator):
         scene_data = context.scene.amagate_data
         obj_name = entity_data.get_name(context, f"{inter_name}_")
         entity = bpy.data.objects.new(
-            obj_name, entity_raw.data
+            "", entity_raw.data
         )  # type: Object # type: ignore
+        entity.rename(obj_name, mode="ALWAYS")
         data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
         entity.amagate_data.set_entity_data()
         ent_data = entity.amagate_data.get_entity_data()
@@ -1332,6 +1336,7 @@ class OT_OpenPrefab(bpy.types.Operator):
                             data_to.collections = [coll_name]
                         coll = data_to.collections[0]
                         context.scene.collection.children.link(coll)  # type: ignore
+                        bpy.ops.ed.undo_push(message="Append")
                     else:
                         L3D_data.LOAD_POST_CALLBACK = (
                             self.set_ent_enum,
@@ -1583,6 +1588,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         )
         data.gen_ent_enum()
         entity_data.gen_equipment()
+        entity_data.gen_prop()
 
         if not self.builtin and filepath_origin:
             L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (inter_name,))
