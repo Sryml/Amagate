@@ -681,14 +681,15 @@ def check_sector_duplicate():
         sec_data.connect_num = conn_count
     ag_utils.dissolve_limit_sectors(dup_sectors)
 
-    # XXX 待优化。取消用户的操作选项
+    # 取消用户的操作选项
     context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
     bpy.ops.object.mode_set(mode="EDIT")
-    bpy.app.timers.register(
-        lambda: (bpy.ops.object.mode_set(mode="OBJECT"), None)[-1], first_interval=0.1
-    )
 
-    bpy.ops.ed.undo_push(message="Sector Check")
+    def timer():
+        bpy.ops.object.mode_set(mode="OBJECT")
+        bpy.ops.ed.undo_push(message="Sector Check")
+
+    bpy.app.timers.register(timer, first_interval=0.05)
 
 
 # 粘贴扇区检查
@@ -697,6 +698,9 @@ def check_sector_paste():
     copy_sectors = [
         obj for obj in context.selected_objects if obj.amagate_data.is_sector
     ]
+    if not copy_sectors:
+        return
+
     bpy.ops.ed.undo()
     bpy.ops.ed.undo_push(message="Sector Paste Check")
 
@@ -803,7 +807,7 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
 
     #
     current_time = time.time()
-    #
+    # 摄像机移动检查
     for update in depsgraph.updates:
         obj = update.id
         if not isinstance(update.id, bpy.types.Object):
