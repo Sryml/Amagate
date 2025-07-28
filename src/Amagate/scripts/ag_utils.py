@@ -64,6 +64,9 @@ class DefColor:
     nofocus = (0.4, 0.4, 0.4, 1)
 
 
+#
+K_ESC = 27
+
 # 凹面类型: 无，简单，普通，复杂
 CONCAVE_T_NONE = 0
 CONCAVE_T_SIMPLE = 1

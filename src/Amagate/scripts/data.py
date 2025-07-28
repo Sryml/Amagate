@@ -846,9 +846,12 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
 
     @staticmethod
     def update_ent_enum(context: Context):
+        from . import ag_utils
+
         wm_data = context.window_manager.amagate_data
         name = bpy.types.UILayout.enum_item_name(wm_data, "ent_enum", wm_data.ent_enum)
         wm_data.prefab_name = name
+        ag_utils.simulate_keypress(ag_utils.K_ESC)
 
 
 # 物体属性

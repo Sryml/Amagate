@@ -1313,9 +1313,24 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         box.enabled = len(selected_entities) != 0
 
         column = box.column()
+
         flag = "" if entity_data.is_uniform("Kind") else "*"
-        column.prop(wm_data.EntityData, "Kind", text=f"{flag}Kind", text_ctxt="Keep")
-        column.prop(wm_data.EntityData, "Name", text="Name")
+        row = column.row()
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{flag}Kind:", text_ctxt="Keep")
+        row.operator(
+            OP_ENTITY.OT_Entity_Kind_Search.bl_idname,
+            text=wm_data.EntityData.Kind,
+            icon="VIEWZOOM",
+        )
+
+        row = column.row()
+        col = row.column()
+        col.alignment = "LEFT"
+        col.label(text=f"{pgettext('Name')}:")
+        row.prop(wm_data.EntityData, "Name", text="")
+
         row = column.row()
         col = row.column()
         col.alignment = "LEFT"
@@ -1374,14 +1389,36 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Character')}:")
-        grid = column.grid_flow(row_major=True, columns=2, align=True)
+        row = column.row(align=True)
+        is_uniform_Life_Enabled = entity_data.is_uniform("Life_Enabled")
+        if is_uniform_Life_Enabled:
+            row.prop(
+                wm_data.EntityData,
+                "Life_Enabled",
+                text="",
+                toggle=True,
+                icon=(
+                    "CHECKBOX_HLT"
+                    if wm_data.EntityData.Life_Enabled
+                    else "CHECKBOX_DEHLT"
+                ),
+            )
+        else:
+            row.prop(
+                wm_data.EntityData, "Life_Enabled", text="", toggle=True, icon="REMOVE"
+            )
+        col = row.column(align=True)
+        col.enabled = (
+            wm_data.EntityData.Life_Enabled if is_uniform_Life_Enabled else False
+        )
         flag = "" if entity_data.is_uniform("Life") else "*"
-        grid.prop(wm_data.EntityData, "Life", text=f"{flag}Life", text_ctxt="Keep")
+        col.prop(wm_data.EntityData, "Life", text=f"{flag}Life", text_ctxt="Keep")
+        grid = column.grid_flow(row_major=True, columns=2, align=True)
         flag = "" if entity_data.is_uniform("Level") else "*"
         grid.prop(wm_data.EntityData, "Level", text=f"{flag}Level", text_ctxt="Keep")
         flag = "" if entity_data.is_uniform("Angle") else "*"
         grid.prop(wm_data.EntityData, "Angle", text=f"{flag}Angle", text_ctxt="Keep")
-        grid.label(text="")
+        # grid.label(text="")
         flag = "" if entity_data.is_uniform("SetOnFloor") else "*"
         grid.prop(
             wm_data.EntityData, "SetOnFloor", text=f"{flag}SetOnFloor", text_ctxt="Keep"

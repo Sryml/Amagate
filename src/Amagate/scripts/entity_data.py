@@ -527,6 +527,10 @@ class EntityProperty(bpy.types.PropertyGroup):
         get=lambda self: self.get_value("Life", 0),
         set=lambda self, value: self.set_value(value, "Life"),
     )  # type: ignore
+    Life_Enabled: BoolProperty(
+        get=lambda self: self.get_value("Life_Enabled", False),
+        set=lambda self, value: self.set_value(value, "Life_Enabled"),
+    )  # type: ignore
     Level: IntProperty(
         default=0,
         min=0,
@@ -706,24 +710,18 @@ class EntityProperty(bpy.types.PropertyGroup):
             if not selected_entities:
                 return
             #
+            enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
+            identifier = enum_items_static_ui[value].identifier
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
-                if ent_data[key] == value:
-                    continue
-                #
-                enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
-                curr_type = enum_items_static_ui[ent_data[key]].name
-                if enum_items_static_ui[value].name == "Person":
-                    quat = self.set_angle(ent_data.Angle)
-                    ent.rotation_euler = quat.to_euler("XYZ")
-                elif curr_type == "Person":
-                    ent.rotation_euler = 0, 0, 0
-                #
-                ent_data[key] = value
+                setattr(ent_data, key, identifier)
         else:
+            if self.get(key) == value:
+                return
+
             ent = self.id_data  # type: Object
-            ent_data = ent.amagate_data.get_entity_data()
-            if ent_data.get(key):
+            ent_data = self
+            if ent_data.get(key) is not None:
                 enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
                 curr_type = enum_items_static_ui[ent_data[key]].name
                 if enum_items_static_ui[value].name == "Person":
@@ -731,6 +729,16 @@ class EntityProperty(bpy.types.PropertyGroup):
                     ent.rotation_euler = quat.to_euler("XYZ")
                 elif curr_type == "Person":
                     ent.rotation_euler = 0, 0, 0
+                    # 清空库存
+                    for inv in (ent_data.equipment_inv, ent_data.prop_inv):
+                        for item in inv:
+                            obj = item.obj
+                            if obj is not None:
+                                Name = obj.amagate_data.get_entity_data().Name
+                                if Name in scene_data["EntityManage"]:
+                                    scene_data["EntityManage"].pop(Name)
+                                bpy.data.objects.remove(obj, do_unlink=True)
+                        inv.clear()
             #
             self[key] = value
 

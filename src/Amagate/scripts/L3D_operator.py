@@ -1168,11 +1168,11 @@ class OT_EntityCreate(bpy.types.Operator):
         return ret
 
     @staticmethod
-    def add(this, context: Context, inter_name):
+    def add(this, context: Context, inter_name, entity=None):  # type: ignore
         from . import entity_operator as OP_ENTITY
 
         E_MANIFEST = data.E_MANIFEST
-        entity = None  # type: ignore
+        # entity = None  # type: ignore
         filepath = ""
         for cat in E_MANIFEST["Entities"]:
             item = E_MANIFEST["Entities"][cat].get(inter_name)
@@ -1240,32 +1240,37 @@ class OT_EntityCreate(bpy.types.Operator):
 
         scene_data = context.scene.amagate_data
         obj_name = entity_data.get_name(context, f"{inter_name}_")
-        entity = bpy.data.objects.new(
-            "", entity_raw.data
-        )  # type: Object # type: ignore
-        entity.rename(obj_name, mode="ALWAYS")
-        data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
-        entity.amagate_data.set_entity_data()
-        ent_data = entity.amagate_data.get_entity_data()
-        scene_data["EntityManage"][obj_name] = entity
+        if entity is None:
+            entity = bpy.data.objects.new(
+                "", entity_raw.data
+            )  # type: Object # type: ignore
+            entity.rename(obj_name, mode="ALWAYS")
+            data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
+            entity.amagate_data.set_entity_data()
+            scene_data["EntityManage"][obj_name] = entity
+            ent_data = entity.amagate_data.get_entity_data()
+            ent_data.Name = obj_name
+            # if Category == "Characters":
+            #     ent_data.ObjType = "0"  # "Person"
+            if 0 <= ItemType <= 7:
+                ent_data.ObjType = "1"  # "Weapon"
+            elif 8 <= ItemType <= 10:
+                ent_data.ObjType = "2"  # "Physic"
+            else:
+                ent_data.ObjType = "6"  # "Assigned By Script"
+        else:
+            entity.data = entity_raw.data
+            ent_data = entity.amagate_data.get_entity_data()
+
         if this is not None:
             ag_utils.select_active(context, entity)
             # 移动到当前视图焦点
             rv3d = context.region_data
             entity.location = rv3d.view_location.to_tuple(0)
         #
-        ent_data.Name = obj_name
         ent_data.Kind = inter_name
         ent_data.has_fire = has_fire
         ent_data.has_light = has_light
-        # if Category == "Characters":
-        #     ent_data.ObjType = "0"  # "Person"
-        if 0 <= ItemType <= 7:
-            ent_data.ObjType = "1"  # "Weapon"
-        elif 8 <= ItemType <= 10:
-            ent_data.ObjType = "2"  # "Physic"
-        else:
-            ent_data.ObjType = "6"  # "Assigned By Script"
 
         return {"FINISHED"}, entity
 

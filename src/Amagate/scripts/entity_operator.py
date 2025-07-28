@@ -149,6 +149,44 @@ class OT_Inventory_Select(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# Kind搜索
+class OT_Entity_Kind_Search(bpy.types.Operator):
+    bl_idname = "amagate.entity_kind_search"
+    bl_label = "Search"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            return True
+        return False
+
+    enum: EnumProperty(
+        translation_context="Entity",
+        items=data.get_ent_enum_search,
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        from . import L3D_operator as OP_L3D
+
+        selected_entities = entity_data.SELECTED_ENTITIES
+        if not selected_entities:
+            return
+        #
+        inter_name = bpy.types.UILayout.enum_item_description(self, "enum", self.enum)
+        for ent in selected_entities:
+            OP_L3D.OT_EntityCreate.add(None, context, inter_name, entity=ent)
+
+        data.region_redraw("UI")
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        context.window_manager.invoke_search_popup(self)
+        return {"FINISHED"}
+
+
 ############################ 装备库存
 
 
