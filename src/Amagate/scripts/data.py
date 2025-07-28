@@ -268,9 +268,10 @@ def gen_ent_enum():
         "1H Weapons",
         "2H Weapons",
         "Shields & Bows",
+        # "Special Entities",
         "Others",
-        "Pieces",
         "Custom",
+        "Pieces",
     ):
         enum = []
         for k, v in E_MANIFEST["Entities"][cat].items():

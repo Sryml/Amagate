@@ -754,7 +754,7 @@ class OT_Texture_Select(bpy.types.Operator):
 
         col.template_list(
             "AMAGATE_UI_UL_TextureList",
-            "texture_list",
+            "AG.texture_list2",
             bpy.data,
             "images",
             self.prop,
@@ -1142,7 +1142,8 @@ class OT_Entity_Enum(bpy.types.Operator):
         return {"FINISHED"}
 
     def invoke(self, context: Context, event: bpy.types.Event):
-        return context.window_manager.invoke_popup(self, width=900)
+        col_number = 7 + (1 if data.E_MANIFEST["Entities"]["Custom"] != {} else 0)
+        return context.window_manager.invoke_popup(self, width=col_number * 145)
         # return {"FINISHED"}
 
 
@@ -1168,7 +1169,7 @@ class OT_EntityCreate(bpy.types.Operator):
         return ret
 
     @staticmethod
-    def add(this, context: Context, inter_name, entity=None):  # type: ignore
+    def add(this, context: Context, inter_name, entity=None, obj_name=""):  # type: ignore
         from . import entity_operator as OP_ENTITY
 
         E_MANIFEST = data.E_MANIFEST
@@ -1239,7 +1240,8 @@ class OT_EntityCreate(bpy.types.Operator):
             L3D_data.update_scene_edit_mode()
 
         scene_data = context.scene.amagate_data
-        obj_name = entity_data.get_name(context, f"{inter_name}_")
+        if obj_name == "":
+            obj_name = entity_data.get_name(context, f"{inter_name}_")
         if entity is None:
             entity = bpy.data.objects.new(
                 "", entity_raw.data
@@ -1853,10 +1855,9 @@ def InitMap(imp_filepath=""):
     coll = bpy.data.collections.new(pgettext("Marked Collection"))
     scene.collection.children.link(coll)
     ## 创建标记对象
-    player_pos = bpy.data.objects.new("Player", None)
-    # player_pos.empty_display_size = 2
-    player_pos.empty_display_type = "PLAIN_AXES"
-    data.link2coll(player_pos, coll)
+    # player_pos = bpy.data.objects.new("Player", None)
+    # player_pos.empty_display_type = "PLAIN_AXES"
+    # data.link2coll(player_pos, coll)
     ## 创建默认对象
     L3D_data.ensure_null_texture()
     L3D_data.ensure_null_object()
@@ -1915,6 +1916,21 @@ def InitMap(imp_filepath=""):
     ##
     scene_data.init()
     scene_data.is_blade = True
+
+    ## 创建玩家实体
+    _, ent = OT_EntityCreate.add(None, context, "Knight_N")
+    ent_data = ent.amagate_data.get_entity_data()
+    ent_data.Name = "Player1"
+    ent_data.ObjType = "0"
+    ent_data.Hide = False
+    ent_data.Level = 20
+    entity_data.add_equipment_timer("Antorcha", ent)
+    entity_data.add_equipment_timer("EgyptSword", ent)
+    entity_data.add_equipment_timer("Escudo7", ent)
+    entity_data.add_equipment_timer("Arco", ent)
+    entity_data.add_equipment_timer("Carcaj", ent)
+    entity_data.add_prop_timer("PocimaTodo", ent)
+    entity_data.add_prop_timer("PowerPotion", ent)
 
     if is_import:
         from . import L3D_imp_operator as OP_L3D_IMP

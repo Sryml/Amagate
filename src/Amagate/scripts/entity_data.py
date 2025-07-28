@@ -133,27 +133,34 @@ def add_equipment(this, context: Context):
     bpy.app.timers.register(add_equipment_timer, first_interval=0.03)
 
 
-def add_equipment_timer():
+def add_equipment_timer(inter_name="", entity=None):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
     wm_data = context.window_manager.amagate_data
-    inter_name = bpy.types.UILayout.enum_item_description(
-        wm_data, "equipment_enum", wm_data.equipment_enum
-    )
-    _, inv_ent = OP_L3D.OT_EntityCreate.add(None, context, inter_name)
+    if inter_name == "":
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "equipment_enum", wm_data.equipment_enum
+        )
+    if entity is None:
+        entity = SELECTED_ENTITIES[0]
+    ent_data = entity.amagate_data.get_entity_data()
 
-    ent = SELECTED_ENTITIES[0]
-    ent_data = ent.amagate_data.get_entity_data()
+    obj_name = get_name(context, f"{ent_data.Name}_Equip_")
+    _, inv_ent = OP_L3D.OT_EntityCreate.add(
+        None, context, inter_name, obj_name=obj_name
+    )
     item = ent_data.equipment_inv.add()
     item.obj = inv_ent
     wm_data.active_equipment = len(ent_data.equipment_inv) - 1
 
     inv_ent.visible_camera = False
     inv_ent.visible_shadow = False
-    inv_ent.location = ent.location + Vector((0, 0, 1.2))
+    inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
-    bpy.ops.ed.undo_push(message="Add Inventory")
+    # 如果不是脚本调用，则添加撤销
+    if entity is not None:
+        bpy.ops.ed.undo_push(message="Add Inventory")
 
 
 def gen_equipment():
@@ -225,27 +232,34 @@ def add_prop(this, context: Context):
     bpy.app.timers.register(add_prop_timer, first_interval=0.03)
 
 
-def add_prop_timer():
+def add_prop_timer(inter_name="", entity=None):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
     wm_data = context.window_manager.amagate_data
-    inter_name = bpy.types.UILayout.enum_item_description(
-        wm_data, "prop_enum", wm_data.prop_enum
-    )
-    _, inv_ent = OP_L3D.OT_EntityCreate.add(None, context, inter_name)
+    if inter_name == "":
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "prop_enum", wm_data.prop_enum
+        )
+    if entity is None:
+        entity = SELECTED_ENTITIES[0]
+    ent_data = entity.amagate_data.get_entity_data()
 
-    ent = SELECTED_ENTITIES[0]
-    ent_data = ent.amagate_data.get_entity_data()
+    obj_name = get_name(context, f"{ent_data.Name}_Prop_")
+    _, inv_ent = OP_L3D.OT_EntityCreate.add(
+        None, context, inter_name, obj_name=obj_name
+    )
     item = ent_data.prop_inv.add()
     item.obj = inv_ent
     wm_data.active_prop = len(ent_data.prop_inv) - 1
 
     inv_ent.visible_camera = False
     inv_ent.visible_shadow = False
-    inv_ent.location = ent.location + Vector((0, 0, 1.2))
+    inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
-    bpy.ops.ed.undo_push(message="Add Inventory")
+    # 如果不是脚本调用，则添加撤销
+    if entity is not None:
+        bpy.ops.ed.undo_push(message="Add Inventory")
 
 
 def gen_prop():
@@ -553,8 +567,8 @@ class EntityProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     Hide: BoolProperty(
         description="Hide",
-        default=True,
-        get=lambda self: self.get_value("Hide", True),
+        default=False,
+        get=lambda self: self.get_value("Hide", False),
         set=lambda self, value: self.set_value(value, "Hide"),
     )  # type: ignore
     Blind: BoolProperty(

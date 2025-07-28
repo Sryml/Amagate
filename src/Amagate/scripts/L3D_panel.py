@@ -257,7 +257,7 @@ class AMAGATE_PT_Texture(L3D_Panel, bpy.types.Panel):
         col = row.column()
         col.template_list(
             "AMAGATE_UI_UL_TextureList",
-            "texture_list",
+            "AG.texture_list",
             bpy.data,
             "images",
             scene_data,
@@ -1531,18 +1531,20 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             sub_box.enabled = False
 
         column = sub_box.column()
-        column.label(text=f"{pgettext('Equipments Inventory')}:")
+        column.label(
+            text=f"{pgettext('Equipments Inventory')}: {len(ent_data.equipment_inv) if ent_data else 0}"
+        )
         row = column.row()
         col = row.column()
         col.template_list(
             "AMAGATE_UI_UL_Inventory",
-            "",
+            "AG.equipment_inv",
             ent_data or wm_data.EntityData,
             "equipment_inv",
             wm_data,
             "active_equipment",
             rows=3,
-            maxrows=3,
+            maxrows=4,
         )
 
         # 添加按钮放置在右侧
@@ -1570,12 +1572,14 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             sub_box.enabled = False
 
         column = sub_box.column()
-        column.label(text=f"{pgettext('Props Inventory')}:")
+        column.label(
+            text=f"{pgettext('Props Inventory')}: {len(ent_data.prop_inv) if ent_data else 0}"
+        )
         row = column.row()
         col = row.column()
         col.template_list(
             "AMAGATE_UI_UL_Inventory",
-            "",
+            "AG.prop_inv",
             ent_data or wm_data.EntityData,
             "prop_inv",
             wm_data,
