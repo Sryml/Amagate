@@ -257,6 +257,7 @@
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
     ("Operator", "Import Map"): "导入地图",
+    ("Operator", "Bake World"): "烘焙世界",
     # 实体编辑器面板
     ("*", "Entity Editor"): "实体编辑器",
     ("Operator", "Add Anchor"): "添加锚点",

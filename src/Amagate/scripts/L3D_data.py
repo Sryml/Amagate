@@ -307,11 +307,11 @@ def ensure_node():
         #     "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
         # )
 
-    data.import_nodes(NodeTree, nodes_data["Amagate Eval"])
-    NodeTree.use_fake_user = True
-    NodeTree.is_tool = True  # type: ignore
-    NodeTree.is_type_mesh = True  # type: ignore
-    scene_data.eval_node = NodeTree
+        data.import_nodes(NodeTree, nodes_data["Amagate Eval"])
+        NodeTree.use_fake_user = True
+        NodeTree.is_tool = True  # type: ignore
+        NodeTree.is_type_mesh = True  # type: ignore
+        scene_data.eval_node = NodeTree
     #
     # NodeTree = bpy.data.node_groups.get("AG.FrustumCulling")
     # if not NodeTree:
@@ -330,29 +330,23 @@ def ensure_node():
         # NodeTree.interface.new_socket(
         #     "Geometry", in_out="OUTPUT", socket_type="NodeSocketGeometry"
         # )
-    data.import_nodes(NodeTree, nodes_data["AG.SectorNodes"])
-    # NodeTree.nodes.clear()
-
-    # input_node = NodeTree.nodes.new("NodeGroupInput")
-    # input_node.select = False
-    # input_node.location.x = -200 - input_node.width
-
-    # output_node = NodeTree.nodes.new("NodeGroupOutput")
-    # output_node.is_active_output = True  # type: ignore
-    # output_node.select = False
-    # output_node.location.x = 200
-
-    # group = NodeTree.nodes.new(type="GeometryNodeGroup")
-    # group.location.x = -group.width / 2
-    # group.select = False
-    # group.node_tree = scene_data.eval_node  # type: ignore
-
-    # NodeTree.links.new(input_node.outputs[0], group.inputs[0])
-    # NodeTree.links.new(group.outputs[0], output_node.inputs[0])
-
-    NodeTree.use_fake_user = True
-    NodeTree.is_modifier = True  # type: ignore
-    scene_data.sec_node = NodeTree
+        data.import_nodes(NodeTree, nodes_data["AG.SectorNodes"])
+        NodeTree.use_fake_user = True
+        NodeTree.is_modifier = True  # type: ignore
+        scene_data.sec_node = NodeTree
+    # 烘焙世界节点
+    # name = "AG.World Baking.NodeGroup"
+    # if bpy.data.node_groups.get(name) is None:
+    #     NodeTree = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
+    #     data.import_nodes(NodeTree, nodes_data[name])
+    #     NodeTree.use_fake_user = True
+    # name = "AG.World Baking"
+    # if bpy.data.node_groups.get(name) is None:
+    #     NodeTree = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
+    #     data.import_nodes(NodeTree, nodes_data[name])
+    #     NodeTree.nodes["Collection Info"].inputs[0].default_value = ensure_collection(S_COLL)  # type: ignore
+    #     NodeTree.use_fake_user = True
+    #     NodeTree.is_modifier = True  # type: ignore
 
 
 def update_scene_edit_mode():

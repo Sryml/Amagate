@@ -2094,12 +2094,131 @@ def set_view(area, view_type):
     return warp
 
 
+# 烘焙世界
+class OT_BakeWorld(bpy.types.Operator):
+    bl_idname = "amagate.bake_world"
+    bl_label = "Bake World"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.is_blade
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+
+        # 如果在编辑模式下，切换到物体模式并调用`几何修改回调`函数更新数据
+        if "EDIT" in context.mode:
+            objects_in_mode = context.objects_in_mode
+            bpy.ops.object.mode_set(mode="OBJECT")
+            sectors_in_mode = [
+                obj for obj in objects_in_mode if obj.amagate_data.is_sector
+            ]
+            if sectors_in_mode:
+                L3D_data.geometry_modify_post(sectors_in_mode)
+            L3D_data.update_scene_edit_mode()
+
+        #
+        name = "AG.BakeWorld"
+        obj = bpy.data.objects.get(name)  # type: Object # type: ignore
+        if not obj:
+            mesh = bpy.data.meshes.get(name)
+            if not mesh:
+                mesh = bpy.data.meshes.new(name)
+            obj = bpy.data.objects.new(name, mesh)
+            coll = L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
+            data.link2coll(obj, coll)
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+
+        ag_utils.select_active(context, obj)
+        # L3D_data.ensure_node()
+        # node_group = bpy.data.node_groups.get("AG.World Baking")
+        # modifier = obj.modifiers.new("", type="NODES")
+        # modifier.node_group = node_group  # type: ignore
+        # bpy.ops.object.modifier_apply(modifier=modifier.name)
+        # 添加刚体
+        if not obj.rigid_body:
+            bpy.ops.rigidbody.object_add(type="PASSIVE")
+        obj.rigid_body.collision_shape = "MESH"
+        obj.rigid_body.collision_margin = 0.005
+
+        depsgraph = context.evaluated_depsgraph_get()
+        rigid_bm = bmesh.new()
+        layers = [
+            rigid_bm.faces.layers.float_vector.new("amagate_tex_pos_prime"),
+            rigid_bm.faces.layers.float_vector.new("amagate_tex_rotate_prime"),
+            rigid_bm.faces.layers.float_vector.new("amagate_tex_scale_prime"),
+            rigid_bm.faces.layers.float_vector.new("ambient_color"),
+            # rigid_bm.faces.layers.float_color.new("atmo_color"),
+        ]
+        verts_map = {}
+        for item in scene_data["SectorManage"]["sectors"].values():
+            sec = item["obj"]  # type: Object
+            sec_data = sec.amagate_data.get_sector_data()
+            ambient_color = sec_data.ambient_color
+            flat_light_color = sec_data.flat_light.color
+            evaluated_obj = sec.evaluated_get(depsgraph)
+            matrix = sec.matrix_world.copy()
+            sec_mesh = evaluated_obj.data  # type: bpy.types.Mesh # type: ignore
+            for idx, face in enumerate(sec_mesh.polygons):
+                if sec_mesh.attributes["amagate_connected"].data[idx].value != 0:  # type: ignore
+                    continue
+                verts = []
+                for v in face.vertices:
+                    co = (matrix @ sec_mesh.vertices[v].co).to_tuple(3)
+                    if co not in verts_map:
+                        verts_map[co] = rigid_bm.verts.new(co)
+                    verts.append(verts_map[co])
+                try:
+                    bm_face = rigid_bm.faces.new(verts)
+                    # 如果设置了平面光
+                    if sec_mesh.attributes["amagate_flat_light"].data[idx].value == 1:  # type: ignore
+                        v = (
+                            (1 - ambient_color.v * 0.86264)
+                            / 0.86264
+                            * flat_light_color.v
+                        )
+                        color = flat_light_color.copy()
+                        color.v = v
+                        bm_face[layers[3]] = [
+                            min(1, ambient_color[i] + color[i]) for i in range(3)
+                        ]
+                    else:
+                        bm_face[layers[3]] = ambient_color
+                    #
+                    bm_face[layers[0]] = sec_mesh.attributes["amagate_tex_pos_prime"].data[idx].vector  # type: ignore
+                    bm_face[layers[1]] = sec_mesh.attributes["amagate_tex_rotate_prime"].data[idx].vector  # type: ignore
+                    bm_face[layers[2]] = sec_mesh.attributes["amagate_tex_scale_prime"].data[idx].vector  # type: ignore
+                    # bm_face[layers[4]] = (*sec_data.atmo_color,sec_data.atmo_density)
+                    # 设置材质
+                    mat = sec.material_slots[face.material_index].material
+                    slot_index = mesh.materials.find(mat.name)
+                    if slot_index == -1:
+                        mesh.materials.append(mat)
+                        slot_index = len(mesh.materials) - 1
+                    bm_face.material_index = slot_index
+                except:
+                    pass
+        #
+        bmesh.ops.remove_doubles(rigid_bm, verts=rigid_bm.verts, dist=0.001)  # type: ignore
+        rigid_bm.to_mesh(mesh)
+
+        return {"FINISHED"}
+
+
 # 重置节点
 class OT_Node_Reset(bpy.types.Operator):
     bl_idname = "amagate.node_reset"
     bl_label = "Reset Node"
     bl_description = ""
     bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.is_blade
 
     def execute(self, context: Context):
         self.reset_node()
@@ -2120,9 +2239,31 @@ class OT_Node_Reset(bpy.types.Operator):
         # 解算节点
         NodeTree = scene_data.eval_node
         data.import_nodes(NodeTree, nodes_data["Amagate Eval"])
+        NodeTree.use_fake_user = True
+        NodeTree.is_tool = True  # type: ignore
+        NodeTree.is_type_mesh = True  # type: ignore
         # 扇区节点
         NodeTree = scene_data.sec_node
         data.import_nodes(NodeTree, nodes_data["AG.SectorNodes"])
+        NodeTree.use_fake_user = True
+        NodeTree.is_modifier = True  # type: ignore
+        # 世界烘焙节点
+        # name = "AG.World Baking.NodeGroup"
+        # NodeTree = bpy.data.node_groups.get(name)
+        # if NodeTree is None:
+        #     NodeTree = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
+        # data.import_nodes(NodeTree, nodes_data[name])
+        # NodeTree.use_fake_user = True
+
+        # name = "AG.World Baking"
+        # NodeTree = bpy.data.node_groups.get(name)
+        # if NodeTree is None:
+        #     NodeTree = bpy.data.node_groups.new(name, "GeometryNodeTree")  # type: ignore
+        # data.import_nodes(NodeTree, nodes_data[name])
+        # NodeTree.nodes["Collection Info"].inputs[0].default_value = L3D_data.ensure_collection(L3D_data.S_COLL)  # type: ignore
+        # NodeTree.use_fake_user = True
+        # NodeTree.is_modifier = True  # type: ignore
+
         # 材质节点
         for tex in bpy.data.images:
             tex_data = tex.amagate_data

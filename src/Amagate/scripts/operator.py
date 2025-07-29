@@ -666,7 +666,13 @@ class OT_ExportNode(bpy.types.Operator):
             if mat:
                 nodes_data[name] = data.export_nodes(mat)
         # 几何节点
-        for name in ("Amagate Eval", "AG.FrustumCulling", "AG.SectorNodes"):
+        for name in (
+            "Amagate Eval",
+            "AG.FrustumCulling",
+            "AG.SectorNodes",
+            "AG.World Baking",  # 弃用
+            "AG.World Baking.NodeGroup",  # 弃用
+        ):
             node = bpy.data.node_groups.get(name)
             if node:
                 nodes_data[name] = data.export_nodes(node)

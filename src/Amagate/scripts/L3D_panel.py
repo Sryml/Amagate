@@ -570,9 +570,9 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         # 多线段路径 Poly Path
         col.operator(OP_L3D.OT_PolyPath.bl_idname, icon="CURVE_PATH")
         # 创建虚拟扇区
-        col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname)
+        col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname, icon="ADD")
         # 选择连接扇区
-        col.operator(OP_L3D.OT_SelectConnected.bl_idname)
+        col.operator(OP_L3D.OT_SelectConnected.bl_idname, icon="RESTRICT_SELECT_OFF")
 
         #
         box = layout.box()
@@ -1709,10 +1709,10 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
 
         column.separator(type="LINE")
 
+        # 烘焙世界
+        column.operator(OP_L3D.OT_BakeWorld.bl_idname)
         # 重置节点
-        row = column.row()
-        row.enabled = scene_data.is_blade
-        row.operator(OP_L3D.OT_Node_Reset.bl_idname, icon="FILE_REFRESH")
+        column.operator(OP_L3D.OT_Node_Reset.bl_idname, icon="FILE_REFRESH")
 
 
 ############################
