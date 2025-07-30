@@ -814,12 +814,12 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
     equipment_enum: EnumProperty(
         translation_context="Entity",
         items=entity_data.get_equipment,
-        update=entity_data.add_equipment,
+        update=entity_data.add_equipment_pre,
     )  # type: ignore
     prop_enum: EnumProperty(
         translation_context="Entity",
         items=entity_data.get_prop,
-        update=entity_data.add_prop,
+        update=entity_data.add_prop_pre,
     )  # type: ignore
     ent_preview: EnumProperty(
         translation_context="Entity", items=get_ent_preview

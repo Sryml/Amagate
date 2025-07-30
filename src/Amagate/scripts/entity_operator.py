@@ -180,6 +180,7 @@ class OT_Entity_Kind_Search(bpy.types.Operator):
             OP_L3D.OT_EntityCreate.add(None, context, inter_name, entity=ent)
 
         data.region_redraw("UI")
+        bpy.ops.ed.undo_push(message="Change Kind")
         return {"FINISHED"}
 
     def invoke(self, context: Context, event: bpy.types.Event):
@@ -272,10 +273,7 @@ class OT_Equipment_Remove(bpy.types.Operator):
             return {"FINISHED"}
 
         item = ent_data.equipment_inv[index]
-        obj = item.obj  # type: Object
-        if obj is not None:
-            scene_data["EntityManage"].pop(obj.amagate_data.get_entity_data().Name)
-            bpy.data.objects.remove(obj)
+        ag_utils.delete_entity(ent=item.obj)
         ent_data.equipment_inv.remove(index)
         if index >= len(ent_data.equipment_inv):
             new_index = max(len(ent_data.equipment_inv) - 1, 0)
@@ -418,10 +416,7 @@ class OT_Prop_Remove(bpy.types.Operator):
             return {"FINISHED"}
 
         item = ent_data.prop_inv[index]
-        obj = item.obj  # type: Object
-        if obj is not None:
-            scene_data["EntityManage"].pop(obj.amagate_data.get_entity_data().Name)
-            bpy.data.objects.remove(obj)
+        ag_utils.delete_entity(ent=item.obj)
         ent_data.prop_inv.remove(index)
         if index >= len(ent_data.prop_inv):
             new_index = max(len(ent_data.prop_inv) - 1, 0)

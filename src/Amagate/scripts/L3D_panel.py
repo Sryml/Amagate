@@ -1239,10 +1239,13 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         wm_data = context.window_manager.amagate_data
-
+        scene_data = context.scene.amagate_data
         #
         selected_entities = [
-            obj for obj in context.selected_objects if obj.amagate_data.is_entity
+            obj
+            for obj in context.selected_objects
+            if obj.amagate_data.is_entity
+            and obj.amagate_data.get_entity_data().Name in scene_data["EntityManage"]
         ]
         active_entity = selected_entities[0] if selected_entities else None
         if active_entity:
@@ -1336,7 +1339,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col.alignment = "LEFT"
         is_uniform_objtype = entity_data.is_uniform("ObjType")
         flag = "" if is_uniform_objtype else "*"
-        col.label(text=f"{flag}{pgettext('Entity Type')}:")
+        col.label(text=f"{flag}{pgettext('Object Type')}:")
         row.prop(wm_data.EntityData, "ObjType", text="")
 
         # box.separator(type="LINE")

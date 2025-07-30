@@ -496,58 +496,9 @@ def check_sector_coll():
             return
 
 
-# 扇区删除检查
-def check_sector_delete():
-    scene_data = bpy.context.scene.amagate_data
-
-    # 如果用户删除了扇区物体，则进行自动清理
-    coll = ensure_collection(S_COLL)
-    SectorManage = scene_data.get("SectorManage")
-
-    exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
-    all_ids = set(SectorManage["sectors"].keys())
-    deleted_ids = sorted(all_ids - exist_ids, reverse=True)
-
-    if deleted_ids:
-        bpy.ops.ed.undo()
-        coll = ensure_collection(S_COLL)
-        scene_data = bpy.context.scene.amagate_data
-        SectorManage = scene_data["SectorManage"]
-
-        disconnect = []  # 需要与删除扇区解除连接的扇区
-        sectors_del = [
-            SectorManage["sectors"][id_key]["obj"] for id_key in deleted_ids
-        ]  # type: list[Object]
-        for sec in sectors_del:
-            sec_data = sec.amagate_data.get_sector_data()
-            # 如果没有连接，跳过
-            if sec_data.connect_num == 0:
-                continue
-
-            mesh = sec.data  # type: bpy.types.Mesh # type: ignore
-            connect = {
-                mesh.attributes["amagate_connected"].data[i].value  # type: ignore
-                for i in range(len(mesh.polygons))
-            }
-            connect.discard(0)
-            if connect:
-                sectors = [
-                    SectorManage["sectors"][f"{i}"]["obj"]
-                    for i in connect
-                    if SectorManage["sectors"][f"{i}"]["obj"] not in sectors_del
-                ]
-                disconnect.append((sectors, sec_data.id))
-        for sectors, sid in disconnect:
-            ag_utils.disconnect(None, bpy.context, sectors, sid, dis_target=False)
-
-        for id_key in deleted_ids:
-            ag_utils.delete_sector(id_key=id_key)
-
-        bpy.ops.ed.undo_push(message="Delete Sector")
-
-
-# 特殊对象检查
-def check_special_objects():
+# 删除检查
+def check_delete():
+    collection = bpy.context.scene.collection
     scene_data = bpy.context.scene.amagate_data
     for i in [
         scene_data.ensure_null_obj,
@@ -559,6 +510,62 @@ def check_special_objects():
             bpy.ops.ed.undo()
             bpy.ops.ed.undo_push(message="Special Object Check")
             return
+
+    # 检查已删除的扇区
+    coll = ensure_collection(S_COLL)
+    SectorManage = scene_data.get("SectorManage")
+
+    exist_ids = set(str(obj.amagate_data.get_sector_data().id) for obj in coll.all_objects if obj.amagate_data.is_sector)  # type: ignore
+    all_ids = set(SectorManage["sectors"].keys())
+    deleted_ids = sorted(all_ids - exist_ids, reverse=True)
+    # 检查已删除的实体
+    deleted_entities = [
+        k
+        for k, v in scene_data["EntityManage"].items()
+        if v is None or collection.all_objects.get(v.name) is None
+    ]
+
+    if deleted_ids or deleted_entities:
+        bpy.ops.ed.undo()
+        #
+        if deleted_ids:
+            coll = ensure_collection(S_COLL)
+            scene_data = bpy.context.scene.amagate_data
+            SectorManage = scene_data["SectorManage"]
+
+            disconnect = []  # 需要与删除扇区解除连接的扇区
+            sectors_del = [
+                SectorManage["sectors"][id_key]["obj"] for id_key in deleted_ids
+            ]  # type: list[Object]
+            for sec in sectors_del:
+                sec_data = sec.amagate_data.get_sector_data()
+                # 如果没有连接，跳过
+                if sec_data.connect_num == 0:
+                    continue
+
+                mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+                connect = {
+                    mesh.attributes["amagate_connected"].data[i].value  # type: ignore
+                    for i in range(len(mesh.polygons))
+                }
+                connect.discard(0)
+                if connect:
+                    sectors = [
+                        SectorManage["sectors"][f"{i}"]["obj"]
+                        for i in connect
+                        if SectorManage["sectors"][f"{i}"]["obj"] not in sectors_del
+                    ]
+                    disconnect.append((sectors, sec_data.id))
+            for sectors, sid in disconnect:
+                ag_utils.disconnect(None, bpy.context, sectors, sid, dis_target=False)
+
+            for id_key in deleted_ids:
+                ag_utils.delete_sector(id_key=id_key)
+        #
+        for k in deleted_entities:
+            ag_utils.delete_entity(k)
+        #
+        bpy.ops.ed.undo_push(message=f"L3D {pgettext('Delete')}")
 
 
 # 扇区合并检查
@@ -648,15 +655,20 @@ def check_sector_separate():
     bpy.ops.ed.undo_push(message="Sector Check")
 
 
-# 复制扇区检查
-def check_sector_duplicate():
+# 复制检查
+def check_duplicate():
+    from . import entity_data
+
     context = bpy.context
     dup_sectors = [
         obj for obj in context.selected_objects if obj.amagate_data.is_sector
     ]
-    if not dup_sectors:
+    dup_entities = [
+        obj for obj in context.selected_objects if obj.amagate_data.is_entity
+    ]
+    if not (dup_sectors or dup_entities):
         return
-
+    #
     sector_id_map = {}
     for sec in dup_sectors:
         sec_data = sec.amagate_data.get_sector_data()
@@ -675,28 +687,57 @@ def check_sector_duplicate():
         sec_data.connect_num = conn_count
     ag_utils.dissolve_limit_sectors(dup_sectors)
 
+    #
+    coll = ensure_collection(E_COLL)
+    for ent in dup_entities:
+        ent_data = ent.amagate_data.get_entity_data()
+        split = ent_data.Name.split("_")
+        if split[-1].isdecimal():
+            prefix = "_".join(split[:-1]) + "_"
+        else:
+            prefix = f"{ent_data.Name}_"
+        new_name = entity_data.get_name(context, prefix)
+        # 复制库存
+        inventories = (ent_data.equipment_inv, ent_data.prop_inv)
+        suffix = ("_Equip_", "_Prop_")
+        for idx in (0, 1):
+            inv = inventories[idx]
+            for item in inv:
+                obj = item.obj  # type: Object
+                if not obj:
+                    continue
+
+                new_obj = obj.copy()
+                item.obj = new_obj
+                data.link2coll(new_obj, coll)
+
+        # 复制完库存再改名称
+        ent_data.Name = new_name
+
     # 取消用户的操作选项
-    context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
-    bpy.ops.object.mode_set(mode="EDIT")
+    if dup_sectors:
+        context.view_layer.objects.active = dup_sectors[0]  # 设为活动对象
+        bpy.ops.object.mode_set(mode="EDIT")
 
     def timer():
         bpy.ops.object.mode_set(mode="OBJECT")
-        bpy.ops.ed.undo_push(message="Sector Check")
+        bpy.ops.ed.undo_push(message=f"L3D {pgettext('Duplicate')}")
 
     bpy.app.timers.register(timer, first_interval=0.05)
 
 
-# 粘贴扇区检查
-def check_sector_paste():
+# 粘贴检查
+def check_paste():
     context = bpy.context
-    copy_sectors = [
+    paste_sectors = [
         obj for obj in context.selected_objects if obj.amagate_data.is_sector
     ]
-    if not copy_sectors:
-        return
-
-    bpy.ops.ed.undo()
-    bpy.ops.ed.undo_push(message="Sector Paste Check")
+    paste_entities = [
+        obj for obj in context.selected_objects if obj.amagate_data.is_entity
+    ]
+    if paste_sectors or paste_entities:
+        bpy.ops.ed.undo()
+        bpy.ops.ed.undo_push(message="L3D Paste Check")
 
 
 # 扇区变换检查
@@ -900,13 +941,13 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
                     )
     #
 
-    s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
-    item = scene_data.ensure_coll.get(S_COLL)
-    if item and item.obj:
-        all_objects = len(item.obj.all_objects)
-        if S_COLL_OBJECTS != all_objects:
-            S_COLL_OBJECTS = all_objects
-            s_coll_objects_neq = True
+    # s_coll_objects_neq = False  # 扇区集合对象数量是否发生变化
+    # item = scene_data.ensure_coll.get(S_COLL)
+    # if item and item.obj:
+    #     all_objects = len(item.obj.all_objects)
+    #     if S_COLL_OBJECTS != all_objects:
+    #         S_COLL_OBJECTS = all_objects
+    #         s_coll_objects_neq = True
 
     operator_pointer = context.window_manager.operators[-1].as_pointer() if context.window_manager.operators else None  # type: ignore
     if (operator_pointer is not None) and operator_pointer != OPERATOR_POINTER:
@@ -927,11 +968,11 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         elif bl_label in COLLECTION_OP:
             check_sector_coll()
         # 删除扇区的回调
-        elif bl_idname in DELETE_OP and s_coll_objects_neq:
-            check_sector_delete()
+        # elif bl_idname in DELETE_OP and s_coll_objects_neq:
+        #     check_sector_delete()
         # 任意删除的回调
         elif bl_idname in DELETE_OP:
-            check_special_objects()
+            check_delete()
         # 合并扇区的回调
         elif bl_idname == "OBJECT_OT_join":
             check_sector_join()
@@ -940,10 +981,10 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
             check_sector_separate()
         # 复制扇区的回调 # FIXME 有时候没有触发该回调，原因未知
         elif bl_idname in DUPLICATE_OP:
-            check_sector_duplicate()
+            check_duplicate()
         # 粘贴扇区的回调
         elif bl_idname == "VIEW3D_OT_pastebuffer":
-            check_sector_paste()
+            check_paste()
         # 扇区变换的回调
         elif bl_idname in TRANSFORM_OP:
             check_sector_transform(bl_idname)

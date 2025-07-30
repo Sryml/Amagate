@@ -1204,6 +1204,26 @@ def delete_bulb(sec: Object):
             bpy.data.collections.remove(coll)
 
 
+# 删除实体
+def delete_entity(key="", ent=None):  # type: ignore
+    scene_data = bpy.context.scene.amagate_data
+    if key == "":
+        if ent is None:
+            return
+        ent_data = ent.amagate_data.get_entity_data()
+        key = ent_data.Name
+    if key not in scene_data["EntityManage"]:
+        return
+
+    ent = scene_data["EntityManage"][key]  # type: Object
+    if ent is not None:
+        ent_data = ent.amagate_data.get_entity_data()
+        if ent_data.ObjType == "0":  # "Person"
+            ent_data.clear_inv()
+        bpy.data.objects.remove(ent)
+    scene_data["EntityManage"].pop(key)
+
+
 # 单选并设为活动对象
 def select_active(context: Context, obj: Object):
     """单选并设为活动对象"""

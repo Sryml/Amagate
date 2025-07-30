@@ -128,12 +128,12 @@ def get_equipment_search(this, context):
     return ent_enum
 
 
-def add_equipment(this, context: Context):
+def add_equipment_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(add_equipment_timer, first_interval=0.03)
+    bpy.app.timers.register(add_equipment, first_interval=0.03)
 
 
-def add_equipment_timer(inter_name="", entity=None):
+def add_equipment(inter_name="", entity=None):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
@@ -156,7 +156,7 @@ def add_equipment_timer(inter_name="", entity=None):
 
     inv_ent.visible_camera = False
     inv_ent.visible_shadow = False
-    inv_ent.location = entity.location + Vector((0, 0, 1.2))
+    # inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
     # 如果不是脚本调用，则添加撤销
     if entity is not None:
@@ -227,12 +227,12 @@ def get_prop_search(this, context):
     return ent_enum
 
 
-def add_prop(this, context: Context):
+def add_prop_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(add_prop_timer, first_interval=0.03)
+    bpy.app.timers.register(add_prop, first_interval=0.03)
 
 
-def add_prop_timer(inter_name="", entity=None):
+def add_prop(inter_name="", entity=None):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
@@ -255,7 +255,7 @@ def add_prop_timer(inter_name="", entity=None):
 
     inv_ent.visible_camera = False
     inv_ent.visible_shadow = False
-    inv_ent.location = entity.location + Vector((0, 0, 1.2))
+    # inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
     # 如果不是脚本调用，则添加撤销
     if entity is not None:
@@ -464,7 +464,7 @@ class EntityProperty(bpy.types.PropertyGroup):
     # 道具库存
     prop_inv: CollectionProperty(type=EntityCollection)  # type: ignore
 
-    Kind: StringProperty(description="Read Only", get=lambda self: self.get_kind(), set=lambda self, value: self.set_kind(value))  # type: ignore
+    Kind: StringProperty(get=lambda self: self.get_kind(), set=lambda self, value: self.set_kind(value))  # type: ignore
     Name: StringProperty(
         name="Name",
         description="Entity Name",
@@ -614,6 +614,15 @@ class EntityProperty(bpy.types.PropertyGroup):
     )  # type: ignore
 
     ############################
+    def clear_inv(self):
+        scene_data = bpy.context.scene.amagate_data
+        ent_data = self
+        for inv in (ent_data.equipment_inv, ent_data.prop_inv):
+            for item in inv:
+                ag_utils.delete_entity(ent=item.obj)
+            inv.clear()
+
+    ############################
     def get_kind(self):
         key = "Kind"
         if self.target == "UI":
@@ -664,42 +673,51 @@ class EntityProperty(bpy.types.PropertyGroup):
                 for ent in selected_entities:
                     ent_data = ent.amagate_data.get_entity_data()
                     new_value = f"{value}_{start}"
-                    start += 1
-                    curr_value = ent_data[key]
-                    if new_value == curr_value:
-                        continue
-                    #
-                    ent2 = scene_data["EntityManage"].get(new_value)
-                    if ent2 is not None:
-                        ent_data2 = ent2.amagate_data.get_entity_data()
-                        scene_data["EntityManage"][curr_value] = ent2
-                        setattr(ent_data2, key, curr_value)
-                    else:
-                        scene_data["EntityManage"].pop(curr_value)
-                    scene_data["EntityManage"][new_value] = ent
                     setattr(ent_data, key, new_value)
+                    start += 1
             else:
                 ent = selected_entities[0]
                 ent_data = ent.amagate_data.get_entity_data()
-                curr_value = ent_data[key]
-                if value == curr_value:
-                    return
-                #
-                ent2 = scene_data["EntityManage"].get(value)
-                if ent2 is not None:
-                    ent_data2 = ent2.amagate_data.get_entity_data()
-                    scene_data["EntityManage"][curr_value] = ent2
-                    setattr(ent_data2, key, curr_value)
-                else:
-                    scene_data["EntityManage"].pop(curr_value)
-                scene_data["EntityManage"][value] = ent
                 setattr(ent_data, key, value)
             #
             data.area_redraw("OUTLINER")
+            bpy.ops.ed.undo_push(message="Change Name")
         else:
+            if value == "":
+                return
+            curr_value = self.get(key)
+            if curr_value == value:
+                return
+
+            ent2 = scene_data["EntityManage"].get(value)  # type: Object
+
             self[key] = value
             ent = self.id_data  # type: Object
             ent.rename(value, mode="ALWAYS")
+            scene_data["EntityManage"][value] = ent
+
+            if ent2 is not None:
+                ent_data2 = ent2.amagate_data.get_entity_data()
+                if not curr_value:
+                    curr_value = get_name(context, f"{ent_data2.Kind}_")
+                scene_data["EntityManage"][curr_value] = ent2
+                ent_data2[key] = curr_value
+                ent2.rename(curr_value, mode="ALWAYS")
+            elif curr_value and scene_data["EntityManage"].get(curr_value) == ent:
+                scene_data["EntityManage"].pop(curr_value)
+
+            # 同步库存物体名称
+            inventories = (self.equipment_inv, self.prop_inv)
+            suffix = ("_Equip_", "_Prop_")
+            for idx in (0, 1):
+                inv = inventories[idx]
+                for item in inv:
+                    obj = item.obj  # type: Object
+                    if not obj:
+                        continue
+
+                    obj_name = get_name(context, f"{self.Name}{suffix[idx]}")
+                    obj.amagate_data.get_entity_data().Name = obj_name
 
     ############################
     def get_objtype(self):
@@ -729,6 +747,7 @@ class EntityProperty(bpy.types.PropertyGroup):
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
                 setattr(ent_data, key, identifier)
+            bpy.ops.ed.undo_push(message="Change Object Type")
         else:
             if self.get(key) == value:
                 return
@@ -744,15 +763,7 @@ class EntityProperty(bpy.types.PropertyGroup):
                 elif curr_type == "Person":
                     ent.rotation_euler = 0, 0, 0
                     # 清空库存
-                    for inv in (ent_data.equipment_inv, ent_data.prop_inv):
-                        for item in inv:
-                            obj = item.obj
-                            if obj is not None:
-                                Name = obj.amagate_data.get_entity_data().Name
-                                if Name in scene_data["EntityManage"]:
-                                    scene_data["EntityManage"].pop(Name)
-                                bpy.data.objects.remove(obj, do_unlink=True)
-                        inv.clear()
+                    self.clear_inv()
             #
             self[key] = value
 
@@ -785,6 +796,7 @@ class EntityProperty(bpy.types.PropertyGroup):
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
                 setattr(ent_data, key, value)
+            # bpy.ops.ed.undo_push(message="Change Property")
         else:
             self[key] = value
             #

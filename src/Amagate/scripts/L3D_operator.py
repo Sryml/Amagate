@@ -1286,10 +1286,8 @@ class OT_EntityCreate(bpy.types.Operator):
             entity = bpy.data.objects.new(
                 "", entity_raw.data
             )  # type: Object # type: ignore
-            entity.rename(obj_name, mode="ALWAYS")
             data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
             entity.amagate_data.set_entity_data()
-            scene_data["EntityManage"][obj_name] = entity
             ent_data = entity.amagate_data.get_entity_data()
             ent_data.Name = obj_name
             # if Category == "Characters":
@@ -1964,13 +1962,13 @@ def InitMap(imp_filepath=""):
     ent_data.ObjType = "0"
     ent_data.Hide = False
     ent_data.Level = 20
-    entity_data.add_equipment_timer("Antorcha", ent)
-    entity_data.add_equipment_timer("EgyptSword", ent)
-    entity_data.add_equipment_timer("Escudo7", ent)
-    entity_data.add_equipment_timer("Arco", ent)
-    entity_data.add_equipment_timer("Carcaj", ent)
-    entity_data.add_prop_timer("PocimaTodo", ent)
-    entity_data.add_prop_timer("PowerPotion", ent)
+    entity_data.add_equipment("Antorcha", ent)
+    entity_data.add_equipment("EgyptSword", ent)
+    entity_data.add_equipment("Escudo7", ent)
+    entity_data.add_equipment("Arco", ent)
+    entity_data.add_equipment("Carcaj", ent)
+    entity_data.add_prop("PocimaTodo", ent)
+    entity_data.add_prop("PowerPotion", ent)
 
     if is_import:
         from . import L3D_imp_operator as OP_L3D_IMP
@@ -2194,6 +2192,10 @@ class OT_BakeWorld(bpy.types.Operator):
             # rigid_bm.faces.layers.float_color.new("atmo_color"),
         ]
         verts_map = {}
+        if len(scene_data["SectorManage"]["sectors"]) == 0:
+            self.report({"ERROR"}, "No visible sector found")
+            bpy.data.meshes.remove(mesh)
+            return {"FINISHED"}
         for item in scene_data["SectorManage"]["sectors"].values():
             sec = item["obj"]  # type: Object
             sec_data = sec.amagate_data.get_sector_data()
