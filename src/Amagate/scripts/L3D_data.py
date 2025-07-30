@@ -1280,13 +1280,15 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
         active_data,
         active_prop,
     ):
+        from . import L3D_operator as OP_L3D
+
         scene_data = context.scene.amagate_data
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
         # row.alignment = "LEFT"
-        split = row.split(factor=0.6)
-        row = split.row()
+        split = row.split(factor=0.49)
+        row = split.row(align=True)
         # split = row
 
         # col = split.column()
@@ -1308,7 +1310,8 @@ class AMAGATE_UI_UL_AtmoList(bpy.types.UIList):
             col.label(text=item.item_name)
 
         row = split.row()
-        row.enabled = enabled
+        row.operator(OP_L3D.OT_Atmo_Visible.bl_idname, text="", emboss=False, icon="HIDE_OFF" if scene_data.atmo_id_key == item.name else "HIDE_ON").id = item.id  # type: ignore
+        # row.enabled = enabled
         row.prop(item, "color", text="")
 
 
@@ -1345,13 +1348,15 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         active_data,
         active_prop,
     ):
+        from . import L3D_operator as OP_L3D
+
         scene_data = context.scene.amagate_data
         light = item
         enabled = not active_data.readonly if hasattr(active_data, "readonly") else True
 
         row = layout.row()
-        split = row.split(factor=0.5)
-        row = split.row()
+        split = row.split(factor=0.49)
+        row = split.row(align=True)
 
         i = (
             data.ICONS["star"].icon_id
@@ -1372,13 +1377,14 @@ class AMAGATE_UI_UL_ExternalLight(bpy.types.UIList):
         split = split.split(factor=0.4)
         row = split.row()
         row.alignment = "RIGHT"
+        row.operator(OP_L3D.OT_External_Visible.bl_idname, text="", emboss=False, icon="HIDE_ON" if item.obj.hide_viewport else "HIDE_OFF").id = item.id  # type: ignore
         row.operator(
             "amagate.scene_external_set", text="", icon="LIGHT_SUN", emboss=False
         ).id = light.id  # type: ignore
 
         row = split.row()
-        color = "color" if enabled else "color_readonly"
-        row.prop(light, color, text="")
+        # color = "color" if enabled else "color_readonly"
+        row.prop(light, "color", text="")
 
 
 class AMAGATE_UI_UL_TextureList(bpy.types.UIList):

@@ -247,6 +247,24 @@ class OT_Atmo_Select(bpy.types.Operator):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
 
 
+# 显示大气
+class OT_Atmo_Visible(bpy.types.Operator):
+    bl_idname = "amagate.atmo_visible"
+    bl_label = "Visible"
+    bl_description = "Visible"
+    bl_options = {"INTERNAL"}
+
+    id: IntProperty(name="ID")  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        atmo = L3D_data.get_atmo_by_id(scene_data, self.id)[1]
+        id_key = atmo.name
+        if scene_data.atmo_id_key != id_key:
+            scene_data.atmo_id_key = id_key
+        return {"FINISHED"}
+
+
 ############################
 ############################ 场景面板 -> 外部光面板
 ############################
@@ -319,6 +337,7 @@ class OT_Scene_External_Remove(bpy.types.Operator):
 
         bpy.data.lights.remove(item.data)
         externals.remove(active_idx)
+        bpy.ops.amagate.external_visible(id=scene_data.externals[0].id)  # type: ignore
 
         if active_idx >= len(externals):
             scene_data.active_external = len(externals) - 1
@@ -405,6 +424,27 @@ class OT_External_Select(bpy.types.Operator):
 
     def invoke(self, context, event):
         return context.window_manager.invoke_popup(self, width=200)  # type: ignore
+
+
+# 显示外部光
+class OT_External_Visible(bpy.types.Operator):
+    bl_idname = "amagate.external_visible"
+    bl_label = "Visible"
+    bl_description = "Visible"
+    bl_options = {"INTERNAL"}
+
+    id: IntProperty(name="ID")  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        externals = scene_data.externals
+        idx, item = L3D_data.get_external_by_id(scene_data, self.id)
+        if item and item.obj.hide_viewport:
+            item.obj.hide_viewport = False
+            for item_2 in externals:
+                if item_2 != item:
+                    item_2.obj.hide_viewport = True
+        return {"FINISHED"}
 
 
 ############################
