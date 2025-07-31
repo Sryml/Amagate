@@ -740,16 +740,17 @@ def check_paste():
         bpy.ops.ed.undo_push(message="L3D Paste Check")
 
 
-# 扇区变换检查
-def check_sector_transform(bl_idname):
+# 变换检查
+def check_transform(bl_idname):
     context = bpy.context
+    current_time = time.time()
 
     sectors = [obj for obj in context.selected_objects if obj.amagate_data.is_sector]
     conn_sectors = [
         sec for sec in sectors if sec.amagate_data.get_sector_data().connect_num != 0
     ]
-    if not conn_sectors:
-        return
+    # if not conn_sectors:
+    #     return
 
     for sec in conn_sectors:
         ag_utils.check_connect(sec)
@@ -758,8 +759,23 @@ def check_sector_transform(bl_idname):
     if bl_idname == "TRANSFORM_OT_rotate":
         for sec in sectors:
             ag_utils.steep_check(sec)
+    # 如果是移动操作，检查实体
+    elif bl_idname == "TRANSFORM_OT_translate":
+        obj = bpy.data.objects.get("AG.BakeWorld")  # type: Object # type: ignore
+        if obj:
+            entities = [
+                obj for obj in context.selected_objects if obj.amagate_data.is_entity
+            ]
+            for entity in entities:
+                result, location, normal, index = obj.ray_cast(
+                    entity.location, (0, 0, -1)
+                )
+                if result:
+                    color = obj.data.attributes["ambient_color"].data[index].vector  # type: ignore
+                    entity["AG.ambient_color"] = color  # type: ignore
+                    entity.update_tag()
 
-    bpy.ops.ed.undo_push(message="Sector Check")
+    bpy.ops.ed.undo_push(message=f"L3D {pgettext('Transform')}")
 
 
 # 扇区选择检查
@@ -979,15 +995,15 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         # 分离扇区的回调
         elif bl_idname == "MESH_OT_separate":
             check_sector_separate()
-        # 复制扇区的回调 # FIXME 有时候没有触发该回调，原因未知
+        # 复制回调 # FIXME 有时候没有触发该回调，原因未知
         elif bl_idname in DUPLICATE_OP:
             check_duplicate()
-        # 粘贴扇区的回调
+        # 粘贴回调
         elif bl_idname == "VIEW3D_OT_pastebuffer":
             check_paste()
-        # 扇区变换的回调
+        # 变换回调
         elif bl_idname in TRANSFORM_OP:
-            check_sector_transform(bl_idname)
+            check_transform(bl_idname)
         # 选择物体的回调
         elif bl_idname in SELECT_OP:
             check_sector_select()
@@ -1229,6 +1245,10 @@ def load_post(filepath=""):
             scene_data["EntityManage"] = {}
         ############################
 
+        # 更新集合名称
+        for item in scene_data.ensure_coll:
+            c_name = f"{pgettext(item.name)}"
+            item.obj.name = c_name
         #
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]

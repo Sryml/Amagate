@@ -1713,7 +1713,14 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
         column.separator(type="LINE")
 
         # 烘焙世界
-        column.operator(OP_L3D.OT_BakeWorld.bl_idname)
+        obj = bpy.data.objects.get("AG.BakeWorld")  # type: Object # type: ignore
+        split = column.row(align=True)
+        split.operator(OP_L3D.OT_BakeWorld.bl_idname)
+        split.operator(
+            OP_L3D.OT_BakeWorld_Visible.bl_idname,
+            text="",
+            icon="HIDE_ON" if obj and obj.hide_get() else "HIDE_OFF",
+        )
         # 重置节点
         column.operator(OP_L3D.OT_Node_Reset.bl_idname, icon="FILE_REFRESH")
 

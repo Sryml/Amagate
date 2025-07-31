@@ -1288,6 +1288,28 @@ class OT_EntityCreate(bpy.types.Operator):
             )  # type: Object # type: ignore
             data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
             entity.amagate_data.set_entity_data()
+            # 如果是创建实体操作
+            if this is not None:
+                ag_utils.select_active(context, entity)
+                # 移动到当前视图焦点
+                rv3d = context.region_data
+                entity.location = rv3d.view_location.to_tuple(0)
+
+            # 设置环境光
+            color = (1.0, 1.0, 1.0)
+            obj = bpy.data.objects.get("AG.BakeWorld")  # type: Object # type: ignore
+            if obj:
+                result, location, normal, index = obj.ray_cast(
+                    entity.location, (0, 0, -1)
+                )
+                if result:
+                    color = obj.data.attributes["ambient_color"].data[index].vector  # type: ignore
+            entity["AG.ambient_color"] = color  # type: ignore
+            entity.id_properties_ui("AG.ambient_color").update(
+                subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
+            )
+
+            #
             ent_data = entity.amagate_data.get_entity_data()
             ent_data.Name = obj_name
             # if Category == "Characters":
@@ -1302,11 +1324,6 @@ class OT_EntityCreate(bpy.types.Operator):
             entity.data = entity_raw.data
             ent_data = entity.amagate_data.get_entity_data()
 
-        if this is not None:
-            ag_utils.select_active(context, entity)
-            # 移动到当前视图焦点
-            rv3d = context.region_data
-            entity.location = rv3d.view_location.to_tuple(0)
         #
         ent_data.Kind = inter_name
         ent_data.has_fire = has_fire
@@ -2168,6 +2185,7 @@ class OT_BakeWorld(bpy.types.Operator):
             obj = bpy.data.objects.new(name, mesh)
             coll = L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
             data.link2coll(obj, coll)
+        obj.hide_set(True)
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
 
         ag_utils.select_active(context, obj)
@@ -2196,6 +2214,7 @@ class OT_BakeWorld(bpy.types.Operator):
             self.report({"ERROR"}, "No visible sector found")
             bpy.data.meshes.remove(mesh)
             return {"FINISHED"}
+
         for item in scene_data["SectorManage"]["sectors"].values():
             sec = item["obj"]  # type: Object
             sec_data = sec.amagate_data.get_sector_data()
@@ -2247,6 +2266,28 @@ class OT_BakeWorld(bpy.types.Operator):
         bmesh.ops.remove_doubles(rigid_bm, verts=rigid_bm.verts, dist=0.001)  # type: ignore
         rigid_bm.to_mesh(mesh)
 
+        return {"FINISHED"}
+
+
+# 烘焙世界可见
+class OT_BakeWorld_Visible(bpy.types.Operator):
+    bl_idname = "amagate.bake_world_visible"
+    bl_label = "Bake World Visible"
+    bl_description = "Visible"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.is_blade and "AG.BakeWorld" in bpy.data.objects
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        obj = bpy.data.objects.get("AG.BakeWorld")  # type: Object # type: ignore
+        state = obj.hide_get()
+        obj.hide_set(not state)
+        coll_name = L3D_data.ensure_collection(L3D_data.S_COLL).name
+        context.view_layer.layer_collection.children[coll_name].hide_viewport = state
         return {"FINISHED"}
 
 

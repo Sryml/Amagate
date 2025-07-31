@@ -604,14 +604,14 @@ class EntityProperty(bpy.types.PropertyGroup):
     #
     light_prop: PointerProperty(type=LightProperty)  # type: ignore
     #
-    ambient_color: FloatVectorProperty(
-        name="Color",
-        subtype="COLOR",
-        size=3,
-        min=0.0,
-        max=1.0,
-        default=(0, 0, 0),
-    )  # type: ignore
+    # ambient_color: FloatVectorProperty(
+    #     name="Color",
+    #     subtype="COLOR",
+    #     size=3,
+    #     min=0.0,
+    #     max=1.0,
+    #     default=(0, 0, 0),
+    # )  # type: ignore
 
     ############################
     def clear_inv(self):

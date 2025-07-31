@@ -67,7 +67,7 @@ def ensure_material(tex: Image) -> bpy.types.Material:
         mat.rename(name, mode="ALWAYS")
         filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         nodes_data = pickle.load(open(filepath, "rb"))
-        data.import_nodes(mat, nodes_data["EXPORT.Entity"])
+        data.import_nodes(mat, nodes_data["Export.EntityTex"])
         mat.use_fake_user = True
         mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
         mat.use_backface_culling = True
@@ -772,6 +772,11 @@ class OT_ImportBOD(bpy.types.Operator):
             )  # type: Collection # type: ignore
             context.scene.collection.children.link(ent_coll)
             data.link2coll(entity, ent_coll)
+            entity["AG.ambient_color"] = (1.0, 1.0, 1.0)
+            # entity.id_properties_ensure()  # 确保属性存在
+            entity.id_properties_ui("AG.ambient_color").update(
+                subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
+            )
             # 顶点
             verts_num = unpack("I", f)[0]
             for i in range(verts_num):

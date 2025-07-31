@@ -535,21 +535,41 @@ class OT_Test(bpy.types.Operator):
 
     @staticmethod
     def test1(context: Context):
+        from . import entity_operator as OP_ENTITY
+
         name_lst = []
+        count = 0
         models_path = Path(os.path.join(data.ADDON_PATH, "Models"))
-        for dir in ("3DObjs",):
+        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        nodes_data = pickle.load(open(filepath, "rb"))
+        for dir in ("3DObjs", "3DChars"):
             root = models_path / dir
             for f_name in os.listdir(root):
                 if f_name.lower().endswith(".blend"):
+                    count += 1
                     filepath = root / f_name
                     with contextlib.redirect_stdout(StringIO()):
                         bpy.ops.wm.open_mainfile(filepath=str(filepath))
-                    for img in bpy.data.images:
-                        if img.name != "Render Result":
-                            if not img.filepath.startswith("//textures"):
-                                name_lst.append(f"{dir}/{f_name}")
-                                break
-        print(name_lst)
+                    ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
+                    if entity.get("AG.ambient_color") is not None:
+                        continue
+                    entity["AG.ambient_color"] = (1.0, 1.0, 1.0)  # type: ignore
+                    entity.id_properties_ui("AG.ambient_color").update(
+                        subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
+                    )
+                    for mat in bpy.data.materials:
+                        tex = mat.node_tree.nodes["Image Texture"].image  # type: ignore
+                        data.import_nodes(mat, nodes_data["Export.EntityTex"])
+                        mat.use_fake_user = True
+                        mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+                        mat.use_backface_culling = True
+                    # for img in bpy.data.images:
+                    #     if img.name != "Render Result":
+                    #         if not img.filepath.startswith("//textures"):
+                    #             name_lst.append(f"{dir}/{f_name}")
+                    #             break
+                    bpy.ops.wm.save_mainfile()
+        print(count)
 
     def test2(self, context: Context):
         obj = context.object
@@ -696,7 +716,7 @@ class OT_ExportNode(bpy.types.Operator):
         for mat in bpy.data.materials:
             if not mat.use_nodes:
                 continue
-            if mat.name.startswith("EXPORT."):
+            if mat.name.startswith("Export."):
                 nodes_data[mat.name] = data.export_nodes(mat)
         #
         print(f"节点数量: {len(nodes_data)}")
