@@ -1212,6 +1212,7 @@ class OT_EntityCreate(bpy.types.Operator):
     def add(this, context: Context, inter_name, entity=None, obj_name=""):  # type: ignore
         from . import entity_operator as OP_ENTITY
 
+        is_operator = isinstance(this, bpy.types.Operator)
         E_MANIFEST = data.E_MANIFEST
         # entity = None  # type: ignore
         filepath = ""
@@ -1224,7 +1225,7 @@ class OT_EntityCreate(bpy.types.Operator):
                 break
         #
         if not (filepath and os.path.exists(filepath)):
-            if this is not None:
+            if is_operator:
                 this.report({"ERROR"}, f"{pgettext('File not found')}: {item[1]}")
             else:
                 context.window_manager.popup_menu(
@@ -1244,7 +1245,7 @@ class OT_EntityCreate(bpy.types.Operator):
                     (i for i in data_from.collections if i == coll_name), None
                 )
                 if not from_coll:
-                    if this is not None:
+                    if is_operator:
                         this.report({"ERROR"}, "Entity collection not found")
                     else:
                         context.window_manager.popup_menu(
@@ -1263,7 +1264,7 @@ class OT_EntityCreate(bpy.types.Operator):
             coll, check_visible=False
         )
         if entity_raw is None:
-            if this is not None:
+            if is_operator:
                 this.report({"ERROR"}, "No visible entity Mesh")
             else:
                 context.window_manager.popup_menu(
@@ -1289,7 +1290,7 @@ class OT_EntityCreate(bpy.types.Operator):
             data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
             entity.amagate_data.set_entity_data()
             # 如果是创建实体操作
-            if this is not None:
+            if is_operator:
                 ag_utils.select_active(context, entity)
                 # 移动到当前视图焦点
                 rv3d = context.region_data

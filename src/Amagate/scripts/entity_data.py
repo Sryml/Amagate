@@ -130,10 +130,10 @@ def get_equipment_search(this, context):
 
 def add_equipment_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(add_equipment, first_interval=0.03)
+    bpy.app.timers.register(lambda: add_equipment(undo=True), first_interval=0.03)
 
 
-def add_equipment(inter_name="", entity=None):
+def add_equipment(inter_name="", entity=None, undo=True):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
@@ -150,6 +150,9 @@ def add_equipment(inter_name="", entity=None):
     _, inv_ent = OP_L3D.OT_EntityCreate.add(
         None, context, inter_name, obj_name=obj_name
     )
+    if not inv_ent:
+        return
+
     item = ent_data.equipment_inv.add()
     item.obj = inv_ent
     wm_data.active_equipment = len(ent_data.equipment_inv) - 1
@@ -158,8 +161,7 @@ def add_equipment(inter_name="", entity=None):
     inv_ent.visible_shadow = False
     # inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
-    # 如果不是脚本调用，则添加撤销
-    if entity is not None:
+    if undo:
         bpy.ops.ed.undo_push(message="Add Inventory")
 
 
@@ -229,10 +231,10 @@ def get_prop_search(this, context):
 
 def add_prop_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(add_prop, first_interval=0.03)
+    bpy.app.timers.register(lambda: add_prop(undo=True), first_interval=0.03)
 
 
-def add_prop(inter_name="", entity=None):
+def add_prop(inter_name="", entity=None, undo=False):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context
@@ -249,6 +251,9 @@ def add_prop(inter_name="", entity=None):
     _, inv_ent = OP_L3D.OT_EntityCreate.add(
         None, context, inter_name, obj_name=obj_name
     )
+    if not inv_ent:
+        return
+
     item = ent_data.prop_inv.add()
     item.obj = inv_ent
     wm_data.active_prop = len(ent_data.prop_inv) - 1
@@ -257,8 +262,7 @@ def add_prop(inter_name="", entity=None):
     inv_ent.visible_shadow = False
     # inv_ent.location = entity.location + Vector((0, 0, 1.2))
 
-    # 如果不是脚本调用，则添加撤销
-    if entity is not None:
+    if undo:
         bpy.ops.ed.undo_push(message="Add Inventory")
 
 
@@ -361,8 +365,17 @@ class AMAGATE_UI_UL_Inventory(bpy.types.UIList):
             layout.alert = False
             ent_data = ent.amagate_data.get_entity_data()
             icon_id = next(i[3] for i in data.ENT_ENUM if i[2] == ent_data.Kind)
-            row = layout.row()
-            row.label(text=ent_data.Name, icon_value=icon_id)
+            row = layout.row(align=True)
+            op = row.operator(
+                OP_Entity.OT_Inventory_Preview.bl_idname,
+                text="",
+                icon_value=icon_id,
+                emboss=False,
+            )
+            op.icon_id = icon_id  # type: ignore
+            op.Kind = ent_data.Kind  # type: ignore
+
+            row.label(text=ent_data.Name)
             row.operator(OP_Entity.OT_Inventory_Select.bl_idname, text="", icon="RESTRICT_SELECT_OFF", emboss=False).obj_name = ent.name  # type: ignore
 
 

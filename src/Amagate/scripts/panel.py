@@ -281,7 +281,7 @@ class AMAGATE_PT_Debug(AG_Panel, bpy.types.Panel):
 
         layout = self.layout
 
-        col = layout.column(align=True)
+        col = layout.column()
         col.operator(OP.OT_ReloadAddon.bl_idname, icon="FILE_REFRESH")
         col.operator(OP.OT_ExportNode.bl_idname)
         col.operator(OP.OT_ExportEntComponent.bl_idname)

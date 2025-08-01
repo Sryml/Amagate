@@ -1392,49 +1392,65 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Character')}:")
-        row = column.row(align=True)
-        is_uniform_Life_Enabled = entity_data.is_uniform("Life_Enabled")
-        if is_uniform_Life_Enabled:
-            row.prop(
+        if sub_box.enabled:
+            row = column.row(align=True)
+            is_uniform_Life_Enabled = entity_data.is_uniform("Life_Enabled")
+            if is_uniform_Life_Enabled:
+                row.prop(
+                    wm_data.EntityData,
+                    "Life_Enabled",
+                    text="",
+                    toggle=True,
+                    icon=(
+                        "CHECKBOX_HLT"
+                        if wm_data.EntityData.Life_Enabled
+                        else "CHECKBOX_DEHLT"
+                    ),
+                )
+            else:
+                row.prop(
+                    wm_data.EntityData,
+                    "Life_Enabled",
+                    text="",
+                    toggle=True,
+                    icon="REMOVE",
+                )
+            col = row.column(align=True)
+            col.enabled = (
+                wm_data.EntityData.Life_Enabled if is_uniform_Life_Enabled else False
+            )
+            flag = "" if entity_data.is_uniform("Life") else "*"
+            col.prop(wm_data.EntityData, "Life", text=f"{flag}Life", text_ctxt="Keep")
+            grid = column.grid_flow(row_major=True, columns=2, align=True)
+            flag = "" if entity_data.is_uniform("Level") else "*"
+            grid.prop(
+                wm_data.EntityData, "Level", text=f"{flag}Level", text_ctxt="Keep"
+            )
+            flag = "" if entity_data.is_uniform("Angle") else "*"
+            grid.prop(
+                wm_data.EntityData, "Angle", text=f"{flag}Angle", text_ctxt="Keep"
+            )
+            # grid.label(text="")
+            flag = "" if entity_data.is_uniform("SetOnFloor") else "*"
+            grid.prop(
                 wm_data.EntityData,
-                "Life_Enabled",
-                text="",
-                toggle=True,
-                icon=(
-                    "CHECKBOX_HLT"
-                    if wm_data.EntityData.Life_Enabled
-                    else "CHECKBOX_DEHLT"
-                ),
+                "SetOnFloor",
+                text=f"{flag}SetOnFloor",
+                text_ctxt="Keep",
             )
-        else:
-            row.prop(
-                wm_data.EntityData, "Life_Enabled", text="", toggle=True, icon="REMOVE"
+            grid.label(text="")
+            flag = "" if entity_data.is_uniform("Hide") else "*"
+            grid.prop(wm_data.EntityData, "Hide", text=f"{flag}Hide", text_ctxt="Keep")
+            flag = "" if entity_data.is_uniform("Freeze") else "*"
+            grid.prop(
+                wm_data.EntityData, "Freeze", text=f"{flag}Freeze", text_ctxt="Keep"
             )
-        col = row.column(align=True)
-        col.enabled = (
-            wm_data.EntityData.Life_Enabled if is_uniform_Life_Enabled else False
-        )
-        flag = "" if entity_data.is_uniform("Life") else "*"
-        col.prop(wm_data.EntityData, "Life", text=f"{flag}Life", text_ctxt="Keep")
-        grid = column.grid_flow(row_major=True, columns=2, align=True)
-        flag = "" if entity_data.is_uniform("Level") else "*"
-        grid.prop(wm_data.EntityData, "Level", text=f"{flag}Level", text_ctxt="Keep")
-        flag = "" if entity_data.is_uniform("Angle") else "*"
-        grid.prop(wm_data.EntityData, "Angle", text=f"{flag}Angle", text_ctxt="Keep")
-        # grid.label(text="")
-        flag = "" if entity_data.is_uniform("SetOnFloor") else "*"
-        grid.prop(
-            wm_data.EntityData, "SetOnFloor", text=f"{flag}SetOnFloor", text_ctxt="Keep"
-        )
-        grid.label(text="")
-        flag = "" if entity_data.is_uniform("Hide") else "*"
-        grid.prop(wm_data.EntityData, "Hide", text=f"{flag}Hide", text_ctxt="Keep")
-        flag = "" if entity_data.is_uniform("Freeze") else "*"
-        grid.prop(wm_data.EntityData, "Freeze", text=f"{flag}Freeze", text_ctxt="Keep")
-        flag = "" if entity_data.is_uniform("Blind") else "*"
-        grid.prop(wm_data.EntityData, "Blind", text=f"{flag}Blind", text_ctxt="Keep")
-        flag = "" if entity_data.is_uniform("Deaf") else "*"
-        grid.prop(wm_data.EntityData, "Deaf", text=f"{flag}Deaf", text_ctxt="Keep")
+            flag = "" if entity_data.is_uniform("Blind") else "*"
+            grid.prop(
+                wm_data.EntityData, "Blind", text=f"{flag}Blind", text_ctxt="Keep"
+            )
+            flag = "" if entity_data.is_uniform("Deaf") else "*"
+            grid.prop(wm_data.EntityData, "Deaf", text=f"{flag}Deaf", text_ctxt="Keep")
 
         # box.separator(type="LINE")
 
@@ -1451,12 +1467,13 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Actor')}:")
-        row = column.row(align=True)
-        col = row.column()
-        col.alignment = "LEFT"
-        flag = "" if entity_data.is_uniform("Animation") else "*"
-        col.label(text=f"{flag}Animation:", text_ctxt="Keep")
-        row.prop(wm_data.EntityData, "Animation", text="")
+        if sub_box.enabled:
+            row = column.row(align=True)
+            col = row.column()
+            col.alignment = "LEFT"
+            flag = "" if entity_data.is_uniform("Animation") else "*"
+            col.label(text=f"{flag}Animation:", text_ctxt="Keep")
+            row.prop(wm_data.EntityData, "Animation", text="")
 
         # box.separator(type="LINE")
 
@@ -1469,56 +1486,56 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         column = sub_box.column()
         column.label(text=f"{pgettext('Light')}:")
+        if sub_box.enabled:
+            flag = "" if entity_data.is_uniform("FiresIntensity") else "*"
+            row = column.row()
+            row.enabled = True if ent_data and ent_data.has_fire else False
+            row.prop(
+                wm_data.EntityData,
+                "FiresIntensity",
+                slider=True,
+                text=f"{flag}{pgettext('Fires Intensity')}",
+            )
 
-        flag = "" if entity_data.is_uniform("FiresIntensity") else "*"
-        row = column.row()
-        row.enabled = True if ent_data and ent_data.has_fire else False
-        row.prop(
-            wm_data.EntityData,
-            "FiresIntensity",
-            slider=True,
-            text=f"{flag}{pgettext('Fires Intensity')}",
-        )
-
-        grid = column.grid_flow(row_major=True, columns=2)
-        grid.enabled = True if ent_data and ent_data.has_light else False
-        flag = "" if entity_data.is_uniform("light_prop.Intensity") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "Intensity",
-            text=f"{flag}{pgettext('Intensity')}",
-        )
-        flag = "" if entity_data.is_uniform("light_prop.Precision") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "Precision",
-            text=f"{flag}{pgettext('Precision')}",
-        )
-        row = grid.row(align=True)
-        if not entity_data.is_uniform("light_prop.Color"):
-            row.label(text="*")
-        row.prop(wm_data.EntityData.light_prop, "Color", text="")
-        flag = "" if entity_data.is_uniform("light_prop.CastShadows") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "CastShadows",
-            text=f"{flag}CastShadows",
-            text_ctxt="Keep",
-        )
-        flag = "" if entity_data.is_uniform("light_prop.Flick") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "Flick",
-            text=f"{flag}Flick",
-            text_ctxt="Keep",
-        )
-        flag = "" if entity_data.is_uniform("light_prop.Visible") else "*"
-        grid.prop(
-            wm_data.EntityData.light_prop,
-            "Visible",
-            text=f"{flag}Visible",
-            text_ctxt="Keep",
-        )
+            grid = column.grid_flow(row_major=True, columns=2)
+            grid.enabled = True if ent_data and ent_data.has_light else False
+            flag = "" if entity_data.is_uniform("light_prop.Intensity") else "*"
+            grid.prop(
+                wm_data.EntityData.light_prop,
+                "Intensity",
+                text=f"{flag}{pgettext('Intensity')}",
+            )
+            flag = "" if entity_data.is_uniform("light_prop.Precision") else "*"
+            grid.prop(
+                wm_data.EntityData.light_prop,
+                "Precision",
+                text=f"{flag}{pgettext('Precision')}",
+            )
+            row = grid.row(align=True)
+            if not entity_data.is_uniform("light_prop.Color"):
+                row.label(text="*")
+            row.prop(wm_data.EntityData.light_prop, "Color", text="")
+            flag = "" if entity_data.is_uniform("light_prop.CastShadows") else "*"
+            grid.prop(
+                wm_data.EntityData.light_prop,
+                "CastShadows",
+                text=f"{flag}CastShadows",
+                text_ctxt="Keep",
+            )
+            flag = "" if entity_data.is_uniform("light_prop.Flick") else "*"
+            grid.prop(
+                wm_data.EntityData.light_prop,
+                "Flick",
+                text=f"{flag}Flick",
+                text_ctxt="Keep",
+            )
+            flag = "" if entity_data.is_uniform("light_prop.Visible") else "*"
+            grid.prop(
+                wm_data.EntityData.light_prop,
+                "Visible",
+                text=f"{flag}Visible",
+                text_ctxt="Keep",
+            )
 
         # 装备库存
         sub_box = box.box()
@@ -1537,29 +1554,30 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         column.label(
             text=f"{pgettext('Equipments Inventory')}: {len(ent_data.equipment_inv) if ent_data else 0}"
         )
-        row = column.row()
-        col = row.column()
-        col.template_list(
-            "AMAGATE_UI_UL_Inventory",
-            "AG.equipment_inv",
-            ent_data or wm_data.EntityData,
-            "equipment_inv",
-            wm_data,
-            "active_equipment",
-            rows=3,
-            maxrows=4,
-        )
+        if sub_box.enabled:
+            row = column.row()
+            col = row.column()
+            col.template_list(
+                "AMAGATE_UI_UL_Inventory",
+                "AG.equipment_inv",
+                ent_data or wm_data.EntityData,
+                "equipment_inv",
+                wm_data,
+                "active_equipment",
+                rows=3,
+                maxrows=4,
+            )
 
-        # 添加按钮放置在右侧
-        col = row.column()
-        sub_col = col.column(align=True)
-        sub_col.operator(OP_ENTITY.OT_Equipment_Add.bl_idname, text="", icon="ADD")
-        sub_col.operator(
-            OP_ENTITY.OT_Equipment_Remove.bl_idname, text="", icon="REMOVE"
-        )
-        sub_col = col.column(align=True)
-        sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
-        sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
+            # 添加按钮放置在右侧
+            col = row.column()
+            sub_col = col.column(align=True)
+            sub_col.operator(OP_ENTITY.OT_Equipment_Add.bl_idname, text="", icon="ADD")
+            sub_col.operator(
+                OP_ENTITY.OT_Equipment_Remove.bl_idname, text="", icon="REMOVE"
+            )
+            sub_col = col.column(align=True)
+            sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
+            sub_col.operator(OP_ENTITY.OT_Equipment_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
 
         # 道具库存
         sub_box = box.box()
@@ -1578,27 +1596,28 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         column.label(
             text=f"{pgettext('Props Inventory')}: {len(ent_data.prop_inv) if ent_data else 0}"
         )
-        row = column.row()
-        col = row.column()
-        col.template_list(
-            "AMAGATE_UI_UL_Inventory",
-            "AG.prop_inv",
-            ent_data or wm_data.EntityData,
-            "prop_inv",
-            wm_data,
-            "active_prop",
-            rows=3,
-            maxrows=3,
-        )
+        if sub_box.enabled:
+            row = column.row()
+            col = row.column()
+            col.template_list(
+                "AMAGATE_UI_UL_Inventory",
+                "AG.prop_inv",
+                ent_data or wm_data.EntityData,
+                "prop_inv",
+                wm_data,
+                "active_prop",
+                rows=3,
+                maxrows=3,
+            )
 
-        # 添加按钮放置在右侧
-        col = row.column()
-        sub_col = col.column(align=True)
-        sub_col.operator(OP_ENTITY.OT_Prop_Add.bl_idname, text="", icon="ADD")
-        sub_col.operator(OP_ENTITY.OT_Prop_Remove.bl_idname, text="", icon="REMOVE")
-        sub_col = col.column(align=True)
-        sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
-        sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
+            # 添加按钮放置在右侧
+            col = row.column()
+            sub_col = col.column(align=True)
+            sub_col.operator(OP_ENTITY.OT_Prop_Add.bl_idname, text="", icon="ADD")
+            sub_col.operator(OP_ENTITY.OT_Prop_Remove.bl_idname, text="", icon="REMOVE")
+            sub_col = col.column(align=True)
+            sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_UP").direction = "UP"  # type: ignore
+            sub_col.operator(OP_ENTITY.OT_Prop_Move.bl_idname, text="", icon="TRIA_DOWN").direction = "DOWN"  # type: ignore
 
 
 ############################

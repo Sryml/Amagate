@@ -191,16 +191,7 @@ class OT_Entity_Kind_Search(bpy.types.Operator):
 ############################ 装备库存
 
 
-# 添加装备
-class OT_Equipment_Add(bpy.types.Operator):
-    bl_idname = "amagate.equipment_add"
-    bl_label = "Add Inventory"
-    bl_description = "Hold down shift to search"
-    bl_options = {"INTERNAL"}
-    bl_property = "enum"
-
-    row_number: IntProperty(default=40)  # type: ignore
-
+class Inventory:
     @classmethod
     def poll(cls, context: Context):
         if entity_data.SELECTED_ENTITIES:
@@ -212,6 +203,17 @@ class OT_Equipment_Add(bpy.types.Operator):
             ):
                 return True
         return False
+
+
+# 添加装备
+class OT_Equipment_Add(bpy.types.Operator, Inventory):
+    bl_idname = "amagate.equipment_add"
+    bl_label = "Add Inventory"
+    bl_description = "Hold down shift to search"
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    row_number: IntProperty(default=40)  # type: ignore
 
     enum: EnumProperty(
         translation_context="Entity",
@@ -336,7 +338,7 @@ class OT_Equipment_Move(bpy.types.Operator):
 
 
 # 添加道具
-class OT_Prop_Add(bpy.types.Operator):
+class OT_Prop_Add(bpy.types.Operator, Inventory):
     bl_idname = "amagate.prop_add"
     bl_label = "Add Inventory"
     bl_description = "Hold down shift to search"
@@ -344,18 +346,6 @@ class OT_Prop_Add(bpy.types.Operator):
     bl_property = "enum"
 
     row_number: IntProperty(default=25)  # type: ignore
-
-    @classmethod
-    def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
-            ent_data = ent.amagate_data.get_entity_data()
-            if (
-                bpy.types.UILayout.enum_item_name(ent_data, "ObjType", ent_data.ObjType)
-                == "Person"
-            ):
-                return True
-        return False
 
     enum: EnumProperty(
         translation_context="Entity",
@@ -473,6 +463,38 @@ class OT_Prop_Move(bpy.types.Operator):
         wm_data.active_prop = new_index
         bpy.ops.ed.undo_push(message="Move Inventory")
         return {"FINISHED"}
+
+
+############################
+
+
+# 库存预览图
+class OT_Inventory_Preview(bpy.types.Operator, Inventory):
+    bl_idname = "amagate.inventory_preview"
+    bl_label = "Preview"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    def get_items(self, context: Context):
+        return [("0", "0", "", self.icon_id, 0)]
+
+    Kind: StringProperty(default="")  # type: ignore
+    icon_id: IntProperty(default=0)  # type: ignore
+    preview: EnumProperty(items=get_items)  # type: ignore
+
+    def execute(self, context: Context):
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        return context.window_manager.invoke_popup(self, width=180)
+
+    def draw(self, context: Context):
+        layout = self.layout
+        # layout.enabled = False
+        layout.prop(self, "Kind", text="Kind")
+        layout.template_icon_view(
+            self, "preview", show_labels=False, scale=10, scale_popup=1
+        )
 
 
 ############################
