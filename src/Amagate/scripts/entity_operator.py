@@ -1600,6 +1600,9 @@ class OT_ExportBOD(bpy.types.Operator):
             for bone in armature_obj.pose.bones:
                 name = bone.name
                 matrix = armature_matrix @ bone.matrix
+                # 应用缩放
+                loc, rot, scale = matrix.decompose()
+                matrix = Matrix.LocRotScale(loc, rot, (1, 1, 1))
                 bone_matrix = bones_matrix.setdefault(
                     name,
                     (
