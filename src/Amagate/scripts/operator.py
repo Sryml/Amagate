@@ -550,19 +550,19 @@ class OT_Test(bpy.types.Operator):
                     filepath = root / f_name
                     with contextlib.redirect_stdout(StringIO()):
                         bpy.ops.wm.open_mainfile(filepath=str(filepath))
-                    ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
-                    if entity.get("AG.ambient_color") is not None:
-                        continue
-                    entity["AG.ambient_color"] = (1.0, 1.0, 1.0)  # type: ignore
-                    entity.id_properties_ui("AG.ambient_color").update(
-                        subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
-                    )
+                    # ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
+                    # if entity.get("AG.ambient_color") is not None:
+                    #     continue
+                    # entity["AG.ambient_color"] = (1.0, 1.0, 1.0)  # type: ignore
+                    # entity.id_properties_ui("AG.ambient_color").update(
+                    #     subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
+                    # )
                     for mat in bpy.data.materials:
-                        tex = mat.node_tree.nodes["Image Texture"].image  # type: ignore
-                        data.import_nodes(mat, nodes_data["Export.EntityTex"])
-                        mat.use_fake_user = True
-                        mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
-                        mat.use_backface_culling = True
+                        # tex = mat.node_tree.nodes["Image Texture"].image  # type: ignore
+                        # data.import_nodes(mat, nodes_data["Export.EntityTex"])
+                        mat.use_fake_user = False
+                        # mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+                        # mat.use_backface_culling = True
                     # for img in bpy.data.images:
                     #     if img.name != "Render Result":
                     #         if not img.filepath.startswith("//textures"):

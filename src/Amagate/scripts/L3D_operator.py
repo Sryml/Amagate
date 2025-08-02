@@ -1238,7 +1238,7 @@ class OT_EntityCreate(bpy.types.Operator):
             return {"CANCELLED"}, entity
 
         coll_name = f"Blade_Object_{inter_name}"
-        coll = bpy.data.collections.get(coll_name)
+        coll = bpy.data.collections.get(coll_name)  # type: ignore
         if coll is None:
             with bpy.data.libraries.load(filepath, link=True) as (data_from, data_to):
                 from_coll = next(
@@ -1258,7 +1258,9 @@ class OT_EntityCreate(bpy.types.Operator):
                     return {"CANCELLED"}, entity
 
                 data_to.collections = [coll_name]
-            coll = bpy.data.collections.get(coll_name)
+            coll = data_to.collections[0]  # type: Collection # type: ignore
+            coll.use_fake_user = True
+            coll.library["is_entity"] = True
 
         ent_coll, entity_raw, has_fire, has_light = OP_ENTITY.get_ent_data(
             coll, check_visible=False
@@ -1476,7 +1478,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
 
         scene = context.scene
 
-        # 检查是否为无标题文件
+        # 检查文件是否未保存
         if not self.builtin and (not bpy.data.filepath or bpy.data.is_dirty):
             self.report({"WARNING"}, "Please save the file first")
             return {"CANCELLED"}
@@ -1521,6 +1523,10 @@ class OT_SetAsPrefab(bpy.types.Operator):
         rv3d = context.region_data
         has_armature = next(
             (True for m in entity.modifiers if m.type == "ARMATURE"), False
+        )
+        entity["AG.ambient_color"] = (1.0, 1.0, 1.0)
+        entity.id_properties_ui("AG.ambient_color").update(
+            subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
         )
 
         # 创建摄像机

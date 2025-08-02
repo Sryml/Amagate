@@ -1255,6 +1255,15 @@ def load_post(filepath=""):
             scene_data["EntityManage"] = {}
         ############################
 
+        # 更新插件资产路径
+        models_path = Path.joinpath(Path(data.ADDON_PATH), "Models")
+        scene_data.sky_tex_enum = scene_data.sky_tex_enum
+        for lib in bpy.data.libraries:
+            if lib.get("is_entity"):
+                filepath = Path(lib.filepath)
+                filepath = models_path.joinpath(*filepath.parts[-2:])
+                lib.filepath = str(filepath)
+
         # 更新集合名称
         for item in scene_data.ensure_coll:
             c_name = f"{pgettext(item.name)}"
