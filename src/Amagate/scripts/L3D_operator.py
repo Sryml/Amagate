@@ -1143,7 +1143,7 @@ class OT_Entity_Search(bpy.types.Operator):
 
     enum: EnumProperty(
         translation_context="Entity",
-        items=data.get_ent_enum_search,
+        items=entity_data.get_ent_enum_search,
     )  # type: ignore
 
     def execute(self, context: Context):
@@ -1168,7 +1168,7 @@ class OT_Entity_Enum(bpy.types.Operator):
         layout = self.layout
         wm_data = context.window_manager.amagate_data
         scene_data = context.scene.amagate_data
-        ent_enum = data.get_ent_enum(None, None)
+        ent_enum = entity_data.get_ent_enum(None, None)
         row = layout.row(align=False)
         for item in ent_enum:
             if item[0] == "":
@@ -1649,7 +1649,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
             "IMAGE",
             force_reload=True,
         )
-        data.gen_ent_enum()
+        entity_data.gen_ent_enum()
         entity_data.gen_equipment()
         entity_data.gen_prop()
 
@@ -1663,7 +1663,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
     def set_ent_enum(value):
         context = bpy.context
         wm_data = context.window_manager.amagate_data
-        wm_data.ent_enum = next(i[0] for i in data.ENT_ENUM if i[2] == value)
+        wm_data.ent_enum = next(i[0] for i in entity_data.ENT_ENUM if i[2] == value)
 
 
 # 移除预制体
@@ -1698,9 +1698,11 @@ class OT_RemovePrefab(bpy.types.Operator):
             os.remove(blend_path)
         if os.path.exists(preview_path):
             os.remove(preview_path)
-        idx = next((i for i, e in enumerate(data.ENT_ENUM) if e[2] == inter_name), -1)
+        idx = next(
+            (i for i, e in enumerate(entity_data.ENT_ENUM) if e[2] == inter_name), -1
+        )
         if idx != -1:
-            data.ENT_ENUM.pop(idx)
+            entity_data.ENT_ENUM.pop(idx)
 
         return {"FINISHED"}
 

@@ -130,7 +130,7 @@ def get_ent_data(
 # 库存选择
 class OT_Inventory_Select(bpy.types.Operator):
     bl_idname = "amagate.inventory_select"
-    bl_label = "Select Inventory"
+    bl_label = "Select Item"
     bl_description = ""
     bl_options = {"INTERNAL"}
 
@@ -145,7 +145,7 @@ class OT_Inventory_Select(bpy.types.Operator):
     def execute(self, context: Context):
         if context.view_layer.objects.get(self.obj_name) is not None:
             ag_utils.select_active(context, bpy.data.objects[self.obj_name])
-            bpy.ops.ed.undo_push(message="Select Inventory")
+            bpy.ops.ed.undo_push(message="Select Item")
         return {"FINISHED"}
 
 
@@ -165,7 +165,7 @@ class OT_Entity_Kind_Search(bpy.types.Operator):
 
     enum: EnumProperty(
         translation_context="Entity",
-        items=data.get_ent_enum_search,
+        items=entity_data.get_ent_enum_search,
     )  # type: ignore
 
     def execute(self, context: Context):
@@ -194,8 +194,8 @@ class OT_Entity_Kind_Search(bpy.types.Operator):
 class Inventory:
     @classmethod
     def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
             ent_data = ent.amagate_data.get_entity_data()
             if (
                 bpy.types.UILayout.enum_item_name(ent_data, "ObjType", ent_data.ObjType)
@@ -257,8 +257,8 @@ class OT_Equipment_Remove(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
             ent_data = ent.amagate_data.get_entity_data()
             if len(ent_data.equipment_inv) != 0:
                 return True
@@ -268,7 +268,7 @@ class OT_Equipment_Remove(bpy.types.Operator):
         scene_data = context.scene.amagate_data
         wm_data = context.window_manager.amagate_data
         selected_entities = entity_data.SELECTED_ENTITIES
-        ent = selected_entities[0]
+        ent = entity_data.ACTIVE_ENTITY
         ent_data = ent.amagate_data.get_entity_data()
         index = wm_data.active_equipment
         if index < 0 or index >= len(ent_data.equipment_inv):
@@ -303,8 +303,8 @@ class OT_Equipment_Move(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
             ent_data = ent.amagate_data.get_entity_data()
             if len(ent_data.equipment_inv) > 1:
                 return True
@@ -313,7 +313,7 @@ class OT_Equipment_Move(bpy.types.Operator):
     def execute(self, context: Context):
         wm_data = context.window_manager.amagate_data
         selected_entities = entity_data.SELECTED_ENTITIES
-        ent = selected_entities[0]
+        ent = entity_data.ACTIVE_ENTITY
         ent_data = ent.amagate_data.get_entity_data()
         index = wm_data.active_equipment
         if index < 0 or index >= len(ent_data.equipment_inv):
@@ -388,8 +388,8 @@ class OT_Prop_Remove(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
             ent_data = ent.amagate_data.get_entity_data()
             if len(ent_data.prop_inv) != 0:
                 return True
@@ -399,7 +399,7 @@ class OT_Prop_Remove(bpy.types.Operator):
         scene_data = context.scene.amagate_data
         wm_data = context.window_manager.amagate_data
         selected_entities = entity_data.SELECTED_ENTITIES
-        ent = selected_entities[0]
+        ent = entity_data.ACTIVE_ENTITY
         ent_data = ent.amagate_data.get_entity_data()
         index = wm_data.active_prop
         if index < 0 or index >= len(ent_data.prop_inv):
@@ -434,8 +434,8 @@ class OT_Prop_Move(bpy.types.Operator):
 
     @classmethod
     def poll(cls, context: Context):
-        if entity_data.SELECTED_ENTITIES:
-            ent = entity_data.SELECTED_ENTITIES[0]
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
             ent_data = ent.amagate_data.get_entity_data()
             if len(ent_data.prop_inv) > 1:
                 return True
@@ -444,7 +444,7 @@ class OT_Prop_Move(bpy.types.Operator):
     def execute(self, context: Context):
         wm_data = context.window_manager.amagate_data
         selected_entities = entity_data.SELECTED_ENTITIES
-        ent = selected_entities[0]
+        ent = entity_data.ACTIVE_ENTITY
         ent_data = ent.amagate_data.get_entity_data()
         index = wm_data.active_prop
         if index < 0 or index >= len(ent_data.prop_inv):
@@ -465,11 +465,100 @@ class OT_Prop_Move(bpy.types.Operator):
         return {"FINISHED"}
 
 
+############################ 容器内物品
+
+
+# 添加物品
+class OT_ContainedItem_Add(bpy.types.Operator, Inventory):
+    bl_idname = "amagate.contained_item_add"
+    bl_label = "Add Item"
+    bl_description = "Hold down shift to search"
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_ent_enum_search,
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
+            ent_data = ent.amagate_data.get_entity_data()
+            if len(ent_data.contained_item) == 0:
+                return True
+        return False
+
+    def execute(self, context: Context):
+        wm_data = context.window_manager.amagate_data
+        wm_data.contained_item_enum = self.enum
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        if event.shift:
+            context.window_manager.invoke_search_popup(self)
+            return {"FINISHED"}
+        col_number = 7 + (1 if data.E_MANIFEST["Entities"]["Custom"] != {} else 0)
+        return context.window_manager.invoke_popup(self, width=col_number * 145)
+
+    def draw(self, context: Context):
+        layout = self.layout
+        wm_data = context.window_manager.amagate_data
+        scene_data = context.scene.amagate_data
+        ent_enum = entity_data.get_ent_enum(None, None)
+        row = layout.row(align=False)
+        for item in ent_enum:
+            if item[0] == "":
+                col = row.column(align=True, heading=item[1], heading_ctxt="Entity")
+            else:
+                col.prop_enum(wm_data, "contained_item_enum", item[0])
+
+
+# 移除物品
+class OT_ContainedItem_Remove(bpy.types.Operator):
+    bl_idname = "amagate.contained_item_remove"
+    bl_label = "Remove Item"
+    bl_description = "Remove selected item"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        ent = entity_data.ACTIVE_ENTITY
+        if ent is not None:
+            ent_data = ent.amagate_data.get_entity_data()
+            if len(ent_data.contained_item) != 0:
+                return True
+        return False
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        wm_data = context.window_manager.amagate_data
+        selected_entities = entity_data.SELECTED_ENTITIES
+        ent = entity_data.ACTIVE_ENTITY
+        ent_data = ent.amagate_data.get_entity_data()
+        index = wm_data.active_contained_item
+        if index < 0 or index >= len(ent_data.contained_item):
+            return {"FINISHED"}
+
+        item = ent_data.contained_item[index]
+        ag_utils.delete_entity(ent=item.obj)
+        ent_data.contained_item.remove(index)
+        if index >= len(ent_data.contained_item):
+            new_index = max(len(ent_data.contained_item) - 1, 0)
+        else:
+            new_index = index
+        wm_data.active_contained_item = new_index
+
+        bpy.ops.ed.undo_push(message="Remove Item")
+        return {"FINISHED"}
+
+
 ############################
 
 
 # 库存预览图
-class OT_Inventory_Preview(bpy.types.Operator, Inventory):
+class OT_Inventory_Preview(bpy.types.Operator):
     bl_idname = "amagate.inventory_preview"
     bl_label = "Preview"
     bl_description = ""

@@ -1220,6 +1220,7 @@ def delete_entity(key="", ent=None):  # type: ignore
         ent_data = ent.amagate_data.get_entity_data()
         if ent_data.ObjType == "0":  # "Person"
             ent_data.clear_inv()
+        ent_data.clear_contained()
         bpy.data.objects.remove(ent)
     scene_data["EntityManage"].pop(key)
 

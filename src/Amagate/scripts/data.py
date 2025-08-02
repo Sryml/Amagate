@@ -119,6 +119,11 @@ handler.setFormatter(
 )
 logger.addHandler(handler)
 logger.propagate = False
+
+#
+E_MANIFEST = json.load(
+    open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
+)
 ############################
 
 
@@ -216,102 +221,6 @@ def get_coll_name(prefix, start_id=1) -> str:
 def link2coll(obj, coll):
     if coll.objects.get(obj.name) is None:
         coll.objects.link(obj)
-
-
-############################
-############################
-############################
-
-E_MANIFEST = json.load(
-    open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
-)
-
-
-def get_ent_enum(this, context):
-    return ENT_ENUM
-
-
-def get_ent_enum_search(this, context):
-    ent_enum = ENT_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-        else:
-            ent_enum[i] = (
-                ent_enum[i][0],
-                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
-                ent_enum[i][2],
-                ent_enum[i][3],
-                ent_enum[i][4],
-            )
-    return ent_enum
-
-
-def get_ent_preview(this, context) -> Any:
-    wm_data = context.window_manager.amagate_data
-    name = bpy.types.UILayout.enum_item_name(wm_data, "ent_enum", wm_data.ent_enum)
-    description = bpy.types.UILayout.enum_item_description(
-        wm_data, "ent_enum", wm_data.ent_enum
-    )
-    icon = bpy.types.UILayout.enum_item_icon(wm_data, "ent_enum", wm_data.ent_enum)
-    return [("0", name, description, icon, 0)]
-
-
-def gen_ent_enum():
-    global ENT_ENUM
-    ENT_ENUM = []
-    count = 0
-
-    for cat in (
-        "Characters",
-        "Props",
-        "1H Weapons",
-        "2H Weapons",
-        "Shields & Bows",
-        # "Special Entities",
-        "Others",
-        "Custom",
-        "Pieces",
-    ):
-        enum = []
-        for k, v in E_MANIFEST["Entities"][cat].items():
-            filename = Path(v[1])
-            enum.append(
-                [
-                    str(count),
-                    v[0],
-                    k,
-                    (
-                        ENT_PREVIEWS[filename.stem].icon_id
-                        if ENT_PREVIEWS.get(filename.stem)
-                        else BLANK1
-                    ),
-                    count,
-                    v[2],
-                ]
-            )
-            count += 1
-        enum.sort(key=lambda x: x[1])
-        enum.sort(key=lambda x: x[5])
-        for i in range(len(enum)):
-            enum[i] = tuple(enum[i][:-1])
-        enum.insert(0, ("", cat, ""))
-        ENT_ENUM.extend(enum)
-
-
-def load_ent_preview():
-    global ENT_PREVIEWS
-    preview_dir = os.path.join(ADDON_PATH, "Models", "Preview")
-    ENT_PREVIEWS = bpy.utils.previews.new()
-    for file in os.listdir(preview_dir):
-        if file.lower().endswith(".jpg"):
-            ENT_PREVIEWS.load(
-                file[:-4], os.path.join(preview_dir, file), "IMAGE"
-            )  # force_reload=True
-    # 生成实体枚举
-    gen_ent_enum()
-    entity_data.gen_equipment()
-    entity_data.gen_prop()
 
 
 ############################
@@ -784,20 +693,20 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
         region_redraw("UI")
 
 
-# 图像属性
-class ImageProperty(bpy.types.PropertyGroup):
-    id: IntProperty(name="ID", default=0)  # type: ignore
-    mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
-    # Amagate内置纹理标识
-    builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
-
-
 ############################
 from . import entity_data, sector_data, L3D_data
 
 ############################
 ############################ 主属性组
 ############################
+
+
+# 图像属性
+class ImageProperty(bpy.types.PropertyGroup):
+    id: IntProperty(name="ID", default=0)  # type: ignore
+    mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
+    # Amagate内置纹理标识
+    builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
 
 
 #
@@ -808,7 +717,7 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
     ent_inter_name: StringProperty(default="", get=lambda self: self.get_ent_inter_name(), set=lambda self, value: None)  # type: ignore
     ent_enum: EnumProperty(
         translation_context="Entity",
-        items=get_ent_enum,
+        items=entity_data.get_ent_enum,
         update=lambda self, context: self.update_ent_enum(context),
     )  # type: ignore
     equipment_enum: EnumProperty(
@@ -821,8 +730,13 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         items=entity_data.get_prop,
         update=entity_data.add_prop_pre,
     )  # type: ignore
+    contained_item_enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_ent_enum,
+        update=entity_data.add_contained_item_pre,
+    )  # type: ignore
     ent_preview: EnumProperty(
-        translation_context="Entity", items=get_ent_preview
+        translation_context="Entity", items=entity_data.get_ent_preview
     )  # type: ignore
     prefab_name: StringProperty(default="")  # type: ignore
     prefab_type: EnumProperty(
@@ -833,9 +747,9 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
             ("8", "Prop", ""),
         ],
     )  # type: ignore
-    EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
     active_equipment: IntProperty(default=0)  # type: ignore
     active_prop: IntProperty(default=0)  # type: ignore
+    active_contained_item: IntProperty(default=0)  # type: ignore
 
     ############################
 
@@ -902,10 +816,20 @@ class ObjectProperty(bpy.types.PropertyGroup):
             self.is_entity = True
 
 
+# 场景属性
+class SceneProperty(L3D_data.SceneProperty):
+    # Amagate版本
+    version: StringProperty()  # type: ignore
+    # 版本日期
+    version_date: IntVectorProperty()  # type: ignore
+
+    EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
+
+
 ############################
 ############################
 ############################
-main_classes = (WindowManagerProperty, ObjectProperty)
+main_classes = (ImageProperty, ObjectProperty, SceneProperty, WindowManagerProperty)
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
 classes = [
     cls
@@ -926,7 +850,7 @@ def register():
             if file.endswith(".png"):
                 ICONS.load(file[:-4], os.path.join(root, file), "IMAGE")
     #
-    load_ent_preview()
+    entity_data.load_ent_preview()
     #
     bpy.utils.register_class(AmagatePreferences)
     #
@@ -942,7 +866,7 @@ def register():
         bpy.utils.register_class(cls)
     #
     bpy.types.WindowManager.amagate_data = PointerProperty(type=WindowManagerProperty, name="Amagate Data")  # type: ignore
-    bpy.types.Scene.amagate_data = PointerProperty(type=L3D_data.SceneProperty, name="Amagate Data")  # type: ignore
+    bpy.types.Scene.amagate_data = PointerProperty(type=SceneProperty, name="Amagate Data")  # type: ignore
     bpy.types.Image.amagate_data = PointerProperty(type=ImageProperty, name="Amagate Data")  # type: ignore
     bpy.types.Object.amagate_data = PointerProperty(type=ObjectProperty, name="Amagate Data")  # type: ignore
 

@@ -135,14 +135,14 @@ SELECT_OP = (
 
 #
 def get_atmo_by_id(scene_data, atmo_id):
-    # type: (SceneProperty, Any) -> tuple[int, AtmosphereProperty]
+    # type: (data.SceneProperty, Any) -> tuple[int, AtmosphereProperty]
     idx = scene_data.atmospheres.find(str(atmo_id))
     atmo = scene_data.atmospheres[idx] if idx != -1 else None
     return (idx, atmo)  # type: ignore
 
 
 def get_external_by_id(scene_data, external_id):
-    # type: (SceneProperty, Any) -> tuple[int, ExternalLightProperty]
+    # type: (data.SceneProperty, Any) -> tuple[int, ExternalLightProperty]
     idx = scene_data.externals.find(str(external_id))
     external = scene_data.externals[idx] if idx != -1 else None
     return (idx, external)  # type: ignore
@@ -668,7 +668,7 @@ def check_duplicate():
     ]
     if not (dup_sectors or dup_entities):
         return
-    #
+    # 复制扇区
     sector_id_map = {}
     for sec in dup_sectors:
         sec_data = sec.amagate_data.get_sector_data()
@@ -687,7 +687,7 @@ def check_duplicate():
         sec_data.connect_num = conn_count
     ag_utils.dissolve_limit_sectors(dup_sectors)
 
-    #
+    # 复制实体
     coll = ensure_collection(E_COLL)
     for ent in dup_entities:
         ent_data = ent.amagate_data.get_entity_data()
@@ -697,20 +697,28 @@ def check_duplicate():
         else:
             prefix = f"{ent_data.Name}_"
         new_name = entity_data.get_name(context, prefix)
+        ent_data.clear_deleted_children()
         # 复制库存
-        inventories = (ent_data.equipment_inv, ent_data.prop_inv)
-        suffix = ("_Equip_", "_Prop_")
-        for idx in (0, 1):
-            inv = inventories[idx]
-            for item in inv:
+        coll_props = (
+            ent_data.equipment_inv,
+            ent_data.prop_inv,
+            ent_data.contained_item,
+        )
+        # suffix = ("_Equip_", "_Prop_")
+        for idx in (0, 1, 2):
+            coll_prop = coll_props[idx]
+            for item_idx in range(len(coll_prop) - 1, -1, -1):
+                item = coll_prop[item_idx]
                 obj = item.obj  # type: Object
-                if not obj:
-                    continue
-
                 new_obj = obj.copy()
+                new_ent_data = new_obj.amagate_data.get_entity_data()
+                if idx == 2:
+                    new_obj_name = entity_data.get_name(
+                        context, f"{new_ent_data.Kind}_"
+                    )
+                    new_ent_data.Name = new_obj_name
                 item.obj = new_obj
                 data.link2coll(new_obj, coll)
-
         # 复制完库存再改名称
         ent_data.Name = new_name
 
@@ -1209,6 +1217,8 @@ def save_post(filepath=""):
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
+    from . import entity_data
+
     global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK, ASYNC_THREAD
     context = bpy.context
     scene_data = context.scene.amagate_data
@@ -1223,7 +1233,7 @@ def load_post(filepath=""):
             prop = wm_data.ent_mutilation_groups.add()
             prop.index = i
             prop.layer_name = "amagate_mutilation_group"
-    wm_data.prefab_name = data.ENT_ENUM[1][1]
+    wm_data.prefab_name = entity_data.ENT_ENUM[1][1]
     #
     if scene_data.is_blade:
         # 向后兼容
@@ -1841,7 +1851,7 @@ if 1:
         ag_service.exec_script_send(script)
 
 
-# 场景属性
+# 场景属性扩展，该类由 data.py 注册
 class SceneProperty(bpy.types.PropertyGroup):
     from . import sector_data
 
@@ -1998,9 +2008,6 @@ class SceneProperty(bpy.types.PropertyGroup):
     # 显示连接面
     show_connected: BoolProperty(default=False)  # type: ignore
     show_connected_sw: BoolProperty(name="Show Connected Face", default=False, update=lambda self, context: self.update_show_connected_sw(context))  # type: ignore
-
-    # Amagate版本
-    version: StringProperty()  # type: ignore
 
     ############################
 
@@ -2329,7 +2336,9 @@ class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
 classes = [
     cls
     for cls in globals().values()
-    if isinstance(cls, type) and any(issubclass(cls, parent) for parent in class_tuple)
+    if isinstance(cls, type)
+    and any(issubclass(cls, parent) for parent in class_tuple)
+    and cls != SceneProperty
 ]
 
 

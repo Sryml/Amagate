@@ -57,6 +57,7 @@ if TYPE_CHECKING:
 ############################
 logger = data.logger
 SELECTED_ENTITIES = []  # type: list[Object]
+ACTIVE_ENTITY = None  # type: Object | None
 
 # 装备库存
 W_FLAG_1H = 0
@@ -79,6 +80,8 @@ OBJ_TABLET = 14
 
 OBJ_NONE = 99
 
+#
+
 ############################
 ############################
 ############################
@@ -92,11 +95,10 @@ def get_name(context: Context, prefix: str, start_id=1):
 
 
 def is_uniform(attr: str):
-    selected_entities = SELECTED_ENTITIES
-    if not selected_entities:
+    selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+    if not active_entity:
         return True
     #
-    active_entity = selected_entities[0]
     ent_data = active_entity.amagate_data.get_entity_data()
     active_value = eval(f"ent_data.{attr}")
     for i in range(1, len(selected_entities)):
@@ -105,6 +107,95 @@ def is_uniform(attr: str):
         if active_value != eval(f"ent_data.{attr}"):
             return False
     return True
+
+
+def load_ent_preview():
+    preview_dir = os.path.join(data.ADDON_PATH, "Models", "Preview")
+    data.ENT_PREVIEWS = bpy.utils.previews.new()
+    for file in os.listdir(preview_dir):
+        if file.lower().endswith(".jpg"):
+            data.ENT_PREVIEWS.load(
+                file[:-4], os.path.join(preview_dir, file), "IMAGE"
+            )  # force_reload=True
+    # 生成实体枚举
+    gen_ent_enum()
+    gen_equipment()
+    gen_prop()
+
+
+############################
+
+
+def get_ent_enum(this, context):
+    return ENT_ENUM
+
+
+def get_ent_enum_search(this, context):
+    ent_enum = ENT_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+        else:
+            ent_enum[i] = (
+                ent_enum[i][0],
+                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+                ent_enum[i][2],
+                ent_enum[i][3],
+                ent_enum[i][4],
+            )
+    return ent_enum
+
+
+def get_ent_preview(this, context) -> Any:
+    wm_data = context.window_manager.amagate_data
+    name = bpy.types.UILayout.enum_item_name(wm_data, "ent_enum", wm_data.ent_enum)
+    description = bpy.types.UILayout.enum_item_description(
+        wm_data, "ent_enum", wm_data.ent_enum
+    )
+    icon = bpy.types.UILayout.enum_item_icon(wm_data, "ent_enum", wm_data.ent_enum)
+    return [("0", name, description, icon, 0)]
+
+
+def gen_ent_enum():
+    global ENT_ENUM
+    ENT_ENUM = []
+    count = 0
+
+    for cat in (
+        "Characters",
+        "Props",
+        "1H Weapons",
+        "2H Weapons",
+        "Shields & Bows",
+        # "Special Entities",
+        "Others",
+        "Custom",
+        "Pieces",
+    ):
+        enum = []
+        for k, v in data.E_MANIFEST["Entities"][cat].items():
+            filename = Path(v[1])
+            enum.append(
+                [
+                    str(count),
+                    v[0],
+                    k,
+                    (
+                        data.ENT_PREVIEWS[filename.stem].icon_id
+                        if data.ENT_PREVIEWS.get(filename.stem)
+                        else data.BLANK1
+                    ),
+                    count,
+                    v[2],
+                ]
+            )
+            count += 1
+        enum.sort(key=lambda x: x[1])
+        enum.sort(key=lambda x: x[5])
+        for i in range(len(enum)):
+            enum[i] = tuple(enum[i][:-1])
+        enum.insert(0, ("", cat, ""))
+        ENT_ENUM.extend(enum)
 
 
 ############################
@@ -143,7 +234,7 @@ def add_equipment(inter_name="", entity=None, undo=True):
             wm_data, "equipment_enum", wm_data.equipment_enum
         )
     if entity is None:
-        entity = SELECTED_ENTITIES[0]
+        entity = ACTIVE_ENTITY
     ent_data = entity.amagate_data.get_entity_data()
 
     obj_name = get_name(context, f"{ent_data.Name}_Equip_")
@@ -244,7 +335,7 @@ def add_prop(inter_name="", entity=None, undo=False):
             wm_data, "prop_enum", wm_data.prop_enum
         )
     if entity is None:
-        entity = SELECTED_ENTITIES[0]
+        entity = ACTIVE_ENTITY
     ent_data = entity.amagate_data.get_entity_data()
 
     obj_name = get_name(context, f"{ent_data.Name}_Prop_")
@@ -310,6 +401,46 @@ def gen_prop():
 
 
 ############################
+
+
+def add_contained_item_pre(this, context: Context):
+    ag_utils.simulate_keypress(27)
+    bpy.app.timers.register(lambda: add_contained_item(undo=True), first_interval=0.03)
+
+
+def add_contained_item(inter_name="", entity=None, undo=False):
+    from . import L3D_operator as OP_L3D
+
+    context = bpy.context
+    wm_data = context.window_manager.amagate_data
+    if inter_name == "":
+        inter_name = bpy.types.UILayout.enum_item_description(
+            wm_data, "contained_item_enum", wm_data.contained_item_enum
+        )
+    if entity is None:
+        entity = ACTIVE_ENTITY
+    ent_data = entity.amagate_data.get_entity_data()
+
+    obj_name = get_name(context, f"{inter_name}_")
+    _, inv_ent = OP_L3D.OT_EntityCreate.add(
+        None, context, inter_name, obj_name=obj_name
+    )
+    if not inv_ent:
+        return
+
+    item = ent_data.contained_item.add()
+    item.obj = inv_ent
+    wm_data.active_contained_item = len(ent_data.contained_item) - 1
+
+    inv_ent.visible_camera = False
+    inv_ent.visible_shadow = False
+    # inv_ent.location = entity.location + Vector((0, 0, 1.2))
+
+    if undo:
+        bpy.ops.ed.undo_push(message="Add Item")
+
+
+############################
 ############################ 模板列表
 ############################
 
@@ -364,7 +495,7 @@ class AMAGATE_UI_UL_Inventory(bpy.types.UIList):
         else:
             layout.alert = False
             ent_data = ent.amagate_data.get_entity_data()
-            icon_id = next(i[3] for i in data.ENT_ENUM if i[2] == ent_data.Kind)
+            icon_id = next(i[3] for i in ENT_ENUM if i[2] == ent_data.Kind)
             row = layout.row(align=True)
             op = row.operator(
                 OP_Entity.OT_Inventory_Preview.bl_idname,
@@ -442,11 +573,10 @@ class LightProperty(bpy.types.PropertyGroup):
     ############################
     def get_value(self, key, default):
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return default
             #
-            active_entity = selected_entities[0]
             ent_data = active_entity.amagate_data.get_entity_data()
             return getattr(ent_data.light_prop, key)
         else:
@@ -456,8 +586,8 @@ class LightProperty(bpy.types.PropertyGroup):
         context = bpy.context
         scene_data = context.scene.amagate_data
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return
             #
             for ent in selected_entities:
@@ -616,17 +746,51 @@ class EntityProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     #
     light_prop: PointerProperty(type=LightProperty)  # type: ignore
-    #
-    # ambient_color: FloatVectorProperty(
-    #     name="Color",
-    #     subtype="COLOR",
-    #     size=3,
-    #     min=0.0,
-    #     max=1.0,
-    #     default=(0, 0, 0),
-    # )  # type: ignore
+    # 可燃的
+    Burnable: BoolProperty(
+        default=False,
+        get=lambda self: self.get_value("Burnable", False),
+        set=lambda self, value: self.set_value(value, "Burnable"),
+    )  # type: ignore
+    BurnTime: FloatProperty(
+        default=6,
+        min=0,
+        get=lambda self: self.get_value("BurnTime", 6),
+        set=lambda self, value: self.set_value(value, "BurnTime"),
+        description="Explodes after burning for a specified duration; if set to 0, it will continue burning indefinitely",
+    )  # type: ignore
+    DestroyTimeAfterBurn: FloatProperty(
+        default=12,
+        min=0,
+        get=lambda self: self.get_value("DestroyTimeAfterBurn", 12),
+        set=lambda self, value: self.set_value(value, "DestroyTimeAfterBurn"),
+        description="Destruction time (counted after exploding); if set to 0, it will not be destroyed",
+    )  # type: ignore
+    # 可破坏的
+    Breakable: BoolProperty(
+        default=False,
+        get=lambda self: self.get_value("Breakable", False),
+        set=lambda self, value: self.set_value(value, "Breakable"),
+    )  # type: ignore
+    PiecesDestroyTime: FloatProperty(
+        default=12,
+        min=0,
+        get=lambda self: self.get_value("PiecesDestroyTime", 12),
+        set=lambda self, value: self.set_value(value, "PiecesDestroyTime"),
+        description="Destruction time for pieces (timed after physical stillness), if set to 0, it will not be destroyed",
+    )  # type: ignore
+    DestroyTime: FloatProperty(
+        default=100,
+        min=0,
+        get=lambda self: self.get_value("DestroyTime", 100),
+        set=lambda self, value: self.set_value(value, "DestroyTime"),
+        description="Main body destruction time; if set to 0, it will not be destroyed",
+    )  # type: ignore
+    contained_item: CollectionProperty(type=EntityCollection)  # type: ignore
+    active_entity_note: BoolProperty(name="", description="This feature is only used for active entity", get=lambda self: False, set=lambda self, value: None)  # type: ignore
 
     ############################
+    # 清空库存
     def clear_inv(self):
         scene_data = bpy.context.scene.amagate_data
         ent_data = self
@@ -635,15 +799,36 @@ class EntityProperty(bpy.types.PropertyGroup):
                 ag_utils.delete_entity(ent=item.obj)
             inv.clear()
 
+    # 清空内含物
+    def clear_contained(self):
+        scene_data = bpy.context.scene.amagate_data
+        ent_data = self
+        for item in ent_data.contained_item:
+            ag_utils.delete_entity(ent=item.obj)
+        ent_data.contained_item.clear()
+
+    # 清理已删除子物体
+    def clear_deleted_children(self):
+        ent_data = self
+        for coll_prop in (
+            ent_data.equipment_inv,
+            ent_data.prop_inv,
+            ent_data.contained_item,
+        ):
+            for item_idx in range(len(coll_prop) - 1, -1, -1):
+                item = coll_prop[item_idx]
+                obj = item.obj  # type: Object
+                if not obj:
+                    coll_prop.remove(item_idx)
+
     ############################
     def get_kind(self):
         key = "Kind"
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return ""
             #
-            active_entity = selected_entities[0]
             ent_data = active_entity.amagate_data.get_entity_data()
             return getattr(ent_data, key)
         else:
@@ -660,11 +845,10 @@ class EntityProperty(bpy.types.PropertyGroup):
     def get_name(self):
         key = "Name"
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return ""
             #
-            active_entity = selected_entities[0]
             ent_data = active_entity.amagate_data.get_entity_data()
             return getattr(ent_data, key)
         else:
@@ -675,8 +859,8 @@ class EntityProperty(bpy.types.PropertyGroup):
         context = bpy.context
         scene_data = context.scene.amagate_data
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return
             if value == "":
                 return
@@ -689,12 +873,12 @@ class EntityProperty(bpy.types.PropertyGroup):
                     setattr(ent_data, key, new_value)
                     start += 1
             else:
-                ent = selected_entities[0]
+                ent = active_entity
                 ent_data = ent.amagate_data.get_entity_data()
                 setattr(ent_data, key, value)
             #
             data.area_redraw("OUTLINER")
-            bpy.ops.ed.undo_push(message="Change Name")
+            # bpy.ops.ed.undo_push(message="Change Name")
         else:
             if value == "":
                 return
@@ -736,11 +920,10 @@ class EntityProperty(bpy.types.PropertyGroup):
     def get_objtype(self):
         key = "ObjType"
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return -1
             #
-            active_entity = selected_entities[0]
             ent_data = active_entity.amagate_data.get_entity_data()
             return int(getattr(ent_data, key))
         else:
@@ -751,8 +934,8 @@ class EntityProperty(bpy.types.PropertyGroup):
         context = bpy.context
         scene_data = context.scene.amagate_data
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return
             #
             enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
@@ -760,7 +943,7 @@ class EntityProperty(bpy.types.PropertyGroup):
             for ent in selected_entities:
                 ent_data = ent.amagate_data.get_entity_data()
                 setattr(ent_data, key, identifier)
-            bpy.ops.ed.undo_push(message="Change Object Type")
+            # bpy.ops.ed.undo_push(message="Change Object Type")
         else:
             if self.get(key) == value:
                 return
@@ -773,6 +956,8 @@ class EntityProperty(bpy.types.PropertyGroup):
                 if enum_items_static_ui[value].name == "Person":
                     quat = self.set_angle(ent_data.Angle)
                     ent.rotation_euler = quat.to_euler("XYZ")
+                    # 清空内含物
+                    self.clear_contained()
                 elif curr_type == "Person":
                     ent.rotation_euler = 0, 0, 0
                     # 清空库存
@@ -788,11 +973,10 @@ class EntityProperty(bpy.types.PropertyGroup):
     ############################
     def get_value(self, key, default):
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return default
             #
-            active_entity = selected_entities[0]
             ent_data = active_entity.amagate_data.get_entity_data()
             return getattr(ent_data, key)
         else:
@@ -802,8 +986,8 @@ class EntityProperty(bpy.types.PropertyGroup):
         context = bpy.context
         scene_data = context.scene.amagate_data
         if self.target == "UI":
-            selected_entities = SELECTED_ENTITIES
-            if not selected_entities:
+            selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
+            if not active_entity:
                 return
             #
             for ent in selected_entities:
