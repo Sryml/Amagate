@@ -101,8 +101,10 @@ def is_uniform(attr: str):
     #
     ent_data = active_entity.amagate_data.get_entity_data()
     active_value = eval(f"ent_data.{attr}")
-    for i in range(1, len(selected_entities)):
-        entity = selected_entities[i]
+    for entity in selected_entities:
+        if entity == active_entity:
+            continue
+
         ent_data = entity.amagate_data.get_entity_data()
         if active_value != eval(f"ent_data.{attr}"):
             return False
@@ -221,7 +223,9 @@ def get_equipment_search(this, context):
 
 def add_equipment_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(lambda: add_equipment(undo=True), first_interval=0.03)
+    bpy.app.timers.register(
+        lambda: (add_equipment(undo=True), None)[1], first_interval=0.03
+    )
 
 
 def add_equipment(inter_name="", entity=None, undo=False):
@@ -254,6 +258,8 @@ def add_equipment(inter_name="", entity=None, undo=False):
 
     if undo:
         bpy.ops.ed.undo_push(message="Add Inventory")
+
+    return inv_ent
 
 
 def gen_equipment():
@@ -322,7 +328,7 @@ def get_prop_search(this, context):
 
 def add_prop_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
-    bpy.app.timers.register(lambda: add_prop(undo=True), first_interval=0.03)
+    bpy.app.timers.register(lambda: (add_prop(undo=True), None)[1], first_interval=0.03)
 
 
 def add_prop(inter_name="", entity=None, undo=False):
@@ -355,6 +361,8 @@ def add_prop(inter_name="", entity=None, undo=False):
 
     if undo:
         bpy.ops.ed.undo_push(message="Add Inventory")
+
+    return inv_ent
 
 
 def gen_prop():
@@ -658,6 +666,7 @@ class EntityProperty(bpy.types.PropertyGroup):
         get=lambda self: self.get_value("SelfIlum", 0),
         set=lambda self, value: self.set_value(value, "SelfIlum"),
     )  # type: ignore
+    # 仅物理类型可用该属性
     Static: BoolProperty(
         default=False,
         description="Static",
@@ -669,6 +678,12 @@ class EntityProperty(bpy.types.PropertyGroup):
         description="CastShadows",
         get=lambda self: self.get_value("CastShadows", True),
         set=lambda self, value: self.set_value(value, "CastShadows"),
+    )  # type: ignore
+    # 实例化数据
+    instance_data: BoolProperty(
+        default=True,
+        get=lambda self: self.get_value("instance_data", True),
+        set=lambda self, value: self.set_value(value, "instance_data"),
     )  # type: ignore
 
     Animation: StringProperty(
@@ -766,6 +781,7 @@ class EntityProperty(bpy.types.PropertyGroup):
         set=lambda self, value: self.set_value(value, "DestroyTimeAfterBurn"),
         description="Destruction time (counted after exploding); if set to 0, it will not be destroyed",
     )  # type: ignore
+
     # 可破坏的
     Breakable: BoolProperty(
         default=False,
@@ -788,6 +804,31 @@ class EntityProperty(bpy.types.PropertyGroup):
     )  # type: ignore
     contained_item: CollectionProperty(type=EntityCollection)  # type: ignore
     active_entity_note: BoolProperty(name="", description="This feature is only used for active entity", get=lambda self: False, set=lambda self, value: None)  # type: ignore
+
+    # 火炬可用
+    torch_usable: BoolProperty(
+        default=False,
+        get=lambda self: self.get_value("torch_usable", False),
+        set=lambda self, value: self.set_value(value, "torch_usable"),
+    )  # type: ignore
+    torch_light_int: FloatProperty(
+        default=3.0,
+        get=lambda self: self.get_value("torch_light_int", 3.0),
+        set=lambda self, value: self.set_value(value, "torch_light_int"),
+        description="Light intensity after ignition",
+    )  # type: ignore
+    torch_fire_int: FloatProperty(
+        default=3.0,
+        get=lambda self: self.get_value("torch_fire_int", 3.0),
+        set=lambda self, value: self.set_value(value, "torch_fire_int"),
+        description="Flame intensity after ignition",
+    )  # type: ignore
+    torch_life: FloatProperty(
+        default=-1,
+        get=lambda self: self.get_value("torch_life", -1),
+        set=lambda self, value: self.set_value(value, "torch_life"),
+        description="Lifetime after ignition",
+    )  # type: ignore
 
     ############################
     # 清空库存
@@ -953,15 +994,23 @@ class EntityProperty(bpy.types.PropertyGroup):
             if ent_data.get(key) is not None:
                 enum_items_static_ui = self.bl_rna.properties[key].enum_items_static_ui  # type: ignore
                 curr_type = enum_items_static_ui[ent_data[key]].name
+                # 切换到Person
                 if enum_items_static_ui[value].name == "Person":
                     quat = self.set_angle(ent_data.Angle)
                     ent.rotation_euler = quat.to_euler("XYZ")
                     # 清空内含物
                     self.clear_contained()
+                    self.Burnable = False
+                    self.Breakable = False
+                    self.torch_usable = False
+                # 从Person切换到其他
                 elif curr_type == "Person":
                     ent.rotation_euler = 0, 0, 0
                     # 清空库存
                     self.clear_inv()
+                # 从Physic切换到其它
+                if curr_type == "Physic":
+                    self.Static = False
             #
             self[key] = value
 
@@ -998,12 +1047,14 @@ class EntityProperty(bpy.types.PropertyGroup):
             self[key] = value
             #
             ent = self.id_data  # type: Object
-            ent_data = ent.amagate_data.get_entity_data()
             if key == "Angle":
                 quat = self.set_angle(value)
                 ent.rotation_euler = quat.to_euler("XYZ")
             elif key == "CastShadows":
                 ent.visible_shadow = value
+            elif key == "Breakable":
+                if not value:
+                    self.clear_contained()
 
 
 ############################

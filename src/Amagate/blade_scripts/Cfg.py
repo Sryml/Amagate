@@ -45,3 +45,4 @@ execfile("../../Scripts/BladeInit.py")
 
 #
 execfile("AG_Script.py")
+execfile("AG_Objs.py")

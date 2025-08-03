@@ -875,6 +875,11 @@ def register():
 def unregister():
     global ICONS, ENT_PREVIEWS
 
+    # 关闭服务器
+    from ..service import ag_service
+
+    ag_service.stop_server()
+
     for cls in main_classes:
         bpy.utils.unregister_class(cls)
     for cls in reversed(classes):

@@ -1289,8 +1289,9 @@ def load_post(filepath=""):
             c_name = f"{pgettext(item.name)}"
             item.obj.name = c_name
         # 恢复渲染视图
-        if scene_data.render_view_index != -1:
-            spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
+        render_view_index = scene_data.render_view_index
+        if render_view_index != -1 and render_view_index < len(context.screen.areas):
+            spaces = context.screen.areas[render_view_index].spaces[0]
             if hasattr(spaces, "shading"):
                 spaces.shading.type = "RENDERED"
         #
@@ -2382,9 +2383,7 @@ def register():
 
 def unregister():
     global draw_handler
-    #
-    # 关闭服务器
-    ag_service.stop_server()
+
     # 关闭线程
     if ASYNC_THREAD:
         run_coroutine_threadsafe(ASYNC_THREAD.stop(), ASYNC_THREAD.loop)

@@ -109,7 +109,8 @@ def CreatePlayer(context: Context):
     ent_data.ObjType = "0"
     ent_data.Hide = False
     ent_data.Level = 20
-    entity_data.add_equipment("Antorcha", ent)
+    inv_ent = entity_data.add_equipment("Antorcha", ent)
+    inv_ent.amagate_data.get_entity_data().light_prop.Intensity = 3
     entity_data.add_equipment("EgyptSword", ent)
     entity_data.add_equipment("Escudo7", ent)
     entity_data.add_equipment("Arco", ent)
@@ -1351,6 +1352,8 @@ class OT_EntityCreate(bpy.types.Operator):
         ent_data.Kind = inter_name
         ent_data.has_fire = has_fire
         ent_data.has_light = has_light
+        if inter_name in ("Antorcha", "Antorchaenpared", "Palangana"):
+            ent_data.torch_usable = True
 
         return {"FINISHED"}, entity
 

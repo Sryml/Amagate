@@ -1255,8 +1255,15 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         )
         if active_entity:
             ent_data = active_entity.amagate_data.get_entity_data()
+            enum_items_static = scene_data.EntityData.bl_rna.properties[
+                "ObjType"
+            ].enum_items_static
+            ObjType = next(
+                i.name for i in enum_items_static if i.identifier == ent_data.ObjType
+            )
         else:
             ent_data = None
+            ObjType = None
         entity_data.SELECTED_ENTITIES = selected_entities
         entity_data.ACTIVE_ENTITY = active_entity
         #
@@ -1328,9 +1335,10 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col = row.column()
         col.alignment = "LEFT"
         col.label(text=f"{flag}Kind:", text_ctxt="Keep")
+        row.prop(scene_data.EntityData, "Kind", text="")
         row.operator(
             OP_ENTITY.OT_Entity_Kind_Search.bl_idname,
-            text=scene_data.EntityData.Kind,
+            text="",
             icon="VIEWZOOM",
         )
 
@@ -1373,9 +1381,11 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         row = column.row()
 
         flag = "" if entity_data.is_uniform("Static") else "*"
-        row.prop(
+        col = row.column()
+        col.prop(
             scene_data.EntityData, "Static", text=f"{flag}Static", text_ctxt="Keep"
         )
+        col.enabled = True if ObjType == "Physic" and is_uniform_objtype else False
 
         flag = "" if entity_data.is_uniform("CastShadows") else "*"
         row.prop(
@@ -1385,15 +1395,18 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             text_ctxt="Keep",
         )
 
+        flag = "" if entity_data.is_uniform("instance_data") else "*"
+        column.prop(
+            scene_data.EntityData,
+            "instance_data",
+            text=f"{flag}{pgettext('Instance Data')}",
+        )
+
         # box.separator(type="LINE")
 
         # 角色
         sub_box = box.box()
-        if (
-            is_uniform_objtype
-            and ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
-        ):
+        if is_uniform_objtype and ObjType == "Person":
             sub_box.enabled = True
         else:
             sub_box.enabled = False
@@ -1470,11 +1483,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 演员
         sub_box = box.box()
-        if (
-            is_uniform_objtype
-            and ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Actor"
-        ):
+        if is_uniform_objtype and ObjType == "Actor":
             sub_box.enabled = True
         else:
             sub_box.enabled = False
@@ -1553,10 +1562,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 装备库存
         sub_box = box.box()
-        if (
-            ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
-        ):
+        if ObjType == "Person":
             sub_box.enabled = True
             index = wm_data.active_equipment
             if index >= len(ent_data.equipment_inv) or index < 0:
@@ -1603,10 +1609,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 道具库存
         sub_box = box.box()
-        if (
-            ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) == "Person"
-        ):
+        if ObjType == "Person":
             sub_box.enabled = True
             index = wm_data.active_prop
             if index >= len(ent_data.prop_inv) or index < 0:
@@ -1651,10 +1654,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 可燃的
         sub_box = box.box()
-        if (
-            ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) != "Person"
-        ):
+        if ent_data and ObjType != "Person":
             sub_box.enabled = True
         else:
             sub_box.enabled = False
@@ -1679,10 +1679,7 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
         # 可破坏的
         sub_box = box.box()
-        if (
-            ent_data
-            and layout.enum_item_name(ent_data, "ObjType", ent_data.ObjType) != "Person"
-        ):
+        if ent_data and ObjType != "Person":
             sub_box.enabled = True
             index = wm_data.active_contained_item
             if index >= len(ent_data.contained_item) or index < 0:
@@ -1746,6 +1743,47 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
             )
             sub_col.operator(
                 OP_ENTITY.OT_ContainedItem_Remove.bl_idname, text="", icon="REMOVE"
+            )
+
+        # 火炬可用
+        sub_box = box.box()
+        if ent_data and ObjType != "Person":
+            sub_box.enabled = True
+        else:
+            sub_box.enabled = False
+
+        column = sub_box.column()
+        is_uniform_torch_usable = entity_data.is_uniform("torch_usable")
+        flag = "" if is_uniform_torch_usable else "*"
+        column.prop(
+            scene_data.EntityData,
+            "torch_usable",
+            text=f"{flag}{pgettext('Torch Usable','EntProperty')}",
+        )
+        if (
+            scene_data.EntityData.torch_usable
+            and sub_box.enabled
+            and is_uniform_torch_usable
+        ):
+            flag = "" if entity_data.is_uniform("torch_light_int") else "*"
+            column.prop(
+                scene_data.EntityData,
+                "torch_light_int",
+                text=f"{flag}{pgettext('Light Intensity')}",
+            )
+
+            flag = "" if entity_data.is_uniform("torch_fire_int") else "*"
+            column.prop(
+                scene_data.EntityData,
+                "torch_fire_int",
+                text=f"{flag}{pgettext('Fires Intensity')}",
+            )
+
+            flag = "" if entity_data.is_uniform("torch_life") else "*"
+            column.prop(
+                scene_data.EntityData,
+                "torch_life",
+                text=f"{flag}{pgettext('Time')}",
             )
 
 
@@ -1829,14 +1867,6 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
         scene_data = context.scene.amagate_data
         column = layout.column()
 
-        row = column.row(align=True)
-        op = row.operator(
-            OP_L3D.OT_New.bl_idname,
-            text="New Map",
-            icon_value=data.ICONS["blade"].icon_id,
-        )
-        op.target = "new"  # type: ignore
-        op.execute_type = 0  # type: ignore
         # 导出地图
         row = column.row(align=True)
         row.enabled = scene_data.is_blade
@@ -1847,6 +1877,8 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
         op.more = True  # type: ignore
         # 导出虚拟扇区
         column.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")
+        # 导出实体
+        column.operator(OP_ENTITY.OT_ExportEntity.bl_idname, icon="EXPORT")
 
         column.separator(type="LINE")
 
@@ -1854,12 +1886,21 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
         op = column.operator(
             OP_L3D_IMP.OT_ImportMap.bl_idname,
             # text="Import Map",
-            icon_value=data.ICONS["blade"].icon_id,
+            icon="IMPORT",
         )
         op.execute_type = 0  # type: ignore
 
         column.separator(type="LINE")
 
+        # 新建世界
+        row = column.row(align=True)
+        op = row.operator(
+            OP_L3D.OT_New.bl_idname,
+            text="New Map",
+            icon_value=data.ICONS["blade"].icon_id,
+        )
+        op.target = "new"  # type: ignore
+        op.execute_type = 0  # type: ignore
         # 烘焙世界
         obj = bpy.data.objects.get("AG.BakeWorld")  # type: Object # type: ignore
         split = column.row(align=True)
