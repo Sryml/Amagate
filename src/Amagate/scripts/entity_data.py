@@ -224,7 +224,7 @@ def add_equipment_pre(this, context: Context):
     bpy.app.timers.register(lambda: add_equipment(undo=True), first_interval=0.03)
 
 
-def add_equipment(inter_name="", entity=None, undo=True):
+def add_equipment(inter_name="", entity=None, undo=False):
     from . import L3D_operator as OP_L3D
 
     context = bpy.context

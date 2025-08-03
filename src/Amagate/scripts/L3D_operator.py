@@ -99,6 +99,26 @@ FACE_PROPS = {
 
 
 ############################
+
+
+# 创建玩家
+def CreatePlayer(context: Context):
+    _, ent = OT_EntityCreate.add(None, context, "Knight_N")
+    ent_data = ent.amagate_data.get_entity_data()
+    ent_data.Name = "Player1"
+    ent_data.ObjType = "0"
+    ent_data.Hide = False
+    ent_data.Level = 20
+    entity_data.add_equipment("Antorcha", ent)
+    entity_data.add_equipment("EgyptSword", ent)
+    entity_data.add_equipment("Escudo7", ent)
+    entity_data.add_equipment("Arco", ent)
+    entity_data.add_equipment("Carcaj", ent)
+    entity_data.add_prop("PocimaTodo", ent)
+    entity_data.add_prop("PowerPotion", ent)
+
+
+############################
 ############################ 场景面板 -> 大气面板
 ############################
 class OT_Scene_Atmo_Add(bpy.types.Operator):
@@ -1916,8 +1936,8 @@ def InitMap(imp_filepath=""):
     L3D_data.ensure_collection(L3D_data.S_COLL)
     L3D_data.ensure_collection(L3D_data.E_COLL)
     L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
-    coll = bpy.data.collections.new(pgettext("Marked Collection"))
-    scene.collection.children.link(coll)
+    L3D_data.ensure_collection(L3D_data.M_COLL)
+
     ## 创建标记对象
     # player_pos = bpy.data.objects.new("Player", None)
     # player_pos.empty_display_type = "PLAIN_AXES"
@@ -1982,19 +2002,7 @@ def InitMap(imp_filepath=""):
     scene_data.is_blade = True
 
     ## 创建玩家实体
-    _, ent = OT_EntityCreate.add(None, context, "Knight_N")
-    ent_data = ent.amagate_data.get_entity_data()
-    ent_data.Name = "Player1"
-    ent_data.ObjType = "0"
-    ent_data.Hide = False
-    ent_data.Level = 20
-    entity_data.add_equipment("Antorcha", ent)
-    entity_data.add_equipment("EgyptSword", ent)
-    entity_data.add_equipment("Escudo7", ent)
-    entity_data.add_equipment("Arco", ent)
-    entity_data.add_equipment("Carcaj", ent)
-    entity_data.add_prop("PocimaTodo", ent)
-    entity_data.add_prop("PowerPotion", ent)
+    CreatePlayer(context)
 
     if is_import:
         from . import L3D_imp_operator as OP_L3D_IMP

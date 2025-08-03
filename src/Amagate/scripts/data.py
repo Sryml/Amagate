@@ -86,7 +86,8 @@ PY_PACKAGES_INSTALLING = False
 
 
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
-    VERSION = v.read().strip()
+    VERSION = v.readline().strip()
+    VERSION_DATE = int(v.readline().strip())
 
 DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 
@@ -821,7 +822,7 @@ class SceneProperty(L3D_data.SceneProperty):
     # Amagate版本
     version: StringProperty()  # type: ignore
     # 版本日期
-    version_date: IntVectorProperty()  # type: ignore
+    version_date: IntProperty()  # type: ignore
 
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
 

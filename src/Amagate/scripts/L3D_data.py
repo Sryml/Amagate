@@ -81,6 +81,7 @@ S_COLL = "Sector Collection"
 GS_COLL = "Ghost Sector Collection"
 E_COLL = "Entity Collection"
 C_COLL = "Camera Collection"
+M_COLL = "Marked Collection"
 
 # CONNECT_SECTORS = set()
 
@@ -1057,6 +1058,7 @@ def check_before_save(filepath):
     scene_data.render_view_index = render_view_index  # 记录渲染区域索引
     # 写入版本信息
     scene_data.version = data.VERSION
+    scene_data.version_date = data.VERSION_DATE
     #
     scene_data.ensure_coll.values()
     for i in [
@@ -1217,7 +1219,7 @@ def save_post(filepath=""):
 # 加载后回调
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
-    from . import entity_data
+    from . import entity_data, L3D_data
 
     global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK, ASYNC_THREAD
     context = bpy.context
@@ -1234,25 +1236,43 @@ def load_post(filepath=""):
             prop.index = i
             prop.layer_name = "amagate_mutilation_group"
     wm_data.prefab_name = entity_data.ENT_ENUM[1][1]
-    #
     if scene_data.is_blade:
         # 向后兼容
-        if not scene_data.sector_public.textures.get("Face"):
-            prop = scene_data.sector_public.textures.add()
-            prop.name = "Face"
-            prop.target = "SectorPublic"
+        if bpy.data.filepath:
+            if not scene_data.sector_public.textures.get("Face"):
+                prop = scene_data.sector_public.textures.add()
+                prop.name = "Face"
+                prop.target = "SectorPublic"
 
-        ############################
-        # 初始版本
-        if scene_data.version == "":
-            from . import L3D_operator as OP_L3D
+            ############################
+            # 初始版本
+            if scene_data.version_date == 0:
+                from . import L3D_operator as OP_L3D
 
-            OP_L3D.OT_Node_Reset.reset_node()
-            scene_data.atmo_id_key = scene_data.atmospheres[0].name
-        # 1.3.0之前版本
-        # if [int(i) for i in scene_data.version.split(".") if i] < [1, 3, 0]:
-        if scene_data.get("EntityManage") is None:
-            scene_data["EntityManage"] = {}
+                OP_L3D.OT_Node_Reset.reset_node()
+                scene_data.atmo_id_key = scene_data.atmospheres[0].name
+
+            # 1.3.0之前版本
+            if scene_data.version_date < 20250803:
+                scene_data["EntityManage"] = {}
+                #
+                name = L3D_data.M_COLL
+                coll = bpy.data.collections.get(name)
+                if coll:
+                    item = scene_data.ensure_coll.add()
+                    item.name = name
+                    item.obj = coll
+                L3D_data.ensure_collection(name)
+                # 添加玩家实体
+                location = 0, 0, 0
+                obj = bpy.data.objects.get("Player")
+                if obj:
+                    location = obj.location
+                    bpy.data.objects.remove(obj)
+                OP_L3D.CreatePlayer(context)
+            #
+            scene_data.version = data.VERSION
+            scene_data.version_date = data.VERSION_DATE
         ############################
 
         # 更新插件资产路径
@@ -1268,11 +1288,12 @@ def load_post(filepath=""):
         for item in scene_data.ensure_coll:
             c_name = f"{pgettext(item.name)}"
             item.obj.name = c_name
-        #
+        # 恢复渲染视图
         if scene_data.render_view_index != -1:
             spaces = context.screen.areas[scene_data.render_view_index].spaces[0]
             if hasattr(spaces, "shading"):
                 spaces.shading.type = "RENDERED"
+        #
         bpy.app.handlers.save_pre.append(check_before_save)  # type: ignore
         bpy.app.handlers.depsgraph_update_post.append(depsgraph_update_post)  # type: ignore
         if draw_handler is None:
@@ -2288,8 +2309,6 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
     def init(self):
-        self.version = data.VERSION
-        #
         self["SectorManage"] = {"deleted_id_count": 0, "max_id": 0, "sectors": {}}
         self["EntityManage"] = {}
         defaults = self.defaults
