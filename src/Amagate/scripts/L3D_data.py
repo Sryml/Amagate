@@ -2016,9 +2016,16 @@ class SceneProperty(bpy.types.PropertyGroup):
         set=lambda self, value: self.set_level_enum(value),
     )  # type: ignore
 
-    # 坐标转换
-    coord_conv_1: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get_coord_conv_1(), set=lambda self, value: None)  # type: ignore
-    coord_conv_2: StringProperty(name="Blade Coord", default="0, 0, 0", get=lambda self: self.get("set_coord_conv_2", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_2(value))  # type: ignore
+    # 空间转换
+    coord_conv_to: StringProperty(name="Blade Coord", get=lambda self: self.get_coord_conv_to(), set=lambda self, value: None)  # type: ignore
+    coord_conv_from: StringProperty(name="Blade Coord", get=lambda self: self.get("coord_conv_from", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_from(value))  # type: ignore
+
+    rot_conv_to: StringProperty(name="Blade Quaternion", get=lambda self: self.get_rot_conv_to(), set=lambda self, value: None)  # type: ignore
+    rot_conv_from: StringProperty(name="Blade Quaternion", default="1, 0, 0, 0", get=lambda self: self.get("rot_conv_from", "1, 0, 0, 0"), set=lambda self, value: self.set_rot_conv_from(value))  # type: ignore
+
+    x_dir_to: StringProperty(name="Blade Direction", get=lambda self: self.get_dir_to("x_dir_to", ""), set=lambda self, value: None)  # type: ignore
+    y_dir_to: StringProperty(name="Blade Direction", get=lambda self: self.get_dir_to("y_dir_to", ""), set=lambda self, value: None)  # type: ignore
+    z_dir_to: StringProperty(name="Blade Direction", get=lambda self: self.get_dir_to("z_dir_to", ""), set=lambda self, value: None)  # type: ignore
 
     # 编辑模式标识
     is_edit_mode: BoolProperty(name="Edit Mode", default=False)  # type: ignore
@@ -2042,38 +2049,111 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
 
-    def get_coord_conv_1(self):
+    def get_coord_conv_to(self):
         context = bpy.context
         selected_objects = context.selected_objects
         if selected_objects:
-            location = (selected_objects[0].location * 1000).to_tuple(0)
+            location = selected_objects[0].matrix_world.translation * 1000
         # 如果没有选中物体，则返回游标位置
         else:
-            location = (context.scene.cursor.location * 1000).to_tuple(0)
-        return f"{location[0], -location[2], location[1]}"
+            location = context.scene.cursor.location * 1000
+        location.yz = -location.z, location.y
+        return str(location.to_tuple(1))
 
-    def set_coord_conv_2(self, value):
-        self["set_coord_conv_2"] = value
+    def set_coord_conv_from(self, value):
+        key = "coord_conv_from"
+        self[key] = value
         context = bpy.context
         scene_data = context.scene.amagate_data
         try:
-            position = ast.literal_eval(scene_data.coord_conv_2)
+            position = ast.literal_eval(value)
         except:
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
             return
         # 如果元组不是3个数字，则不处理
         if len(position) != 3 or not all(isinstance(i, (int, float)) for i in position):
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
             return
 
-        self["set_coord_conv_2"] = str(position)
+        position = tuple(round(i, 1) for i in position)
+        self[key] = str(position)
         location = position[0] / 1000.0, position[2] / 1000.0, -position[1] / 1000.0
 
         selected_objects = context.selected_objects
         if selected_objects:
             for obj in selected_objects:
-                obj.location = location
+                obj.matrix_world.translation = location
         # 如果没有选中物体，则设置游标位置
         else:
             context.scene.cursor.location = location
+
+    ############################
+
+    def get_rot_conv_to(self):
+        context = bpy.context
+        target_space = Matrix.Rotation(-math.pi / 2, 4, "X")
+        selected_objects = context.selected_objects
+        if selected_objects:
+            quat = (
+                target_space.inverted()
+                @ selected_objects[0].matrix_world
+                @ target_space
+            ).to_quaternion()
+            return str(tuple(round(i, 3) for i in quat))
+        return ""
+
+    def set_rot_conv_from(self, value):
+        key = "rot_conv_from"
+        self[key] = value
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        try:
+            quat_tuple = ast.literal_eval(value)
+        except:
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
+            return
+        # 如果元组不是4个数字，则不处理
+        if len(quat_tuple) != 4 or not all(
+            isinstance(i, (int, float)) for i in quat_tuple
+        ):
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
+            return
+
+        quat = Quaternion(quat_tuple).normalized()
+        self[key] = str(tuple(round(i, 3) for i in quat))
+
+        target_space = Matrix.Rotation(-math.pi / 2, 4, "X").to_quaternion()
+        quat_conv = target_space @ quat @ target_space.inverted()
+
+        selected_objects = context.selected_objects
+        if selected_objects:
+            for obj in selected_objects:
+                # 替换旋转分量
+                loc, rot, scale = obj.matrix_world.decompose()
+                obj.matrix_world = Matrix.LocRotScale(loc, quat_conv, scale)
+
+    ############################
+
+    def get_dir_to(self, key, default):
+        context = bpy.context
+        selected_objects = context.selected_objects
+        if selected_objects:
+            obj = selected_objects[0]
+            matrix = obj.matrix_world.to_3x3()
+            axis = ("x_dir_to", "y_dir_to", "z_dir_to")
+            direction = matrix.col[axis.index(key)]  # type: Vector
+            direction.normalize()
+            direction.yz = -direction.z, direction.y
+            return str(direction.to_tuple(4))
+        return default
 
     ############################
 

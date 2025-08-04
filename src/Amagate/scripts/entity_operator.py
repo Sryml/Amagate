@@ -2245,6 +2245,7 @@ class OT_ExportEntity(bpy.types.Operator):
         head_buffer.write("import AuxFuncs\n")
         head_buffer.write("import Actions\n")
         head_buffer.write("import CharStats\n")
+        head_buffer.write("import Scorer\n")
         head_buffer.write("import Torchs\n")
         head_buffer.write("import Breakings\n\n")
         #
@@ -2260,7 +2261,7 @@ class OT_ExportEntity(bpy.types.Operator):
             "ObjType"
         ].enum_items_static
         # 目标坐标系
-        target_space_inv = Matrix.Rotation(-math.pi / 2, 4, "X")  # type: Matrix
+        target_space = Matrix.Rotation(-math.pi / 2, 4, "X")  # type: Matrix
 
         #
         def write_entity(ent_data: entity_data.EntityProperty):
@@ -2308,7 +2309,7 @@ class OT_ExportEntity(bpy.types.Operator):
                 euler = matrix.to_euler()
                 if tuple(euler) != (0, 0, 0):  # type: ignore
                     quat = (
-                        target_space_inv.inverted() @ matrix @ target_space_inv
+                        target_space.inverted() @ matrix @ target_space
                     ).to_quaternion()
                     quat = tuple(round(i, 3) for i in quat)
                     buffer.write(f"o.Orientation = {quat}\n")
@@ -2376,6 +2377,12 @@ class OT_ExportEntity(bpy.types.Operator):
                         buffer.write(
                             f"o.Life = CharStats.GetCharMaxLife(o.Kind, o.Level)\n"
                         )
+                    buffer.write(
+                        f"o.Energy = CharStats.GetCharMaxEnergy(o.Kind, o.Level)\n"
+                    )
+                    buffer.write(
+                        f"Scorer.SetLevelLimits(0, CharStats.GetCharExperienceCost(o.CharType, o.Level))\n"
+                    )
                 else:
                     if ent_data.instance_data:
                         buffer.write("EnemyTypes.EnemyDefaultFuncs(o)\n")

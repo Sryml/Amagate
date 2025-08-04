@@ -13,6 +13,7 @@
     ("*", "Marked Collection"): "标记集合",
     ("*", "Sectors"): "扇区",
     ("*", "Please enable online access in Preferences -> System"): "请在 [偏好设置 -> 系统] 中开启联机访问",
+    ("*", "Input format error"): "输入格式错误",
     # ("*", "non-uniform"): "不一致的",
     ("Operator", "Don't Save"): "不保存",
     ("Operator", "Cancel"): "取消",
@@ -306,10 +307,10 @@
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
     ("*", "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group"): "所有顶点必须分配骨骼顶点组且只能有一个骨骼顶点组",
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",
-    # 坐标转换
-    ("*", "Coord Conver"): "坐标转换",
+    # 空间转换
+    ("*", "Space Conversion"): "空间转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",
-    ("Operator", "Apply Location"): "应用坐标",
+    ("*", "Direction To Blade"): "方向到 Blade",
     # Cubemap 转换
     ("*", "Cubemap Conver"): "立方体贴图转换",
     ("*", "Export as panorama"): "导出为全景图",

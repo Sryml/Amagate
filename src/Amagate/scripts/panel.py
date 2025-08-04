@@ -185,20 +185,42 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
 
 ############################
-############################ 坐标转换面板
+############################ 空间转换面板
 ############################
-class AMAGATE_PT_CoordConver(AG_Panel, bpy.types.Panel):
-    bl_label = "Coord Conver"
+class AMAGATE_PT_SpaceConversion(AG_Panel, bpy.types.Panel):
+    bl_label = "Space Conversion"
     bl_order = 1
 
     def draw(self, context: Context):
         scene_data = context.scene.amagate_data
         layout = self.layout
-        col = layout.column()
+        column = layout.column()
 
-        col.label(text="Convert selected object/cursor", icon="FILE_REFRESH")
-        col.prop(scene_data, "coord_conv_1", text=f"{pgettext('To')} Blade")
-        col.prop(scene_data, "coord_conv_2", text=f"{pgettext('From')} Blade")
+        column.label(text="Convert selected object/cursor", icon="FILE_REFRESH")
+        # 位置
+        box = column.box()
+        col = box.column()
+        col.label(text=f"Location")
+        col.separator(type="LINE")
+        col.prop(scene_data, "coord_conv_to", text=f"{pgettext('To')} Blade")
+        col.prop(scene_data, "coord_conv_from", text=f"{pgettext('From')} Blade")
+
+        # 旋转
+        box = column.box()
+        col = box.column()
+        col.label(text=f"Rotation")
+        col.separator(type="LINE")
+        col.prop(scene_data, "rot_conv_to", text=f"{pgettext('To')} Blade")
+        col.prop(scene_data, "rot_conv_from", text=f"{pgettext('From')} Blade")
+
+        # 方向
+        box = column.box()
+        col = box.column()
+        col.label(text=f"Direction To Blade")
+        col.separator(type="LINE")
+        col.prop(scene_data, "x_dir_to", text=f"X Axis")
+        col.prop(scene_data, "y_dir_to", text=f"Y Axis")
+        col.prop(scene_data, "z_dir_to", text=f"Z Axis")
 
 
 ############################

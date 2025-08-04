@@ -1504,5 +1504,16 @@ def extract_file(archive_file, extract_to):
 
 
 ############################
+
+
+def popup_menu(context: Context, text, title, icon):
+    context.window_manager.popup_menu(
+        lambda self, context: self.layout.label(text=text),
+        title=title,
+        icon=icon,
+    )
+
+
+############################
 ############################
 ############################
