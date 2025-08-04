@@ -188,6 +188,82 @@ class OT_Entity_Kind_Search(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 角色搜索
+class OT_Character_Search(bpy.types.Operator):
+    bl_idname = "amagate.character_search"
+    bl_label = "Search"
+    bl_description = "Search"
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            return True
+        return False
+
+    enum: EnumProperty(
+        translation_context="Entity",
+        items=entity_data.get_character_enum_search,
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        from . import L3D_operator as OP_L3D
+
+        selected_entities = entity_data.SELECTED_ENTITIES
+        if not selected_entities:
+            return
+        #
+        inter_name = bpy.types.UILayout.enum_item_description(self, "enum", self.enum)
+        for ent in selected_entities:
+            ent_data = ent.amagate_data.get_entity_data()
+
+            OP_L3D.OT_EntityCreate.add(
+                None, context, inter_name, entity=ent, change_skin=True
+            )
+
+        # data.region_redraw("UI")
+        bpy.ops.ed.undo_push(message="Change Skin")
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        context.window_manager.invoke_search_popup(self)
+        return {"FINISHED"}
+
+
+# 重置皮肤
+class OT_Skin_Reset(bpy.types.Operator):
+    bl_idname = "amagate.skin_reset"
+    bl_label = "Reset Skin"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        if entity_data.SELECTED_ENTITIES:
+            return True
+        return False
+
+    def execute(self, context: Context):
+        from . import L3D_operator as OP_L3D
+
+        selected_entities = entity_data.SELECTED_ENTITIES
+        if not selected_entities:
+            return
+        #
+        for ent in selected_entities:
+            ent_data = ent.amagate_data.get_entity_data()
+            if ent_data.Kind == ent_data.skin:
+                continue
+
+            OP_L3D.OT_EntityCreate.add(
+                None, context, ent_data.Kind, entity=ent, change_skin=True
+            )
+
+        bpy.ops.ed.undo_push(message="Reset Skin")
+        return {"FINISHED"}
+
+
 ############################ 装备库存
 
 
@@ -2138,6 +2214,7 @@ class OT_ExportEntity(bpy.types.Operator):
             ent_data.clear_deleted_children()
             entities.append(ent_data)
         if not entities:
+            self.report({"WARNING"}, "There are no entities in the entity collection")
             return {"CANCELLED"}
         #
         CombustionData = []
@@ -2166,6 +2243,8 @@ class OT_ExportEntity(bpy.types.Operator):
         enum_items_static = scene_data.EntityData.bl_rna.properties[
             "ObjType"
         ].enum_items_static
+        # 目标坐标系
+        target_space_inv = Matrix.Rotation(-math.pi / 2, 4, "X")  # type: Matrix
 
         #
         def write_entity(ent_data: entity_data.EntityProperty):
@@ -2181,9 +2260,9 @@ class OT_ExportEntity(bpy.types.Operator):
             #
             ent = ent_data.id_data  # type: Object
             properties = ent_data.bl_rna.properties
+            matrix = ent.matrix_world.copy()
             # 位置
-            pos = ent.location.copy()
-            pos *= 1000
+            pos = matrix.translation * 1000
             pos.yz = -pos.z, pos.y
             pos = pos.to_tuple(1)
             # 类型
@@ -2203,16 +2282,19 @@ class OT_ExportEntity(bpy.types.Operator):
                 buffer.write(
                     f"o = Bladex.CreateEntity({ent_data.Name!r}, {ent_data.Kind!r}, {pos[0]}, {pos[1]}, {pos[2]}, {W_ObjType})\n"
                 )
-            if ent.scale.x != 1.0:
-                buffer.write(f"o.Scale = {ent.scale.x}\n")
+            # 缩放
+            scale = matrix.to_scale()
+            if scale.x != 1.0:
+                buffer.write(f"o.Scale = {scale.x}\n")
             # 方向
             if ObjType != "Person":
-                euler = ent.rotation_euler.copy()
+                euler = matrix.to_euler()
                 if tuple(euler) != (0, 0, 0):  # type: ignore
-                    euler.y, euler.z = -euler.z, euler.y
-                    Orientation = euler.to_quaternion()
-                    Orientation = tuple(round(i, 3) for i in Orientation)
-                    buffer.write(f"o.Orientation = {Orientation}\n")
+                    quat = (
+                        target_space_inv.inverted() @ matrix @ target_space_inv
+                    ).to_quaternion()
+                    quat = tuple(round(i, 3) for i in quat)
+                    buffer.write(f"o.Orientation = {quat}\n")
 
             # 通用
             for prop_name in ("Alpha", "SelfIlum", "Static", "CastShadows"):
@@ -2223,6 +2305,10 @@ class OT_ExportEntity(bpy.types.Operator):
                     )
             # 角色
             if ObjType == "Person":
+                # 设置皮肤
+                if ent_data.skin and ent_data.skin != ent_data.Kind:
+                    buffer.write(f"o.SetMesh({ent_data.skin!r})\n")
+                #
                 for prop_name in ("Level", "Angle", "Blind", "Deaf"):
                     value = getattr(ent_data, prop_name)
                     if value != properties[prop_name].default:  # type: ignore
@@ -2231,8 +2317,6 @@ class OT_ExportEntity(bpy.types.Operator):
                         )
                 if ent_data.SetOnFloor:
                     buffer.write(f"o.SetOnFloor()\n")
-                if ent_data.Hide:
-                    buffer.write(f"darfuncs.HideBadGuy({ent_data.Name!r})\n")
                 if ent_data.Freeze:
                     buffer.write(f"o.Freeze()\n")
                 # 添加到库存
@@ -2241,6 +2325,9 @@ class OT_ExportEntity(bpy.types.Operator):
                         buffer.write(
                             f"Actions.TakeObject(o.Name, {item.obj.amagate_data.get_entity_data().Name!r})\n"
                         )
+                # 在库存之后
+                if ent_data.Hide:
+                    buffer.write(f"darfuncs.HideBadGuy({ent_data.Name!r})\n")
             # 演员
             elif ObjType == "Actor":
                 buffer.write(f"o.Animation = {ent_data.Animation!r}\n")

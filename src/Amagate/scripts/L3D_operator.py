@@ -1230,7 +1230,7 @@ class OT_EntityCreate(bpy.types.Operator):
         return ret
 
     @staticmethod
-    def add(this, context: Context, inter_name, entity=None, obj_name=""):  # type: ignore
+    def add(this, context: Context, inter_name, entity: Object = None, obj_name="", change_skin=False):  # type: ignore
         from . import entity_operator as OP_ENTITY
 
         is_operator = isinstance(this, bpy.types.Operator)
@@ -1347,12 +1347,19 @@ class OT_EntityCreate(bpy.types.Operator):
         else:
             entity.data = entity_raw.data
             ent_data = entity.amagate_data.get_entity_data()
+            ent_data.skin = ""
 
         #
-        ent_data.Kind = inter_name
+        ent_data.skin = inter_name
+        if not change_skin:
+            ent_data.Kind = inter_name
         ent_data.has_fire = has_fire
         ent_data.has_light = has_light
-        if inter_name in ("Antorcha", "Antorchaenpared", "Palangana"):
+        if ent_data.ObjType != "0" and inter_name in (
+            "Antorcha",
+            "Antorchaenpared",
+            "Palangana",
+        ):
             ent_data.torch_usable = True
 
         return {"FINISHED"}, entity
@@ -1631,14 +1638,14 @@ class OT_SetAsPrefab(bpy.types.Operator):
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 90
 
-        for mat in bpy.data.materials:
-            mat.use_backface_culling = False
+        # for mat in bpy.data.materials:
+        #     mat.use_backface_culling = False
 
         scene.render.filepath = os.path.join(preview_dir, filename)
         bpy.ops.render.render(write_still=True)
 
-        for mat in bpy.data.materials:
-            mat.use_backface_culling = True
+        # for mat in bpy.data.materials:
+        #     mat.use_backface_culling = True
 
         # 写入清单列表
         if not self.builtin:
@@ -1681,6 +1688,7 @@ class OT_SetAsPrefab(bpy.types.Operator):
         entity_data.gen_ent_enum()
         entity_data.gen_equipment()
         entity_data.gen_prop()
+        entity_data.gen_character()
 
         if not self.builtin and filepath_origin:
             L3D_data.LOAD_POST_CALLBACK = (self.set_ent_enum, (inter_name,))

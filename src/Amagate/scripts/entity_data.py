@@ -78,9 +78,12 @@ OBJ_ARMOUR = 12
 OBJ_SPECIALKEY = 13
 OBJ_TABLET = 14
 
-OBJ_NONE = 99
+# 角色
+OBJ_CHARACTER = 20
 
 #
+OBJ_NONE = 99
+
 
 ############################
 ############################
@@ -123,6 +126,7 @@ def load_ent_preview():
     gen_ent_enum()
     gen_equipment()
     gen_prop()
+    gen_character()
 
 
 ############################
@@ -411,6 +415,65 @@ def gen_prop():
 ############################
 
 
+def get_character_enum(this, context):
+    return CHARACTER_ENUM
+
+
+def get_character_enum_search(this, context):
+    ent_enum = CHARACTER_ENUM.copy()
+    for i in range(len(ent_enum) - 1, -1, -1):
+        if ent_enum[i][0] == "":
+            ent_enum.pop(i)
+        else:
+            ent_enum[i] = (
+                ent_enum[i][0],
+                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+                ent_enum[i][2],
+                ent_enum[i][3],
+                ent_enum[i][4],
+            )
+    return ent_enum
+
+
+def gen_character():
+    global CHARACTER_ENUM
+    CHARACTER_ENUM = []
+    count = 0
+
+    for cat in (
+        "Characters",
+        # "Props",
+        # "1H Weapons",
+        # "2H Weapons",
+        # "Shields & Bows",
+        # "Others",
+        # "Pieces",
+        "Custom",
+    ):
+        enum = []
+        for k, v in data.E_MANIFEST["Entities"][cat].items():
+            filename = Path(v[1])
+            ItemType = v[2]
+            if ItemType == 20:
+                enum.append(
+                    [
+                        str(count),
+                        v[0],
+                        k,
+                        (
+                            data.ENT_PREVIEWS[filename.stem].icon_id
+                            if data.ENT_PREVIEWS.get(filename.stem)
+                            else data.BLANK1
+                        ),
+                        count,
+                    ]
+                )
+                count += 1
+        enum.sort(key=lambda x: x[1])
+        CHARACTER_ENUM.extend(enum)
+
+
+############################
 def add_contained_item_pre(this, context: Context):
     ag_utils.simulate_keypress(27)
     bpy.app.timers.register(lambda: add_contained_item(undo=True), first_interval=0.03)
@@ -615,7 +678,7 @@ class EntityProperty(bpy.types.PropertyGroup):
     # 道具库存
     prop_inv: CollectionProperty(type=EntityCollection)  # type: ignore
 
-    Kind: StringProperty(get=lambda self: self.get_kind(), set=lambda self, value: self.set_kind(value))  # type: ignore
+    Kind: StringProperty(get=lambda self: self.get_kind("Kind", ""), set=lambda self, value: self.set_kind(value, "Kind"))  # type: ignore
     Name: StringProperty(
         name="Name",
         description="Entity Name",
@@ -693,6 +756,11 @@ class EntityProperty(bpy.types.PropertyGroup):
         description="Name of the animation created by Bladex.LoadSampledAnimation; the game will crash if it does not exist or if the skeleton does not match",
     )  # type: ignore
 
+    #
+    skin: StringProperty(
+        get=lambda self: self.get_kind("skin", ""),
+        set=lambda self, value: self.set_kind(value, "skin"),
+    )  # type: ignore
     Life: IntProperty(
         min=0,
         description=pgettext("Life", "Property"),
@@ -863,8 +931,7 @@ class EntityProperty(bpy.types.PropertyGroup):
                     coll_prop.remove(item_idx)
 
     ############################
-    def get_kind(self):
-        key = "Kind"
+    def get_kind(self, key, default):
         if self.target == "UI":
             selected_entities, active_entity = SELECTED_ENTITIES, ACTIVE_ENTITY
             if not active_entity:
@@ -875,8 +942,7 @@ class EntityProperty(bpy.types.PropertyGroup):
         else:
             return self.get(key, "")
 
-    def set_kind(self, value):
-        key = "Kind"
+    def set_kind(self, value, key):
         if self.target == "UI":
             pass
         else:

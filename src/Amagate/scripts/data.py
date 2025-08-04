@@ -746,6 +746,7 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
             ("99", "None", ""),
             ("0", "Equipment", ""),
             ("8", "Prop", ""),
+            ("20", "Character", ""),
         ],
     )  # type: ignore
     active_equipment: IntProperty(default=0)  # type: ignore

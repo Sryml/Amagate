@@ -1252,7 +1252,7 @@ def load_post(filepath=""):
                 OP_L3D.OT_Node_Reset.reset_node()
                 scene_data.atmo_id_key = scene_data.atmospheres[0].name
 
-            # 1.3.0之前版本
+            # 1.4.0之前版本
             if scene_data.version_date < 20250803:
                 scene_data["EntityManage"] = {}
                 #

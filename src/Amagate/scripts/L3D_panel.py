@@ -1415,6 +1415,23 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         column.label(text=f"{pgettext('Character')}:")
         if sub_box.enabled:
             row = column.row(align=True)
+            col = row.column()
+            col.alignment = "LEFT"
+            flag = "" if entity_data.is_uniform("skin") else "*"
+            col.label(text=f"{flag}{pgettext('Skin','EntProperty')}:")
+            row.prop(scene_data.EntityData, "skin", text="")
+            row.operator(
+                OP_ENTITY.OT_Character_Search.bl_idname,
+                text="",
+                icon="VIEWZOOM",
+            )
+            row.operator(
+                OP_ENTITY.OT_Skin_Reset.bl_idname,
+                text="",
+                icon="FILE_REFRESH",
+            )
+
+            row = column.row(align=True)
             is_uniform_Life_Enabled = entity_data.is_uniform("Life_Enabled")
             if is_uniform_Life_Enabled:
                 row.prop(
