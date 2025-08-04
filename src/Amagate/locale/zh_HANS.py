@@ -283,6 +283,7 @@
     ("Operator", "Import Map"): "导入地图",
     ("Operator", "Bake World"): "烘焙世界",
     ("Operator", "Export Entity"): "导出实体",
+    ("*", "Export to temporary file (Selected Only)"): "导出到临时文件 (仅选中的)",
     # 实体编辑器面板
     ("*", "Entity Editor"): "实体编辑器",
     ("Operator", "Add Anchor"): "添加锚点",

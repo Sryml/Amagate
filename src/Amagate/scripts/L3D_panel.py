@@ -1895,7 +1895,9 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
         # 导出虚拟扇区
         column.operator(OP_SECTOR.OT_GhostSectorExport.bl_idname, icon="EXPORT")
         # 导出实体
-        column.operator(OP_ENTITY.OT_ExportEntity.bl_idname, icon="EXPORT")
+        row = layout.row(align=True)
+        row.operator(OP_ENTITY.OT_ExportEntity.bl_idname, icon="EXPORT").main = True  # type: ignore
+        row.operator_menu_enum(OP_ENTITY.OT_ExportEntity.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
 
         column.separator(type="LINE")
 
