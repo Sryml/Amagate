@@ -52,6 +52,10 @@ if TYPE_CHECKING:
 
 
 ############################
+logger = data.logger
+unpack = ag_utils.unpack
+
+############################
 ############################ 通用操作
 ############################
 
@@ -808,6 +812,217 @@ class OT_ExportEntComponent(bpy.types.Operator):
         print(f"网格数量: {len(mesh_dict)}")
         pickle.dump(mesh_dict, open(filepath, "wb"), protocol=0)
         return {"FINISHED"}
+
+
+############################
+############################ 动画/摄像机
+############################
+
+
+# 导出动画
+class OT_ExportAnim(bpy.types.Operator):
+    bl_idname = "amagate.export_anim"
+    bl_label = "Export Animation"
+    bl_description = "Export Animation"
+    bl_options = {"INTERNAL"}
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+
+        return {"FINISHED"}
+
+
+# 导入动画
+class OT_ImportAnim(bpy.types.Operator):
+    bl_idname = "amagate.import_anim"
+    bl_label = "Import Animation"
+    bl_description = "Import Animation"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.bmv", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context: Context):
+        self.execute2(context)
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        scene_data = context.scene.amagate_data
+        if not scene_data.armature_obj:
+            self.report({"WARNING"}, "Please select armature object first")
+            return {"CANCELLED"}
+
+        # 设为上次选择目录，文件名为空
+        self.filepath = self.directory
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+    def execute2(self, context: Context, prefix=""):
+        scene = context.scene
+        scene_data = context.scene.amagate_data
+        directory = Path(self.directory)
+        files = [i.name for i in self.files if i.name]
+        armature_obj = scene_data.armature_obj  # type: Object
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        ag_utils.select_active(context, armature_obj)
+        bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.pose.select_all(action="SELECT")
+
+        bone_count = len(armature_obj.pose.bones)
+        if len(files) == 0:
+            files = [
+                f
+                for f in os.listdir(directory)
+                if f.lower().endswith(".bmv") and f.lower().startswith(prefix)
+            ]
+        # 目标坐标系
+        target_space_q = Matrix.Rotation(-math.pi / 2, 4, "X").to_quaternion()
+        for filename in files:
+            filepath = directory / filename
+            action_name = filename[:-4]
+            with open(filepath, "rb") as f:
+                # 内部名称
+                length = unpack("I", f)[0]
+                inter_name = unpack(f"{length}s", f)
+                #
+                count = unpack("I", f)[0]
+                if count != bone_count:
+                    continue
+                #
+                action = bpy.data.actions.get(action_name)
+                if not action:
+                    action = bpy.data.actions.new(name=action_name)
+                action.fcurves.clear()
+                action.use_fake_user = True
+                has_slot = hasattr(action, "slots")
+                # 将动作分配给骨架的动画数据
+                if not armature_obj.animation_data:
+                    armature_obj.animation_data_create()
+                armature_obj.animation_data.action = action
+                if has_slot:
+                    slot = action.slots.get(action_name)
+                    if not slot:
+                        slot = action.slots.new("OBJECT", action_name)  # type: ignore
+                    armature_obj.animation_data.action_slot = slot
+                #
+                bpy.ops.pose.transforms_clear()
+                for bone_idx in range(count):
+                    bone = armature_obj.pose.bones[bone_idx]
+                    #
+                    parent_bone = bone.parent
+                    # parent_quat_base = (
+                    #     parent_bone.matrix.to_quaternion()
+                    #     if parent_bone
+                    #     else Quaternion()
+                    # )
+                    # bone_quat_base = bone.matrix.to_quaternion()
+                    bone_name = bone.name
+                    # data_path外部需要为单引号，否则不识别
+                    data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+                    for i in range(4):
+                        action.fcurves.new(data_path, index=i, action_group=bone_name)
+                    if bone_idx == 0:
+                        data_path2 = f'pose.bones["{bone_name}"].location'
+                        for i in range(3):
+                            action.fcurves.new(
+                                data_path2, index=i, action_group=bone_name
+                            )
+                    #
+                    frame_len = unpack("I", f)[0]
+                    if scene.frame_end < frame_len:
+                        scene.frame_end = frame_len
+                    z_align = Quaternion((1, 0, 0), -math.pi / 2)  # type: ignore XXX 改成选项
+                    for frame in range(1, frame_len + 1):
+                        quat = Quaternion(unpack("ffff", f))
+                        # quat = target_space_q @ quat @ target_space_q.inverted()
+                        # Z轴对齐
+                        # if bone_idx == 0 and frame == 1:
+                        #     z = bone.matrix.to_3x3().col[2] # type: Vector
+                        #     z_anim = quat.to_matrix().col[2] # type: Vector
+                        #     axis = z_anim.cross(z)
+                        #     angle = z_anim.angle(z)
+                        # z_align = Quaternion(axis, angle) # type: ignore
+                        #
+                        if bone_idx == 0:
+                            quat = (z_align @ quat).normalized()
+                            for idx in range(4):
+                                action.fcurves.find(
+                                    data_path, index=idx
+                                ).keyframe_points.insert(frame, quat[idx])
+                            continue
+                        # if frame != 1:
+                        #     continue
+                        #
+                        scene.frame_current = frame
+                        depsgraph = context.evaluated_depsgraph_get()
+                        # armature_eval = armature_obj.evaluated_get(depsgraph)
+                        loc, rot, scale = bone.matrix.decompose()
+                        rot = (parent_bone.matrix.to_quaternion() @ quat).normalized()
+                        bone.matrix = Matrix.LocRotScale(loc, rot, scale)
+                        bone.keyframe_insert(
+                            "rotation_quaternion", frame=frame, group=bone_name
+                        )
+                        """
+                        # 获取父骨骼的旋转
+                        if parent_bone:
+                            p = f'pose.bones["{parent_bone.name}"].rotation_quaternion'
+                            parent_quat_curr = Quaternion(
+                                [
+                                    action.fcurves.find(p, index=i)
+                                    .keyframe_points[frame-1]
+                                    .co[1]
+                                    for i in range(4)
+                                ]
+                            )
+                            parent_quat_glob = parent_quat_curr @ parent_quat_base
+                            
+                            # 获取本骨骼的旋转
+                            if frame > 1:
+                                bone_quat_curr = Quaternion(
+                                        [
+                                            action.fcurves.find(data_path, index=i)
+                                            .keyframe_points[frame-2]
+                                            .co[1]
+                                            for i in range(4)
+                                        ]
+                                    )
+                                bone_quat_glob = parent_quat_curr @ bone_quat_curr @ bone_quat_base
+                            else:
+                                bone_quat_glob = parent_quat_curr @ bone_quat_base
+                            
+                            # 全局旋转转为局部旋转
+                            quat_glob = quat @ parent_quat_glob
+                            quat_rel = bone_quat_glob.inverted() @ quat_glob
+                        else:
+                            quat_rel = quat
+                        #
+                        # bone.keyframe_insert("rotation_quaternion", frame=frame, group=bone_name)
+                        for idx in range(4):
+                            action.fcurves.find(
+                                data_path, index=idx
+                            ).keyframe_points.insert(frame, quat_rel[idx])
+                        """
+                #
+                frame_len = unpack("I", f)[0]
+                for frame in range(1, frame_len + 1):
+                    co = Vector(unpack("ddd", f)) / 1000
+                    co.yz = co.z, -co.y
+                    #
+                    for idx in range(3):
+                        action.fcurves.find(
+                            data_path2, index=idx
+                        ).keyframe_points.insert(frame, co[idx])
+        #
+        scene.frame_current = 1
+        bpy.ops.object.mode_set(mode="OBJECT")
+        for area in bpy.context.screen.areas:
+            if area.ui_type == "TIMELINE":
+                area.ui_type = "DOPESHEET"
+                area.spaces[0].ui_mode = "ACTION"  # type: ignore
+                break
 
 
 ############################

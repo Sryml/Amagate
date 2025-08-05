@@ -307,6 +307,11 @@
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
     ("*", "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group"): "所有顶点必须分配骨骼顶点组且只能有一个骨骼顶点组",
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",
+    # 动画/摄像机
+    ("*", "Animation/Camera"): "动画/摄像机",
+    ("Operator", "Export Animation"): "导出动画",
+    ("Operator", "Import Animation"): "导入动画",
+    ("*", "Please select armature object first"): "请先选择骨架对象",
     # 空间转换
     ("*", "Space Conversion"): "空间转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",

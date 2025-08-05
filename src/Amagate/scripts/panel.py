@@ -185,6 +185,39 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
 
 ############################
+############################ 动画/摄像机面板
+############################
+
+
+class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
+    bl_label = "Animation/Camera"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = 1
+
+    def draw(self, context: Context):
+        layout = self.layout
+
+
+class AMAGATE_PT_Animation(AG_Panel, bpy.types.Panel):
+    bl_label = "Animation"
+    bl_parent_id = "AMAGATE_PT_AnimCam"
+
+    def draw(self, context: Context):
+        scene_data = context.scene.amagate_data
+        layout = self.layout
+        column = layout.column()
+        column.prop(scene_data, "armature_obj", text="Armature")
+        column.separator(type="LINE")
+
+        column.operator(
+            OP.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
+        )
+        column.operator(
+            OP.OT_ImportAnim.bl_idname, text="Import Animation", icon="IMPORT"
+        )
+
+
+############################
 ############################ 空间转换面板
 ############################
 class AMAGATE_PT_SpaceConversion(AG_Panel, bpy.types.Panel):
