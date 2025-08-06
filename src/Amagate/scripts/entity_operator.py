@@ -14,6 +14,7 @@ import contextlib
 import shutil
 import threading
 import time
+import json
 from datetime import datetime
 from pathlib import Path
 from pprint import pprint
@@ -2263,6 +2264,14 @@ class OT_ExportEntity(bpy.types.Operator):
         # 目标坐标系
         target_space = Matrix.Rotation(-math.pi / 2, 4, "X")  # type: Matrix
 
+        map_dir = Path(bpy.data.filepath).parent
+        mapcfg_path = map_dir / "AG_MapCfg.json"
+        if mapcfg_path.exists():
+            mapcfg = json.load(open(mapcfg_path, "r", encoding="utf-8"))
+        else:
+            bw_file = Path(bpy.data.filepath).stem + ".bw"
+            mapcfg = {"bw_file": bw_file}
+
         #
         def write_entity(ent_data: entity_data.EntityProperty):
             for coll_prop in (
@@ -2296,6 +2305,8 @@ class OT_ExportEntity(bpy.types.Operator):
             #
             if ent_data.Name == "Player1":
                 buffer.write(f"o = Bladex.GetEntity('Player1')\n")
+                mapcfg["player_pos"] = pos
+                mapcfg["player_kind"] = ent_data.Kind
             else:
                 buffer.write(
                     f"o = Bladex.CreateEntity({ent_data.Name!r}, {ent_data.Kind!r}, {pos[0]}, {pos[1]}, {pos[2]}, {W_ObjType})\n"
@@ -2438,7 +2449,6 @@ class OT_ExportEntity(bpy.types.Operator):
         else:
             filename = "AG_Objs.py"
             mode = "w"
-        map_dir = Path(bpy.data.filepath).parent
         with open(map_dir / filename, mode, encoding="utf-8") as file:
             if selected_only:
                 now = datetime.now()
@@ -2457,6 +2467,14 @@ class OT_ExportEntity(bpy.types.Operator):
         head_buffer.close()
         buffer.close()
         combustion_buffer.close()
+        #
+        json.dump(
+            mapcfg,
+            open(mapcfg_path, "w", encoding="utf-8"),
+            indent=4,
+            ensure_ascii=False,
+            sort_keys=True,
+        )
 
         self.report({"INFO"}, f"{pgettext('Export successfully')}: {filename}")
         return {"FINISHED"}

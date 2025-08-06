@@ -839,10 +839,16 @@ class OT_ImportAnim(bpy.types.Operator):
     bl_description = "Import Animation"
     bl_options = {"INTERNAL"}
 
+    # x_axis_correction: FloatProperty(name="X-Axis Correction", default=-math.pi / 2, subtype="ANGLE", step=100) # type: ignore
+
     filter_glob: StringProperty(default="*.bmv", options={"HIDDEN"})  # type: ignore
     directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    # def draw(self, context: Context):
+    #     layout = self.layout
+    #     layout.prop(self, "x_axis_correction")
 
     def execute(self, context: Context):
         self.execute2(context)
@@ -870,7 +876,7 @@ class OT_ImportAnim(bpy.types.Operator):
         ag_utils.select_active(context, armature_obj)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
-
+        #
         bone_count = len(armature_obj.pose.bones)
         if len(files) == 0:
             files = [
@@ -880,6 +886,8 @@ class OT_ImportAnim(bpy.types.Operator):
             ]
         # 目标坐标系
         target_space_q = Matrix.Rotation(-math.pi / 2, 4, "X").to_quaternion()
+        # x_axis_corr = Quaternion((1,0,0), self.x_axis_correction) # type: ignore
+        # depsgraph = context.evaluated_depsgraph_get()
         for filename in files:
             filepath = directory / filename
             action_name = filename[:-4]
@@ -887,11 +895,11 @@ class OT_ImportAnim(bpy.types.Operator):
                 # 内部名称
                 length = unpack("I", f)[0]
                 inter_name = unpack(f"{length}s", f)
-                #
+                # 骨骼数量
                 count = unpack("I", f)[0]
                 if count != bone_count:
                     continue
-                #
+                # 创建动作
                 action = bpy.data.actions.get(action_name)
                 if not action:
                     action = bpy.data.actions.new(name=action_name)
@@ -903,126 +911,83 @@ class OT_ImportAnim(bpy.types.Operator):
                     armature_obj.animation_data_create()
                 armature_obj.animation_data.action = action
                 if has_slot:
-                    slot = action.slots.get(action_name)
+                    slot = next(
+                        (i for i in action.slots if i.name_display == action_name), None
+                    )
                     if not slot:
                         slot = action.slots.new("OBJECT", action_name)  # type: ignore
                     armature_obj.animation_data.action_slot = slot
-                #
+                # 清空姿态变换
                 bpy.ops.pose.transforms_clear()
+
+                # start_time = time.time()
                 for bone_idx in range(count):
                     bone = armature_obj.pose.bones[bone_idx]
+                    # bone_quat_base = bone.matrix.to_quaternion().normalized()
                     #
                     parent_bone = bone.parent
-                    # parent_quat_base = (
-                    #     parent_bone.matrix.to_quaternion()
-                    #     if parent_bone
-                    #     else Quaternion()
-                    # )
-                    # bone_quat_base = bone.matrix.to_quaternion()
                     bone_name = bone.name
                     # data_path外部需要为单引号，否则不识别
-                    data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+                    rot_data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
                     for i in range(4):
-                        action.fcurves.new(data_path, index=i, action_group=bone_name)
+                        action.fcurves.new(
+                            rot_data_path, index=i, action_group=bone_name
+                        )
                     if bone_idx == 0:
-                        data_path2 = f'pose.bones["{bone_name}"].location'
+                        loc_data_path = f'pose.bones["{bone_name}"].location'
                         for i in range(3):
                             action.fcurves.new(
-                                data_path2, index=i, action_group=bone_name
+                                loc_data_path, index=i, action_group=bone_name
                             )
                     #
                     frame_len = unpack("I", f)[0]
                     if scene.frame_end < frame_len:
                         scene.frame_end = frame_len
-                    z_align = Quaternion((1, 0, 0), -math.pi / 2)  # type: ignore XXX 改成选项
                     for frame in range(1, frame_len + 1):
                         quat = Quaternion(unpack("ffff", f))
-                        # quat = target_space_q @ quat @ target_space_q.inverted()
-                        # Z轴对齐
-                        # if bone_idx == 0 and frame == 1:
-                        #     z = bone.matrix.to_3x3().col[2] # type: Vector
-                        #     z_anim = quat.to_matrix().col[2] # type: Vector
-                        #     axis = z_anim.cross(z)
-                        #     angle = z_anim.angle(z)
-                        # z_align = Quaternion(axis, angle) # type: ignore
-                        #
-                        if bone_idx == 0:
-                            quat = (z_align @ quat).normalized()
-                            for idx in range(4):
-                                action.fcurves.find(
-                                    data_path, index=idx
-                                ).keyframe_points.insert(frame, quat[idx])
-                            continue
-                        # if frame != 1:
-                        #     continue
-                        #
-                        scene.frame_current = frame
-                        depsgraph = context.evaluated_depsgraph_get()
-                        # armature_eval = armature_obj.evaluated_get(depsgraph)
+                        # 子骨骼的旋转数据是相对于父骨骼的
+                        if parent_bone:
+                            parent_quat = armature_obj.data.bones[parent_bone.name].matrix_local.to_quaternion()  # type: ignore
+                            # parent_quat = parent_bone.matrix.to_quaternion()
+                        # 根骨骼的旋转数据是全局的
+                        else:
+                            parent_quat = target_space_q
+
                         loc, rot, scale = bone.matrix.decompose()
-                        rot = (parent_bone.matrix.to_quaternion() @ quat).normalized()
+                        rot = (parent_quat @ quat).normalized()
+
                         bone.matrix = Matrix.LocRotScale(loc, rot, scale)
                         bone.keyframe_insert(
                             "rotation_quaternion", frame=frame, group=bone_name
                         )
-                        """
-                        # 获取父骨骼的旋转
-                        if parent_bone:
-                            p = f'pose.bones["{parent_bone.name}"].rotation_quaternion'
-                            parent_quat_curr = Quaternion(
-                                [
-                                    action.fcurves.find(p, index=i)
-                                    .keyframe_points[frame-1]
-                                    .co[1]
-                                    for i in range(4)
-                                ]
-                            )
-                            parent_quat_glob = parent_quat_curr @ parent_quat_base
-                            
-                            # 获取本骨骼的旋转
-                            if frame > 1:
-                                bone_quat_curr = Quaternion(
-                                        [
-                                            action.fcurves.find(data_path, index=i)
-                                            .keyframe_points[frame-2]
-                                            .co[1]
-                                            for i in range(4)
-                                        ]
-                                    )
-                                bone_quat_glob = parent_quat_curr @ bone_quat_curr @ bone_quat_base
-                            else:
-                                bone_quat_glob = parent_quat_curr @ bone_quat_base
-                            
-                            # 全局旋转转为局部旋转
-                            quat_glob = quat @ parent_quat_glob
-                            quat_rel = bone_quat_glob.inverted() @ quat_glob
-                        else:
-                            quat_rel = quat
-                        #
-                        # bone.keyframe_insert("rotation_quaternion", frame=frame, group=bone_name)
-                        for idx in range(4):
-                            action.fcurves.find(
-                                data_path, index=idx
-                            ).keyframe_points.insert(frame, quat_rel[idx])
-                        """
                 #
+                matrix_inv = armature_obj.data.bones[  # type: ignore
+                    0
+                ].matrix.inverted()  # type: Matrix
                 frame_len = unpack("I", f)[0]
                 for frame in range(1, frame_len + 1):
                     co = Vector(unpack("ddd", f)) / 1000
-                    co.yz = co.z, -co.y
+                    co = matrix_inv @ (target_space_q @ co)
                     #
                     for idx in range(3):
                         action.fcurves.find(
-                            data_path2, index=idx
+                            loc_data_path, index=idx
                         ).keyframe_points.insert(frame, co[idx])
+        #
+        # print(time.time() - start_time)
         #
         scene.frame_current = 1
         bpy.ops.object.mode_set(mode="OBJECT")
-        for area in bpy.context.screen.areas:
-            if area.ui_type == "TIMELINE":
-                area.ui_type = "DOPESHEET"
-                area.spaces[0].ui_mode = "ACTION"  # type: ignore
-                break
+        has_area = next(
+            (True for area in bpy.context.screen.areas if area.ui_type == "DOPESHEET"),
+            False,
+        )
+        if not has_area:
+            for area in bpy.context.screen.areas:
+                if area.ui_type == "TIMELINE":
+                    area.ui_type = "DOPESHEET"
+                    area.spaces[0].ui_mode = "ACTION"  # type: ignore
+                    break
 
 
 ############################

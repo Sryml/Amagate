@@ -22,7 +22,7 @@ execfile("../../Scripts/sys_init.py")
 
 Bladex.ReadLevel("AG_dome.lvl")
 #
-execfile("AG_MapCfg.py")
+AG_MapCfg = eval(open("AG_MapCfg.json", "r").read())
 
 for f in os.listdir("textures"):
     name, ext = os.path.splitext(f)

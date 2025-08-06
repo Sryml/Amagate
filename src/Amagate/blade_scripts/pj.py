@@ -8,7 +8,7 @@ import Bladex
 
 
 char = Bladex.CreateEntity("Player1", AG_MapCfg["player_kind"], 0, 0, 0, "Person")
-char.Position = AG_MapCfg["player_pos"]
+char.Position = tuple(AG_MapCfg["player_pos"])
 # char.Angle=2.37
 # char.Level = 19
 char.SetOnFloor()
