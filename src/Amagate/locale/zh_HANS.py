@@ -312,7 +312,10 @@
     ("Operator", "Export Animation"): "导出动画",
     ("Operator", "Import Animation"): "导入动画",
     ("*", "Please select armature object first"): "请先选择骨架对象",
-    ("*", "X-Axis Correction"): "X轴校正",
+    ("*", "Please select the action to export in the Action Editor"): "请在动作编辑器中选择要导出的动作",
+    ("*", "Please select the action slot to export in the Action Editor"): "请在动作编辑器中选择要导出的动作槽",
+    ("*", "Animation data not found"): "动画数据未找到",
+    # ("*", "X-Axis Correction"): "X轴校正",
     # 空间转换
     ("*", "Space Conversion"): "空间转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",

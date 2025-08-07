@@ -1594,7 +1594,7 @@ class OT_ExportBOD(bpy.types.Operator):
         bpy.ops.mesh.quads_convert_to_tris(quad_method="BEAUTY", ngon_method="BEAUTY")
         #
         bpy.ops.object.mode_set(mode="OBJECT")
-        bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
+        bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
         # bpy.ops.object.origin_set(type="ORIGIN_GEOMETRY", center="MEDIAN")
         #
         depsgraph = context.evaluated_depsgraph_get()
@@ -1607,10 +1607,10 @@ class OT_ExportBOD(bpy.types.Operator):
             preserve_all_data_layers=True, depsgraph=depsgraph
         )  # type: bpy.types.Mesh # type: ignore
         entity_eval = entity.evaluated_get(depsgraph)
-        matrix = entity_eval.matrix_world.copy()
-        origin = matrix.to_translation()
+        ent_matrix = entity_eval.matrix_world.copy()
+        origin = ent_matrix.to_translation()
         bounds_length = [
-            ((matrix @ Vector(corner)) - origin).length
+            ((ent_matrix @ Vector(corner)) - origin).length
             for corner in entity_eval.bound_box
         ]
         bounds_length.sort(reverse=True)
@@ -1620,11 +1620,13 @@ class OT_ExportBOD(bpy.types.Operator):
         uv_layer = ent_mesh.uv_layers.active.data
         #
         cursor = context.scene.cursor
-        armature_obj = next((m.object for m in entity.modifiers if m.type == "ARMATURE"), None)  # type: ignore
+        armature_obj = next(
+            (m.object for m in entity.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
         if armature_obj is not None:
             # 判断顶点组是否包含所有骨骼
             names = set(i.name for i in entity.vertex_groups)
-            bone_names = set(i.name for i in armature_obj.data.bones)
+            bone_names = set(i.name for i in armature_obj.data.bones)  # type: ignore
             if not names.issuperset(bone_names):
                 self.report({"ERROR"}, "Missing bone vertex group")
                 entity.to_mesh_clear()
@@ -1650,12 +1652,20 @@ class OT_ExportBOD(bpy.types.Operator):
             bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
             bpy.ops.object.select_all(action="DESELECT")
             cursor.location = prev_cursor
-            armature_matrix = armature_obj.matrix_world.copy()
-            armature_matrix.translation = Vector()
+            armature_matrix = Matrix.LocRotScale(
+                None, None, armature_obj.matrix_world.to_scale()
+            )
             armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+            rot = armature_obj.matrix_world.to_quaternion()
         else:
             armature = None  # type: ignore
             armature_matrix = Matrix()
+            rot = ent_matrix.to_quaternion()
+        # 全局逆旋转矩阵
+        glob_rot_inv = (
+            Matrix.Translation(origin)
+            @ Matrix.LocRotScale(origin, rot, None).inverted()
+        )
 
         # 导出BOD
         buffer = BytesIO()
@@ -1680,7 +1690,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 matrix = armature_matrix @ bone.matrix
                 # 应用缩放
                 loc, rot, scale = matrix.decompose()
-                matrix = Matrix.LocRotScale(loc, rot, (1, 1, 1))
+                matrix = Matrix.LocRotScale(loc, rot, None)
                 bone_matrix = bones_matrix.setdefault(
                     name,
                     (
@@ -1921,7 +1931,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 else:
                     parent_idx = 0
 
-            matrix = obj.matrix_world.copy()
+            matrix = glob_rot_inv @ obj.matrix_world.copy()
             matrix.translation -= origin
             matrix = target_space_inv @ matrix
             if parent_matrix:
@@ -1940,7 +1950,7 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["edges"])))
         for obj in ent_dict["edges"]:
             obj = obj.evaluated_get(depsgraph)
-            matrix_world = obj.matrix_world.copy()
+            matrix_world = glob_rot_inv @ obj.matrix_world.copy()
             matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
@@ -1983,7 +1993,7 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["spikes"])))
         for obj in ent_dict["spikes"]:
             obj = obj.evaluated_get(depsgraph)
-            matrix_world = obj.matrix_world.copy()
+            matrix_world = glob_rot_inv @ obj.matrix_world.copy()
             matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
@@ -2032,7 +2042,7 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["trails"])))
         for obj in ent_dict["trails"]:
             obj = obj.evaluated_get(depsgraph)
-            matrix_world = obj.matrix_world.copy()
+            matrix_world = glob_rot_inv @ obj.matrix_world.copy()
             matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
