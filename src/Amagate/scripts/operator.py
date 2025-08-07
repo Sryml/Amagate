@@ -860,10 +860,69 @@ class OT_ExportAnim(bpy.types.Operator):
         # 骨骼数量
         count = len(armature.bones)
         buffer.write(struct.pack("I", count))
+        # 所有骨骼的旋转姿态
         for bone_idx in range(count):
             bone = armature.bones[bone_idx]
-            # 骨骼名称
+            bone_name = bone.name
+            bone_quat = bone.matrix_local.to_quaternion()
+            parent_bone = bone.parent
+            data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+            fcurves = [
+                item
+                for i in range(4)
+                if (item := channelbag.fcurves.find(data_path, index=i)) is not None
+            ]
+            if len(fcurves) != 4:
+                buffer.write(struct.pack("I", 0))
+                continue
+            frame_len = int(fcurves[0].range()[1])
+            if frame_len < 1:
+                buffer.write(struct.pack("I", 0))
+                continue
+            #
+            buffer.write(struct.pack("I", frame_len))
+            for frame in range(1, frame_len + 1):
+                quat = Quaternion(fcurves[i].evaluate(frame) for i in range(4))
+                quat_glob = bone_quat @ quat
+                if parent_bone:
+                    parent_quat = armature.bones[parent_bone.name].matrix_local.to_quaternion().inverted()  # type: ignore
+                # 根骨骼的旋转数据是全局的
+                else:
+                    parent_quat = target_space_inv
+                # 相对于父旋转
+                quat_rel = (parent_quat @ quat_glob).normalized()
+                buffer.write(struct.pack("ffff", *quat_rel))
 
+        # 根骨骼位置姿态
+        bone = armature.bones[0]
+        matrix = bone.matrix
+        data_path = f'pose.bones["{bone.name}"].location'
+        fcurves = [
+            item
+            for i in range(3)
+            if (item := channelbag.fcurves.find(data_path, index=i)) is not None
+        ]
+        if len(fcurves) != 3:
+            buffer.write(struct.pack("I", 0))
+        frame_len = int(fcurves[0].range()[1])
+        if frame_len < 1:
+            buffer.write(struct.pack("I", 0))
+        #
+        buffer.write(struct.pack("I", frame_len))
+        for frame in range(1, frame_len + 1):
+            co = Vector(fcurves[i].evaluate(frame) for i in range(3))
+            co_glob = target_space_inv @ (matrix @ co)
+            co_glob *= 1000
+            buffer.write(struct.pack("ddd", *co_glob))
+        #
+        with open(self.filepath, "wb") as f:
+            f.write(buffer.getvalue())
+        buffer.close()
+
+        self.report(
+            {"INFO"},
+            f"{pgettext('Export successfully')}: {os.path.basename(self.filepath)}",
+        )
         return {"FINISHED"}
 
     def invoke(self, context: Context, event: bpy.types.Event):
@@ -1053,13 +1112,14 @@ class OT_ImportAnim(bpy.types.Operator):
                         bone.keyframe_insert(
                             "rotation_quaternion", frame=frame, group=bone_name
                         )
-                #
+                # 根骨骼位置姿态
                 matrix_inv = armature_obj.data.bones[  # type: ignore
                     0
                 ].matrix.inverted()  # type: Matrix
                 frame_len = unpack("I", f)[0]
                 for frame in range(1, frame_len + 1):
                     co = Vector(unpack("ddd", f)) / 1000
+                    # 转换为相对坐标
                     co = matrix_inv @ (target_space_q @ co)
                     #
                     for idx in range(3):
