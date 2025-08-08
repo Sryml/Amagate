@@ -1217,7 +1217,7 @@ class OT_ImportMap(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 设为上次选择目录，文件名为空
-        self.filepath = self.directory
+        # self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 

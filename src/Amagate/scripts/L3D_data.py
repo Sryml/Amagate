@@ -163,7 +163,7 @@ def get_sector_by_id(scene_data, sector_id) -> Object:
 
 def get_level_item(this, context):
     map_dir = Path(bpy.data.filepath).parent.name
-    return [
+    items = [
         ("-1", map_dir, map_dir),
         ("0", "Casa", "Casa"),
         ("1", "Kashgar", "Barb_M1"),
@@ -184,6 +184,8 @@ def get_level_item(this, context):
         ("16", "Tower of Dal Gurak", "Tower_M16"),
         ("17", "The Abyss", "Chaos_M17"),
     ]
+    get_level_item.items = items
+    return items
 
 
 # 确保NULL纹理存在

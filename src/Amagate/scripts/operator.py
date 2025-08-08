@@ -136,7 +136,7 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
                 {"ERROR"},
                 f"{pgettext('Please select the six cubemap images')}: {name_set}",
             )
-            return {"CANCELLED"}
+            return {"FINISHED"}
 
         scene = bpy.data.scenes.new("AG.Cubemap")
         prev_scene = context.window.scene
@@ -249,7 +249,7 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
             filepath = normal_dict.get(tuple(int(i) for i in face.normal))
             if not filepath:
                 ag_utils.debugprint(f"No cubemap image for normal: {face.normal}")
-                return {"CANCELLED"}
+                return {"FINISHED"}
 
             tex = bpy.data.images.load(filepath)  # type: Image # type: ignore
             mat = bpy.data.materials.new(tex.name)
@@ -843,7 +843,7 @@ class OT_ExportAnim(bpy.types.Operator):
         action_name = Path(self.filepath).stem
         if action_name == "":
             self.report({"ERROR"}, "Invalid filename")
-            return {"CANCELLED"}
+            return {"FINISHED"}
 
         armature_obj = scene_data.armature_obj  # type: Object
         armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
@@ -960,12 +960,15 @@ class OT_ExportAnim(bpy.types.Operator):
             return {"CANCELLED"}
 
         self.channelbag = channelbag
-        if self.filepath:
-            self.filepath = str(Path(bpy.data.filepath).parent / f"{action_name}.bmv")
+
+        if not bpy.data.filepath or (not self.main and self.action == "0"):
+            if not self.filepath:
+                self.filepath = f"{action_name}.bmv"
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
         else:
-            self.filepath = f"{action_name}.bmv"
-        context.window_manager.fileselect_add(self)
-        return {"RUNNING_MODAL"}
+            self.filepath = str(Path(bpy.data.filepath).parent / f"{action_name}.bmv")
+            return self.execute(context)
 
 
 # 导入动画
@@ -997,7 +1000,7 @@ class OT_ImportAnim(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 设为上次选择目录，文件名为空
-        self.filepath = self.directory
+        # self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 

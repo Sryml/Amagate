@@ -137,19 +137,22 @@ def get_ent_enum(this, context):
 
 
 def get_ent_enum_search(this, context):
-    ent_enum = ENT_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-        else:
-            ent_enum[i] = (
-                ent_enum[i][0],
-                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
-                ent_enum[i][2],
-                ent_enum[i][3],
-                ent_enum[i][4],
-            )
-    return ent_enum
+    return ENT_ENUM_SEARCH
+
+    # ent_enum = ENT_ENUM.copy()
+    # for i in range(len(ent_enum) - 1, -1, -1):
+    #     if ent_enum[i][0] == "":
+    #         ent_enum.pop(i)
+    #     else:
+    #         ent_enum[i] = (
+    #             ent_enum[i][0],
+    #             f"{ent_enum[i][1]} - {ent_enum[i][2]}",
+    #             ent_enum[i][2],
+    #             ent_enum[i][3],
+    #             ent_enum[i][4],
+    #         )
+    # get_ent_enum_search.items = ent_enum
+    # return ent_enum
 
 
 def get_ent_preview(this, context) -> Any:
@@ -159,12 +162,14 @@ def get_ent_preview(this, context) -> Any:
         wm_data, "ent_enum", wm_data.ent_enum
     )
     icon = bpy.types.UILayout.enum_item_icon(wm_data, "ent_enum", wm_data.ent_enum)
-    return [("0", name, description, icon, 0)]
+    get_ent_preview.items = [("0", name, description, icon, 0)]
+    return get_ent_preview.items
 
 
 def gen_ent_enum():
-    global ENT_ENUM
+    global ENT_ENUM, ENT_ENUM_SEARCH
     ENT_ENUM = []
+    ENT_ENUM_SEARCH = []
     count = 0
 
     for cat in (
@@ -200,6 +205,19 @@ def gen_ent_enum():
         enum.sort(key=lambda x: x[5])
         for i in range(len(enum)):
             enum[i] = tuple(enum[i][:-1])
+        #
+        enum_search = enum.copy()
+        for i in range(len(enum_search)):
+            item = enum_search[i]
+            enum_search[i] = (
+                item[0],
+                f"{item[1]} - {item[2]}",
+                item[2],
+                item[3],
+                item[4],
+            )
+        ENT_ENUM_SEARCH.extend(enum_search)
+        #
         enum.insert(0, ("", cat, ""))
         ENT_ENUM.extend(enum)
 
@@ -210,19 +228,7 @@ def get_equipment(this, context):
 
 
 def get_equipment_search(this, context):
-    ent_enum = EQUIPMENT_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-        else:
-            ent_enum[i] = (
-                ent_enum[i][0],
-                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
-                ent_enum[i][2],
-                ent_enum[i][3],
-                ent_enum[i][4],
-            )
-    return ent_enum
+    return EQUIPMENT_ENUM_SEARCH
 
 
 def add_equipment_pre(this, context: Context):
@@ -267,8 +273,9 @@ def add_equipment(inter_name="", entity=None, undo=False):
 
 
 def gen_equipment():
-    global EQUIPMENT_ENUM
+    global EQUIPMENT_ENUM, EQUIPMENT_ENUM_SEARCH
     EQUIPMENT_ENUM = []
+    EQUIPMENT_ENUM_SEARCH = []
     count = 0
 
     for cat in (
@@ -305,6 +312,19 @@ def gen_equipment():
         enum.sort(key=lambda x: x[5])
         for i in range(len(enum)):
             enum[i] = tuple(enum[i][:-1])
+        #
+        enum_search = enum.copy()
+        for i in range(len(enum_search)):
+            item = enum_search[i]
+            enum_search[i] = (
+                item[0],
+                f"{item[1]} - {item[2]}",
+                item[2],
+                item[3],
+                item[4],
+            )
+        EQUIPMENT_ENUM_SEARCH.extend(enum_search)
+        #
         # enum.insert(0, ("", cat, ""))
         EQUIPMENT_ENUM.extend(enum)
 
@@ -315,19 +335,7 @@ def get_prop(this, context):
 
 
 def get_prop_search(this, context):
-    ent_enum = PROP_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-        else:
-            ent_enum[i] = (
-                ent_enum[i][0],
-                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
-                ent_enum[i][2],
-                ent_enum[i][3],
-                ent_enum[i][4],
-            )
-    return ent_enum
+    return PROP_ENUM_SEARCH
 
 
 def add_prop_pre(this, context: Context):
@@ -370,8 +378,9 @@ def add_prop(inter_name="", entity=None, undo=False):
 
 
 def gen_prop():
-    global PROP_ENUM
+    global PROP_ENUM, PROP_ENUM_SEARCH
     PROP_ENUM = []
+    PROP_ENUM_SEARCH = []
     count = 0
 
     for cat in (
@@ -408,6 +417,19 @@ def gen_prop():
         enum.sort(key=lambda x: x[5])
         for i in range(len(enum)):
             enum[i] = tuple(enum[i][:-1])
+        #
+        enum_search = enum.copy()
+        for i in range(len(enum_search)):
+            item = enum_search[i]
+            enum_search[i] = (
+                item[0],
+                f"{item[1]} - {item[2]}",
+                item[2],
+                item[3],
+                item[4],
+            )
+        PROP_ENUM_SEARCH.extend(enum_search)
+        #
         # enum.insert(0, ("", cat, ""))
         PROP_ENUM.extend(enum)
 
@@ -420,24 +442,13 @@ def get_character_enum(this, context):
 
 
 def get_character_enum_search(this, context):
-    ent_enum = CHARACTER_ENUM.copy()
-    for i in range(len(ent_enum) - 1, -1, -1):
-        if ent_enum[i][0] == "":
-            ent_enum.pop(i)
-        else:
-            ent_enum[i] = (
-                ent_enum[i][0],
-                f"{ent_enum[i][1]} - {ent_enum[i][2]}",
-                ent_enum[i][2],
-                ent_enum[i][3],
-                ent_enum[i][4],
-            )
-    return ent_enum
+    return CHARACTER_ENUM_SEARCH
 
 
 def gen_character():
-    global CHARACTER_ENUM
+    global CHARACTER_ENUM, CHARACTER_ENUM_SEARCH
     CHARACTER_ENUM = []
+    CHARACTER_ENUM_SEARCH = []
     count = 0
 
     for cat in (
@@ -470,6 +481,19 @@ def gen_character():
                 )
                 count += 1
         enum.sort(key=lambda x: x[1])
+        #
+        enum_search = enum.copy()
+        for i in range(len(enum_search)):
+            item = enum_search[i]
+            enum_search[i] = (
+                item[0],
+                f"{item[1]} - {item[2]}",
+                item[2],
+                item[3],
+                item[4],
+            )
+        CHARACTER_ENUM_SEARCH.extend(enum_search)
+        #
         CHARACTER_ENUM.extend(enum)
 
 

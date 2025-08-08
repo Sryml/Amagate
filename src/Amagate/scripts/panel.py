@@ -209,9 +209,13 @@ class AMAGATE_PT_Animation(AG_Panel, bpy.types.Panel):
         column.prop(scene_data, "armature_obj", text="Armature")
         column.separator(type="LINE")
 
-        column.operator(
+        # 导出
+        row = layout.row(align=True)
+        row.operator(
             OP.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
-        )
+        ).main = True  # type: ignore
+        row.operator_menu_enum(OP.OT_ExportAnim.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        # 导入
         column.operator(
             OP.OT_ImportAnim.bl_idname, text="Import Animation", icon="IMPORT"
         )

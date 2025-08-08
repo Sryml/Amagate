@@ -890,7 +890,7 @@ class OT_SkyTexture_Open(bpy.types.Operator):
     def execute(self, context: Context):
         if not self.filepath.lower().endswith(data.IMAGE_FILTER):
             self.report({"ERROR"}, "No valid files selected")
-            return {"CANCELLED"}
+            return {"FINISHED"}
 
         curr_dir = bpy.path.abspath("//")
         # 相同驱动器
@@ -909,7 +909,7 @@ class OT_SkyTexture_Open(bpy.types.Operator):
 
     def invoke(self, context, event):
         # 设为上次选择目录，文件名为空
-        self.filepath = self.directory
+        # self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 

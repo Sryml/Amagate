@@ -643,7 +643,9 @@ class OT_Inventory_Preview(bpy.types.Operator):
     bl_options = {"INTERNAL"}
 
     def get_items(self, context: Context):
-        return [("0", "0", "", self.icon_id, 0)]
+        items = [("0", "0", "", self.icon_id, 0)]
+        OT_Inventory_Preview.get_items.items = items
+        return items
 
     Kind: StringProperty(default="")  # type: ignore
     icon_id: IntProperty(default=0)  # type: ignore
@@ -900,7 +902,7 @@ class OT_ImportBOD(bpy.types.Operator):
         filepath = self.filepath
         if os.path.splitext(filepath)[1].lower() != ".bod":
             self.report({"ERROR"}, "Not a bod file")
-            return {"CANCELLED"}
+            return {"FINISHED"}
 
         self.import_bod(context, filepath)
         return {"FINISHED"}
@@ -1508,7 +1510,7 @@ class OT_ImportBOD(bpy.types.Operator):
 
     def invoke(self, context: Context, event):
         # 设为上次选择目录，文件名为空
-        self.filepath = self.directory
+        # self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -1631,7 +1633,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 self.report({"ERROR"}, "Missing bone vertex group")
                 entity.to_mesh_clear()
                 bpy.data.meshes.remove(entity.data)  # type: ignore
-                return {"CANCELLED"}
+                return {"FINISHED"}
             groups_idx = [entity.vertex_groups[name].index for name in bone_names]
             for v in ent_mesh.vertices:
                 # has_vg = next((1 for g in v.groups if g.group in groups_idx), 0)
@@ -1643,7 +1645,7 @@ class OT_ExportBOD(bpy.types.Operator):
                     )
                     entity.to_mesh_clear()
                     bpy.data.meshes.remove(entity.data)  # type: ignore
-                    return {"CANCELLED"}
+                    return {"FINISHED"}
 
             #
             prev_cursor = cursor.location.copy()
