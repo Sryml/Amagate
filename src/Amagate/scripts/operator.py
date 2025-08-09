@@ -543,17 +543,25 @@ class OT_Test(bpy.types.Operator):
 
         name_lst = []
         count = 0
+        change_count = 0
         models_path = Path(os.path.join(data.ADDON_PATH, "Models"))
-        filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
-        nodes_data = pickle.load(open(filepath, "rb"))
+        # filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
+        # nodes_data = pickle.load(open(filepath, "rb"))
+        scalc_init = Vector((1, 1, 1))
         for dir in ("3DObjs", "3DChars"):
             root = models_path / dir
             for f_name in os.listdir(root):
                 if f_name.lower().endswith(".blend"):
                     count += 1
                     filepath = root / f_name
+                    changed = False
                     with contextlib.redirect_stdout(StringIO()):
                         bpy.ops.wm.open_mainfile(filepath=str(filepath))
+                    for obj in bpy.data.objects:
+                        if obj.name.lower().startswith("blade_anchor_"):
+                            if obj.scale != scalc_init:
+                                obj.scale = (1, 1, 1)
+                                changed = True
                     # ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
                     # if entity.get("AG.ambient_color") is not None:
                     #     continue
@@ -561,19 +569,21 @@ class OT_Test(bpy.types.Operator):
                     # entity.id_properties_ui("AG.ambient_color").update(
                     #     subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
                     # )
-                    for mat in bpy.data.materials:
-                        # tex = mat.node_tree.nodes["Image Texture"].image  # type: ignore
-                        # data.import_nodes(mat, nodes_data["Export.EntityTex"])
-                        mat.use_fake_user = False
-                        # mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
-                        # mat.use_backface_culling = True
+                    # for mat in bpy.data.materials:
+                    # tex = mat.node_tree.nodes["Image Texture"].image  # type: ignore
+                    # data.import_nodes(mat, nodes_data["Export.EntityTex"])
+                    # mat.use_fake_user = False
+                    # mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
+                    # mat.use_backface_culling = True
                     # for img in bpy.data.images:
                     #     if img.name != "Render Result":
                     #         if not img.filepath.startswith("//textures"):
                     #             name_lst.append(f"{dir}/{f_name}")
                     #             break
-                    bpy.ops.wm.save_mainfile()
-        print(count)
+                    if changed:
+                        bpy.ops.wm.save_mainfile()
+                        change_count += 1
+        print(count, change_count)
 
     def test2(self, context: Context):
         obj = context.object
@@ -860,6 +870,8 @@ class OT_ExportAnim(bpy.types.Operator):
         # 骨骼数量
         count = len(armature.bones)
         buffer.write(struct.pack("I", count))
+        # 帧长度
+        frame_len = max(int(fc.range()[1]) for fc in channelbag.fcurves)
         # 所有骨骼的旋转姿态
         for bone_idx in range(count):
             bone = armature.bones[bone_idx]
@@ -872,17 +884,15 @@ class OT_ExportAnim(bpy.types.Operator):
                 for i in range(4)
                 if (item := channelbag.fcurves.find(data_path, index=i)) is not None
             ]
-            if len(fcurves) != 4:
-                buffer.write(struct.pack("I", 0))
-                continue
-            frame_len = int(fcurves[0].range()[1])
-            if frame_len < 1:
-                buffer.write(struct.pack("I", 0))
-                continue
+
             #
             buffer.write(struct.pack("I", frame_len))
+            fcurves_len = len(fcurves)
             for frame in range(1, frame_len + 1):
-                quat = Quaternion(fcurves[i].evaluate(frame) for i in range(4))
+                if fcurves_len != 4:
+                    quat = Quaternion()
+                else:
+                    quat = Quaternion(fcurves[i].evaluate(frame) for i in range(4))
                 quat_glob = bone_quat @ quat
                 if parent_bone:
                     parent_quat = armature.bones[parent_bone.name].matrix_local.to_quaternion().inverted()  # type: ignore
@@ -895,25 +905,27 @@ class OT_ExportAnim(bpy.types.Operator):
 
         # 根骨骼位置姿态
         bone = armature.bones[0]
-        matrix = bone.matrix
+        matrix = bone.matrix_local.copy()
+        location = bone.matrix_local.translation
         data_path = f'pose.bones["{bone.name}"].location'
         fcurves = [
             item
             for i in range(3)
             if (item := channelbag.fcurves.find(data_path, index=i)) is not None
         ]
-        if len(fcurves) != 3:
-            buffer.write(struct.pack("I", 0))
-        frame_len = int(fcurves[0].range()[1])
-        if frame_len < 1:
-            buffer.write(struct.pack("I", 0))
+
         #
         buffer.write(struct.pack("I", frame_len))
+        fcurves_len = len(fcurves)
         for frame in range(1, frame_len + 1):
-            co = Vector(fcurves[i].evaluate(frame) for i in range(3))
-            co_glob = target_space_inv @ (matrix @ co)
-            co_glob *= 1000
-            buffer.write(struct.pack("ddd", *co_glob))
+            if fcurves_len != 3:
+                co = Vector()
+            else:
+                co = Vector(fcurves[i].evaluate(frame) for i in range(3))
+            co_glob = matrix @ co
+            co_local = target_space_inv @ (co_glob - location)
+            co_local *= 1000
+            buffer.write(struct.pack("ddd", *co_local))
         #
         with open(self.filepath, "wb") as f:
             f.write(buffer.getvalue())
@@ -1010,6 +1022,7 @@ class OT_ImportAnim(bpy.types.Operator):
         directory = Path(self.directory)
         files = [i.name for i in self.files if i.name]
         armature_obj = scene_data.armature_obj  # type: Object
+        armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
         ag_utils.select_active(context, armature_obj)
@@ -1029,6 +1042,7 @@ class OT_ImportAnim(bpy.types.Operator):
         # depsgraph = context.evaluated_depsgraph_get()
         # data_path外部需要为单引号，否则不识别
         # rot_data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+        fail_list = []
 
         for filename in files:
             filepath = directory / filename
@@ -1040,6 +1054,7 @@ class OT_ImportAnim(bpy.types.Operator):
                 # 骨骼数量
                 count = unpack("I", f)[0]
                 if count != bone_count:
+                    fail_list.append(filename)
                     continue
                 # 创建动作
                 action = bpy.data.actions.get(action_name)
@@ -1062,7 +1077,9 @@ class OT_ImportAnim(bpy.types.Operator):
                     bone = armature_obj.pose.bones[0]
                     bone.keyframe_insert("location", frame=1, group=bone.name)
                     channelbag = next(c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot)  # type: ignore
-                # channelbag.fcurves.clear()
+                channelbag.fcurves.clear()
+                for i in channelbag.groups:
+                    channelbag.groups.remove(i)
                 # 清空姿态变换
                 bpy.ops.pose.transforms_clear()
                 # 创建通道并清除帧
@@ -1102,10 +1119,13 @@ class OT_ImportAnim(bpy.types.Operator):
                         quat = Quaternion(unpack("ffff", f))
                         # 子骨骼的旋转数据是相对于父骨骼的
                         if parent_bone:
-                            parent_quat = armature_obj.data.bones[parent_bone.name].matrix_local.to_quaternion()  # type: ignore
+                            parent_quat = armature.bones[
+                                parent_bone.name
+                            ].matrix_local.to_quaternion()
                             # parent_quat = parent_bone.matrix.to_quaternion()
                         # 根骨骼的旋转数据是全局的
                         else:
+                            # q = armature.bones[bone.name].matrix_local.to_quaternion()
                             parent_quat = target_space_q
 
                         loc, rot, scale = bone.matrix.decompose()
@@ -1116,19 +1136,20 @@ class OT_ImportAnim(bpy.types.Operator):
                             "rotation_quaternion", frame=frame, group=bone_name
                         )
                 # 根骨骼位置姿态
-                matrix_inv = armature_obj.data.bones[  # type: ignore
-                    0
-                ].matrix.inverted()  # type: Matrix
+                bone = armature.bones[0]
+                matrix = bone.matrix_local.inverted()  # type: Matrix
+                location = bone.matrix_local.translation
                 frame_len = unpack("I", f)[0]
                 for frame in range(1, frame_len + 1):
                     co = Vector(unpack("ddd", f)) / 1000
-                    # 转换为相对坐标
-                    co = matrix_inv @ (target_space_q @ co)
+                    # 添加骨骼偏移
+                    co_glob = (target_space_q @ co) + location
+                    co_local = matrix @ co_glob
                     #
                     for idx in range(3):
                         channelbag.fcurves.find(
                             loc_data_path, index=idx
-                        ).keyframe_points.insert(frame, co[idx])
+                        ).keyframe_points.insert(frame, co_local[idx])
         #
         # print(time.time() - start_time)
         #
@@ -1144,6 +1165,12 @@ class OT_ImportAnim(bpy.types.Operator):
                     area.ui_type = "DOPESHEET"
                     area.spaces[0].ui_mode = "ACTION"  # type: ignore
                     break
+        #
+        if fail_list:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Inconsistent number of bones')}:\n{', '.join(fail_list)}",
+            )
 
 
 ############################

@@ -210,7 +210,7 @@ class AMAGATE_PT_Animation(AG_Panel, bpy.types.Panel):
         column.separator(type="LINE")
 
         # 导出
-        row = layout.row(align=True)
+        row = column.row(align=True)
         row.operator(
             OP.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
         ).main = True  # type: ignore

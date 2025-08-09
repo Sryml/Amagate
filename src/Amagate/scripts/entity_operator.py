@@ -1067,6 +1067,9 @@ class OT_ImportBOD(bpy.types.Operator):
                 matrix = Matrix(lst)
                 matrix.transpose()  # 转置
                 matrix.translation /= 1000  # 转换位置单位
+                # 清除缩放
+                loc, rot, scale = matrix.decompose()
+                matrix = Matrix.LocRotScale(loc, rot, None)
 
                 numverts = unpack("I", f)[0]
                 vert_start = unpack("I", f)[0]
@@ -1269,6 +1272,9 @@ class OT_ImportBOD(bpy.types.Operator):
                 matrix = Matrix(lst)
                 matrix.transpose()  # 转置
                 matrix.translation /= 1000  # 转换位置单位
+                # 清除缩放
+                loc, rot, scale = matrix.decompose()
+                matrix = Matrix.LocRotScale(loc, rot, None)
                 #
                 obj_name = f"Blade_Anchor_{name}"
                 obj = bpy.data.objects.new(
@@ -1667,7 +1673,7 @@ class OT_ExportBOD(bpy.types.Operator):
         glob_rot_inv = (
             Matrix.Translation(origin)
             @ Matrix.LocRotScale(origin, rot, None).inverted()
-        )
+        )  # type: Matrix
 
         # 导出BOD
         buffer = BytesIO()
@@ -1934,6 +1940,10 @@ class OT_ExportBOD(bpy.types.Operator):
                     parent_idx = 0
 
             matrix = glob_rot_inv @ obj.matrix_world.copy()
+            # 清除缩放
+            loc, rot, scale = matrix.decompose()
+            matrix = Matrix.LocRotScale(loc, rot, None)
+
             matrix.translation -= origin
             matrix = target_space_inv @ matrix
             if parent_matrix:
