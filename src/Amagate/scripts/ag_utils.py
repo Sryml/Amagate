@@ -586,6 +586,77 @@ def get_camera_transform(cam):
     return cam_pos, target_pos
 
 
+############################
+def get_pose_matrix_from_fcurves(armature, bone_name, channelbag, frame):
+    # type: (Object, str, bpy.types.Action, int) -> Any
+    """计算骨骼的 Pose 变换矩阵"""
+    pose_bone = armature.pose.bones[bone_name]
+
+    # 默认使用当前骨骼的变换（如果没有动画）
+    loc = pose_bone.location.copy()
+    rot = (
+        pose_bone.rotation_quaternion.copy()
+        if pose_bone.rotation_mode == "QUATERNION"
+        else pose_bone.rotation_euler.copy()
+    )
+    scale = pose_bone.scale.copy()
+    attr = (
+        "rotation_quaternion"
+        if pose_bone.rotation_mode == "QUATERNION"
+        else "rotation_euler"
+    )
+    data_path = f'pose.bones["{bone_name}"].{attr}'
+
+    # 从 F-Curves 获取动画数据（覆盖默认值）
+    for i in range(4):
+        fc = channelbag.fcurves.find(data_path, index=i)
+        if fc is not None:
+            rot[i] = fc.evaluate(frame)
+
+    return rot.to_quaternion() if isinstance(rot, Euler) else rot
+
+
+# def get_bone_local_matrix(armature, bone_name, channelbag, frame):
+#     # type: (Object, str, bpy.types.Action, int) -> Matrix
+#     """骨骼的最终局部变换 = Pose 矩阵 @ Rest 矩阵"""
+#     pose_matrix = get_pose_matrix_from_fcurves(armature, bone_name, channelbag, frame)
+#     data_bone = armature.data.bones[bone_name] # type: ignore
+
+#     # Rest 矩阵（Head -> Tail 的变换，包含 Bone Length）
+#     rest_matrix = data_bone.matrix_local.copy()
+#     if data_bone.parent:
+#         rest_matrix = data_bone.parent.matrix_local.inverted() @ rest_matrix
+
+#     return pose_matrix @ rest_matrix
+
+
+# 获取骨骼的世界变换矩阵
+def get_bone_world_matrix(armature, bone_name, channelbag, frame):
+    # type: (Object, str, bpy.types.Action, int) -> Any
+    world_matrix = Quaternion()
+    current_bone = armature.pose.bones[bone_name]
+
+    # 存储骨骼链（从当前骨骼到根骨骼）
+    bone_chain = [current_bone]  # type: list[bpy.types.PoseBone]
+    parent_bone = current_bone.parent
+    while parent_bone:
+        bone_chain.append(parent_bone)
+        parent_bone = parent_bone.parent
+
+    # 从根骨骼到当前骨骼，逐级计算
+    for bone in reversed(bone_chain):
+        data_bone = armature.data.bones[bone.name]  # type: ignore
+        bone_quat = data_bone.matrix_local.to_quaternion()
+        quat_pose = get_pose_matrix_from_fcurves(armature, bone.name, channelbag, frame)
+        quat = bone_quat @ quat_pose
+        world_matrix = world_matrix @ quat
+
+    return world_matrix @ quat_pose.inverted(), world_matrix
+
+
+############################
+
+
 def set_dict(this, key, value):
     this[key] = value
 

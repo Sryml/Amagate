@@ -312,6 +312,7 @@
     ("Operator", "Export Animation"): "导出动画",
     ("*", "Export Animation as ..."): "导出动画为...",
     ("Operator", "Import Animation"): "导入动画",
+    ("Operator", "Mirror Animation"): "镜像动画",
     ("*", "Please select armature object first"): "请先选择骨架对象",
     ("*", "Please select the action to export in the Action Editor"): "请在动作编辑器中选择要导出的动作",
     ("*", "Please select the action slot to export in the Action Editor"): "请在动作编辑器中选择要导出的动作槽",
