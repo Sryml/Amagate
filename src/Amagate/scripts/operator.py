@@ -1012,7 +1012,8 @@ class OT_ImportAnim(bpy.types.Operator):
             return {"CANCELLED"}
 
         # 设为上次选择目录，文件名为空
-        # self.filepath = self.directory
+        if not self.filepath:
+            self.filepath = self.directory
         context.window_manager.fileselect_add(self)
         return {"RUNNING_MODAL"}
 
@@ -1186,7 +1187,9 @@ class OT_MirrorAnim(bpy.types.Operator):
         if not armature_obj:
             self.report({"WARNING"}, "Please select armature object first")
             return {"CANCELLED"}
-
+        if not armature_obj.visible_get():
+            self.report({"WARNING"}, "Armature object is not visible")
+            return {"CANCELLED"}
         #
         if not armature_obj.animation_data:
             self.report({"ERROR"}, "Animation data not found")
@@ -1296,11 +1299,11 @@ class OT_MirrorAnim(bpy.types.Operator):
             # bpy.ops.constraint.childof_set_inverse()
         bpy.ops.object.mode_set(mode="OBJECT")
 
-        count = len(armature.bones)
+        bones_num = len(armature.bones)
         # 曲线字典
         fcurves_dict = {}  # type: dict[str, list[bpy.types.FCurve]]
         fcurves_loc = []  # type: list[bpy.types.FCurve]
-        for bone_idx in range(count):
+        for bone_idx in range(bones_num):
             bone = armature.bones[bone_idx]
             bone_name = bone.name
             fcurves = []
@@ -1325,10 +1328,6 @@ class OT_MirrorAnim(bpy.types.Operator):
                     fcurves_loc.append(fc)
 
         # 烘焙动作
-        # for i in range(len(channelbag.fcurves) - 1, -1, -1):
-        #     fc = channelbag.fcurves[i]
-        #     if "location" not in fc.data_path:
-        #         channelbag.fcurves.remove(fc)
         ag_utils.select_active(context, armature_obj)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
@@ -1336,101 +1335,50 @@ class OT_MirrorAnim(bpy.types.Operator):
         matrix_root = armature.bones[0].matrix_local.copy()
         matrix_root_inv = matrix_root.inverted()
         for frame in range(1, frame_len + 1):
-            for bone_idx in range(count):
-                scene.frame_set(frame)
+            scene.frame_set(frame)
+            glob_rot_lst = {
+                b.name: b.matrix.to_quaternion() for b in armature_obj.pose.bones
+            }
+            for bone_idx in range(bones_num):
                 bone = armature_obj.pose.bones[bone_idx]
                 bone_name = bone.name
                 fcurves = fcurves_dict[bone_name]
                 # 参考骨骼
                 bone_ref = armature_child.pose.bones[bone_name]
-                # quat_curr = armature.bones[bone_name].matrix_local.to_quaternion()
-                # quat_pose = bone_ref.matrix.to_quaternion()
-                # quat_local = quat_curr.inverted() @ quat_pose
-                # if frame != 1:
-                #     quat_local =  quat_local @ quat_curr
-                # quat_local = quat_curr @ quat_curr.inverted() @ quat_pose
-                # for idx in range(4):
-                #     fcurves[idx].keyframe_points.insert(frame, quat_local[idx])
+                quat_curr = glob_rot_lst[bone_name]
+                quat_curr_inv = quat_curr.inverted()
+                quat_pose = bone_ref.matrix.to_quaternion()
+                quat_glob = quat_pose @ quat_curr_inv
+
+                quat = quat_curr_inv @ quat_glob @ quat_curr  # 世界转局部
+                quat2 = (bone.rotation_quaternion @ quat).normalized()
+
+                for idx in range(4):
+                    fcurves[idx].keyframe_points.insert(frame, quat2[idx])
                 if bone_idx == 0:
                     loc_pose = bone_ref.matrix.to_translation()
                     loc = matrix_root_inv @ loc_pose
                     for idx in range(3):
                         fcurves_loc[idx].keyframe_points.insert(frame, loc[idx])
-                    #
-                    # print(quat_curr.to_euler(), quat_pose.to_euler())
+                #
+                glob_rot_lst[bone_name] = quat_pose
+                for b in bone.children_recursive:
+                    glob_rot_lst[b.name] = (
+                        quat_glob @ glob_rot_lst[b.name]
+                    ).normalized()
 
-                loc, rot, scale = bone.matrix.decompose()
-                rot = bone_ref.matrix.to_quaternion()
-                bone.matrix = Matrix.LocRotScale(loc, rot, scale)
-                bone.keyframe_insert(
-                    "rotation_quaternion", frame=frame, group=bone_name
-                )
+                # loc, rot, scale = bone.matrix.decompose()
+                # rot = bone_ref.matrix.to_quaternion()
+                # bone.matrix = Matrix.LocRotScale(loc, rot, scale)
+                # bone.keyframe_insert(
+                #     "rotation_quaternion", frame=frame, group=bone_name
+                # )
 
         # 清理
         bpy.ops.object.mode_set(mode="OBJECT")
         bpy.data.actions.remove(armature_mirror.animation_data.action)  # type: ignore
         bpy.data.armatures.remove(armature_child.data)  # type: ignore
         bpy.data.armatures.remove(armature_mirror.data)  # type: ignore
-
-        """
-        count = len(armature.bones)
-        for bone_idx in range(count):
-            bone = armature.bones[bone_idx]
-            matrix = bone.matrix_local.copy()
-            bone_quat = matrix.to_quaternion().normalized()
-            bone_quat_inv = bone_quat.inverted()
-            bone_name = bone.name
-            # 对称骨骼
-            sym_bone_name = sym_names.get(bone_name, None)
-            sym_bone = None
-            if sym_bone_name:
-                sym_bone = armature.bones[sym_bone_name]
-            #
-            data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
-            fcurves = [
-                item
-                for i in range(4)
-                if (item := channelbag.fcurves.find(data_path, index=i)) is not None
-            ]
-            #
-            quat_pose = Quaternion()
-            fcurves_len = len(fcurves)
-            frame_start = frame_len + 1
-            if fcurves_len == 4:
-                for frame in range(1, 1 + 1):
-                    if sym_bone is None:
-                        quat_glob, quat_glob_pose = ag_utils.get_bone_world_matrix(
-                            armature_obj, bone_name, channelbag, frame
-                        )
-                        quat_glob_inv = quat_glob.inverted()
-                        # print(quat_glob.to_euler(), quat_glob_pose.to_euler())
-                        # quat_glob.y = -quat_glob.y
-                        # quat_glob.z = -quat_glob.z
-                        # quat_glob_pose.y = -quat_glob_pose.y
-                        # quat_glob_pose.z = -quat_glob_pose.z
-                        quat = quat_glob_inv @ quat_glob_pose
-                        # quat2 = quat_glob @ quat @ quat_glob_inv
-                        quat2 = quat_glob_pose @ quat_glob_inv
-                        quat2.y = -quat2.y
-                        quat2.z = -quat2.z
-                        quat_local = bone_quat_inv @ quat2 @ bone_quat
-                        # quat_local = quat_glob_inv @ quat_pose
-                        # quat_local = bone_quat_inv @ quat
-                        for idx in range(4):
-                            fcurves[idx].keyframe_points.insert(
-                                frame_start, quat_local[idx]
-                            )
-                        # rot: Quaternion
-                        # loc, rot, scale = bone.matrix.decompose()  # type: ignore
-                        # rot = Quaternion((rot.w,rot.x,-rot.y,-rot.z))
-                        # bone.matrix = Matrix.LocRotScale(loc, rot, scale)
-                        # bone.keyframe_insert(
-                        #         "rotation_quaternion", frame=frame_start, group=bone_name
-                        #     )
-                    frame_start += 1
-        #
-        # bpy.ops.object.mode_set(mode="OBJECT")
-        """
 
 
 ############################
