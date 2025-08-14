@@ -666,6 +666,19 @@ class OT_Inventory_Preview(bpy.types.Operator):
         )
 
 
+# 重置实体名称
+class OT_ResetEntityName(bpy.types.Operator):
+    bl_idname = "amagate.ent_reset_name"
+    bl_label = "Reset"
+    bl_description = "Name it with 'Kind_' as a prefix"
+    bl_options = {"UNDO", "INTERNAL"}
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        scene_data.EntityData.set_name(entity_data.PROP_RESET_NAME)
+        return {"FINISHED"}
+
+
 ############################
 ############################ 编辑操作
 ############################

@@ -209,6 +209,7 @@
     ("*", "Object Type"): "物体类型",
     ("ObjType", "Assigned By Script"): "由脚本分配",
     ("*", "Name of the animation created by Bladex.LoadSampledAnimation; the game will crash if it does not exist or if the skeleton does not match"): "由 Bladex.LoadSampledAnimation 创建的动画名称；如果不存在或骨架不匹配，游戏将崩溃",
+    ("*", "Name it with 'Kind_' as a prefix"): "以 'Kind_' 作为前缀命名",
     ("*", "Instance Data"): "实例化数据",
     ("*", "Character"): "角色",
     ("*", "Actor"): "演员",

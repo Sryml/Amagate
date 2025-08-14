@@ -84,6 +84,8 @@ OBJ_CHARACTER = 20
 #
 OBJ_NONE = 99
 
+#
+PROP_RESET_NAME = 1
 
 ############################
 ############################
@@ -995,18 +997,26 @@ class EntityProperty(bpy.types.PropertyGroup):
                 return
             if value == "":
                 return
-            #
-            if len(selected_entities) != 1:
-                start = 1
+            # 重置名称的情况
+            if value == PROP_RESET_NAME:
                 for ent in selected_entities:
                     ent_data = ent.amagate_data.get_entity_data()
-                    new_value = f"{value}_{start}"
-                    setattr(ent_data, key, new_value)
-                    start += 1
+                    if not ent_data.Name.startswith(f"{ent_data.Kind}_"):
+                        new_value = get_name(context, f"{ent_data.Kind}_")
+                        setattr(ent_data, key, new_value)
+            # 正常修改名称
             else:
-                ent = active_entity
-                ent_data = ent.amagate_data.get_entity_data()
-                setattr(ent_data, key, value)
+                if len(selected_entities) != 1:
+                    start = 1
+                    for ent in selected_entities:
+                        ent_data = ent.amagate_data.get_entity_data()
+                        new_value = f"{value}_{start}"
+                        setattr(ent_data, key, new_value)
+                        start += 1
+                else:
+                    ent = active_entity
+                    ent_data = ent.amagate_data.get_entity_data()
+                    setattr(ent_data, key, value)
             #
             data.area_redraw("OUTLINER")
             # bpy.ops.ed.undo_push(message="Change Name")

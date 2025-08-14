@@ -1007,8 +1007,12 @@ class OT_ImportAnim(bpy.types.Operator):
 
     def invoke(self, context: Context, event: bpy.types.Event):
         scene_data = context.scene.amagate_data
-        if not scene_data.armature_obj:
+        armature_obj = scene_data.armature_obj  # type: Object
+        if not armature_obj:
             self.report({"WARNING"}, "Please select armature object first")
+            return {"CANCELLED"}
+        if not armature_obj.visible_get():
+            self.report({"WARNING"}, "Armature object is not visible")
             return {"CANCELLED"}
 
         # 设为上次选择目录，文件名为空

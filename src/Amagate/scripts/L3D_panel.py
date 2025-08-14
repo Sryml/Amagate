@@ -1347,6 +1347,9 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
         col.alignment = "LEFT"
         col.label(text=f"{pgettext('Name')}:")
         row.prop(scene_data.EntityData, "Name", text="")
+        row.operator(
+            OP_ENTITY.OT_ResetEntityName.bl_idname, text="", icon="FILE_REFRESH"
+        )
 
         row = column.row()
         col = row.column()
