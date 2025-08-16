@@ -147,6 +147,7 @@
     ("*", "Is 2-Sphere"): "二维球面",
     ("Operator", "Convert to Sector"): "转换为扇区",
     ("Operator", "Create Ghost Sector"): "创建虚拟扇区",
+    ("Operator", "Select Concave"): "选择凹扇区",
     ("*", "Convert selected objects to sector"): "将所选物体转换为扇区",
     ("*", "No mesh objects selected"): "未选择网格物体",
     ("Operator", "Connect Sectors"): "连接扇区",

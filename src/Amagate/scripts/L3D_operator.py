@@ -1071,6 +1071,53 @@ class OT_SelectConnected(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 按组选择
+class OT_SelectByGroup(bpy.types.Operator):
+    bl_idname = "amagate.sec_select_by_group"
+    bl_label = "Select By Group"
+    bl_options = {"UNDO", "INTERNAL"}
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        # bpy.ops.object.select_all(action="DESELECT")
+        index = int(self.action)
+        for item in scene_data["SectorManage"]["sectors"].values():
+            sec = item["obj"]  # type: Object
+            sec_data = sec.amagate_data.get_sector_data()
+            group = sec_data.group
+            if (group >> index) & 1:
+                sec.select_set(True)
+
+        return {"FINISHED"}
+
+
+# 选择凹扇区
+class OT_SelectConcave(bpy.types.Operator):
+    bl_idname = "amagate.sec_select_concave"
+    bl_label = "Select Concave"
+    bl_description = "Select Concave Sectors"
+    bl_options = {"INTERNAL", "UNDO"}
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        # bpy.ops.object.select_all(action="DESELECT")
+        for item in scene_data["SectorManage"]["sectors"].values():
+            sec = item["obj"]  # type: Object
+            sec_data = sec.amagate_data.get_sector_data()
+            if not sec_data.is_convex:
+                sec.select_set(True)
+        return {"FINISHED"}
+
+
 # 复制面纹理设置
 class OT_CopyFaceTexture(bpy.types.Operator):
     bl_idname = "amagate.copy_face_texture"

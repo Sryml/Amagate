@@ -573,6 +573,10 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname, icon="ADD")
         # 选择连接扇区
         col.operator(OP_L3D.OT_SelectConnected.bl_idname, icon="RESTRICT_SELECT_OFF")
+        row = col.row()
+        # 按组选择
+        row.operator_menu_enum(OP_L3D.OT_SelectByGroup.bl_idname, "action")
+        row.operator(OP_L3D.OT_SelectConcave.bl_idname)
 
         #
         box = layout.box()
