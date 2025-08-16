@@ -912,9 +912,9 @@ class OT_ImportBOD(bpy.types.Operator):
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
-        filepath = self.filepath
-        if os.path.splitext(filepath)[1].lower() != ".bod":
-            self.report({"ERROR"}, "Not a bod file")
+        filepath = Path(self.filepath)
+        if not (filepath.is_file() and filepath.suffix.lower() == ".bod"):
+            self.report({"ERROR"}, f"{pgettext('Invalid file')}: {filepath.name}")
             return {"FINISHED"}
 
         self.import_bod(context, filepath)

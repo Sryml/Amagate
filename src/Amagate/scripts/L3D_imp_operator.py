@@ -11,6 +11,7 @@ import math
 import os
 import time
 import contextlib
+from pathlib import Path
 
 from io import StringIO, BytesIO
 from typing import Any, TYPE_CHECKING
@@ -1183,10 +1184,10 @@ class OT_ImportMap(bpy.types.Operator):
     #     return context.scene.amagate_data.is_blade and context.area.type == "VIEW_3D"
 
     def execute(self, context):
-        filepath = self.filepath
-        if os.path.splitext(filepath)[1].lower() != ".bw":
-            self.report({"ERROR"}, "No bw file selected")
-            return {"CANCELLED"}
+        filepath = Path(self.filepath)
+        if not (filepath.is_file() and filepath.suffix.lower() == ".bw"):
+            self.report({"ERROR"}, f"{pgettext('Invalid file')}: {filepath.name}")
+            return {"FINISHED"}
         # file_name = next(
         #     (f.name for f in self.files if f.name[-3:].lower() == ".bw"), None
         # )
@@ -1194,7 +1195,7 @@ class OT_ImportMap(bpy.types.Operator):
         #     self.report({"ERROR"}, "No bw file selected")
         #     return {"CANCELLED"}
 
-        L3D_data.LOAD_POST_CALLBACK = (OP_L3D.InitMap, (filepath,))
+        L3D_data.LOAD_POST_CALLBACK = (OP_L3D.InitMap, (str(filepath),))
         bpy.ops.wm.read_homefile(app_template="")
 
         return {"FINISHED"}

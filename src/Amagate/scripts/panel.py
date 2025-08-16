@@ -195,34 +195,56 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
     bl_order = 1
 
     def draw(self, context: Context):
+        scene = context.scene
+        scene_data = scene.amagate_data
         layout = self.layout
-
-
-class AMAGATE_PT_Animation(AG_Panel, bpy.types.Panel):
-    bl_label = "Animation"
-    bl_parent_id = "AMAGATE_PT_AnimCam"
-
-    def draw(self, context: Context):
-        scene_data = context.scene.amagate_data
-        layout = self.layout
-        # column = layout.column()
-        layout.prop(scene_data, "armature_obj", text="Armature")
-        layout.separator(type="LINE")
+        # 动画
+        layout.label(text="Animation", icon="ANIM_DATA")
+        box = layout.box()
+        column = box.column()
+        column.prop(scene_data, "armature_obj", text="Armature")
+        column.separator(type="LINE")
 
         # 导出
-        row = layout.row(align=True)
+        row = column.row(align=True)
         row.operator(
             OP.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
         ).main = True  # type: ignore
         row.operator_menu_enum(OP.OT_ExportAnim.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
         # 导入
-        layout.operator(
+        column.operator(
             OP.OT_ImportAnim.bl_idname, text="Import Animation", icon="IMPORT"
         )
-        layout.separator(type="LINE")
+        column.separator(type="LINE")
         # 镜像
-        layout.operator(
+        column.operator(
             OP.OT_MirrorAnim.bl_idname, text="Mirror Animation", icon="MOD_MIRROR"
+        )
+
+        # 摄像机
+        layout.label(text="Camera", icon="CAMERA_DATA")
+        box = layout.box()
+        column = box.column()
+        # column.prop(scene_data, "camera_obj", text="Camera")
+        # 活跃摄像机
+        column.label(
+            text=f"{pgettext('Active Camera')}: {scene.camera.name if scene.camera else ''}"
+        )
+        column.separator(type="SPACE")
+        # 重置横滚角
+        column.operator(
+            OP.OT_ResetRoll.bl_idname, text="Reset Roll", icon="FILE_REFRESH"
+        )
+        column.separator(type="LINE")
+        # 导出
+        row = column.row(align=True)
+        row.operator(
+            OP.OT_ExportCamera.bl_idname, text="Export Camera", icon="EXPORT"
+        ).main = True  # type: ignore
+        row.operator_menu_enum(OP.OT_ExportCamera.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        # 导入
+        column.operator(
+            OP.OT_ImportCamera.bl_idname, text="Import Camera", icon="IMPORT"
         )
 
 

@@ -847,6 +847,11 @@ class OT_ExportAnim(bpy.types.Operator):
     directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.armature_obj is not None
+
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
         self.filepath = bpy.path.ensure_ext(self.filepath, ".bmv")
@@ -871,7 +876,7 @@ class OT_ExportAnim(bpy.types.Operator):
         count = len(armature.bones)
         buffer.write(struct.pack("I", count))
         # 帧长度
-        frame_len = max(int(fc.range()[1]) for fc in channelbag.fcurves)
+        frame_len = max(*(int(fc.range()[1]) for fc in channelbag.fcurves), 1)
         # 所有骨骼的旋转姿态
         for bone_idx in range(count):
             bone = armature.bones[bone_idx]
@@ -1001,6 +1006,11 @@ class OT_ImportAnim(bpy.types.Operator):
     #     layout = self.layout
     #     layout.prop(self, "x_axis_correction")
 
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.armature_obj is not None
+
     def execute(self, context: Context):
         self.execute2(context)
         return {"FINISHED"}
@@ -1051,6 +1061,9 @@ class OT_ImportAnim(bpy.types.Operator):
 
         for filename in files:
             filepath = directory / filename
+            if not (filepath.is_file() and filepath.suffix.lower() == ".bmv"):
+                continue
+
             action_name = filename[:-4]
             with open(filepath, "rb") as f:
                 # 内部名称
@@ -1072,6 +1085,7 @@ class OT_ImportAnim(bpy.types.Operator):
                 if not armature_obj.animation_data:
                     armature_obj.animation_data_create()
                 armature_obj.animation_data.action = action
+                #
                 if has_slot:
                     slot = next(
                         (i for i in action.slots if i.name_display == action_name), None
@@ -1079,6 +1093,7 @@ class OT_ImportAnim(bpy.types.Operator):
                     if not slot:
                         slot = action.slots.new("OBJECT", action_name)  # type: ignore
                     armature_obj.animation_data.action_slot = slot
+                    # 初始化层和轨道
                     bone = armature_obj.pose.bones[0]
                     bone.keyframe_insert("location", frame=1, group=bone.name)
                     channelbag = next(c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot)  # type: ignore
@@ -1184,6 +1199,11 @@ class OT_MirrorAnim(bpy.types.Operator):
     bl_label = "Mirror Animation"
     bl_description = "Mirror Animation"
     bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        return scene_data.armature_obj is not None
 
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
@@ -1383,6 +1403,336 @@ class OT_MirrorAnim(bpy.types.Operator):
         bpy.data.actions.remove(armature_mirror.animation_data.action)  # type: ignore
         bpy.data.armatures.remove(armature_child.data)  # type: ignore
         bpy.data.armatures.remove(armature_mirror.data)  # type: ignore
+
+
+############################
+# 摄像机导出
+class OT_ExportCamera(bpy.types.Operator):
+    bl_idname = "amagate.export_camera"
+    bl_label = "Export Camera"
+    bl_description = "Export Camera"
+    bl_options = {"INTERNAL"}
+
+    main: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
+    action: EnumProperty(
+        items=[
+            ("0", "Export Camera as ...", ""),
+        ],
+        options={"HIDDEN"},
+    )  # type: ignore
+    filter_glob: StringProperty(default="*.cam", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene = context.scene
+        return scene.camera
+
+    def execute(self, context: Context):
+        scene = context.scene
+        scene_data = scene.amagate_data
+        self.filepath = bpy.path.ensure_ext(self.filepath, ".cam")
+        action_name = Path(self.filepath).stem
+        if action_name == "":
+            self.report({"ERROR"}, "Invalid filename")
+            return {"FINISHED"}
+
+        camera_obj = scene.camera
+        camera = camera_obj.data  # type: bpy.types.Camera # type: ignore
+        #
+        channelbag = self.channelbag
+        channelbag_data = self.channelbag_data
+        buffer = BytesIO()
+        # 曲线
+        fcurves_loc = [
+            channelbag.fcurves.find("location", index=i) for i in range(3)
+        ]  # type: list[bpy.types.FCurve]
+        fcurves_rot = [
+            channelbag.fcurves.find("rotation_euler", index=i) for i in range(3)
+        ]  # type: list[bpy.types.FCurve]
+        fcurve_fov = (
+            channelbag_data.fcurves.find("lens", index=0) if channelbag_data else None
+        )
+
+        sensor_factor = camera.sensor_width / 36  # 传感器缩放
+        lens_init = camera.lens
+        frame_start = 1
+
+        # 帧长度
+        frame_len = max(*(int(fc.range()[1]) for fc in channelbag.fcurves), 1)
+        frame_len = int((frame_len - frame_start) * 3)
+        logger.debug(f"frame_len: {frame_len}")
+
+        # 动画时间放大3倍
+        for fc in channelbag.fcurves:
+            for kp in fc.keyframe_points:
+                if kp.co[0] < 1:
+                    continue
+                kp.co[0] = (kp.co[0] - 1) * 3 + 1
+        if fcurve_fov:
+            for kp in fcurve_fov.keyframe_points:
+                if kp.co[0] < 1:
+                    continue
+                kp.co[0] = (kp.co[0] - 1) * 3 + 1
+
+        buffer.write(struct.pack("I", frame_len))
+        buffer.write(bytes((0, 0, 64, 64)))
+        for frame in range(frame_start, frame_len + frame_start + 1):
+            rot = Euler(
+                [fc.evaluate(frame) if fc else 0 for fc in fcurves_rot]
+            ).to_quaternion()
+            axis, angle = rot.to_axis_angle()
+            axis = -axis.x, axis.z, -axis.y
+
+            loc = Vector([fc.evaluate(frame) if fc else 0 for fc in fcurves_loc]) * 1000
+            loc.yz = -loc.z, loc.y
+
+            lens = fcurve_fov.evaluate(frame) if fcurve_fov else lens_init
+            lens = lens / sensor_factor * 0.037
+            # fov = 2 * math.atan(sensor_width / (lens * 2))
+            # fov /= fov_factor
+            #
+            buffer.write(struct.pack("fff", *axis))
+            buffer.write(struct.pack("f", angle))
+            buffer.write(struct.pack("fff", *loc))
+            buffer.write(struct.pack("f", lens))
+        #
+        with open(self.filepath, "wb") as f:
+            f.write(buffer.getvalue())
+        buffer.close()
+        # 清理
+        action = camera_obj.animation_data.action
+        has_slot = hasattr(camera_obj.animation_data, "action_slot")
+        if has_slot:
+            action.slots.remove(self.action_dup)  # type: ignore
+        else:
+            bpy.data.actions.remove(self.action_dup)  # type: ignore
+
+        if self.action_data_dup:
+            if has_slot:
+                action_data = camera.animation_data.action
+                action_data.slots.remove(self.action_data_dup)  # type: ignore
+            else:
+                bpy.data.actions.remove(self.action_data_dup)  # type: ignore
+
+        self.report(
+            {"INFO"},
+            f"{pgettext('Export successfully')}: {os.path.basename(self.filepath)}",
+        )
+
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        scene = context.scene
+        scene_data = scene.amagate_data
+        camera_obj = scene.camera
+        camera = camera_obj.data  # type: bpy.types.Camera # type: ignore
+        #
+        if not camera_obj.animation_data:
+            self.report({"ERROR"}, "Animation data not found")
+            return {"CANCELLED"}
+        action = camera_obj.animation_data.action
+        if not action:
+            self.report(
+                {"WARNING"}, "Please select the action to export in the Action Editor"
+            )
+            return {"CANCELLED"}
+        action_name = action.name
+        channelbag = action
+        has_slot = hasattr(camera_obj.animation_data, "action_slot")
+        if has_slot:
+            slot = camera_obj.animation_data.action_slot
+            if not slot:
+                self.report(
+                    {"WARNING"},
+                    "Please select the action slot to export in the Action Editor",
+                )
+                return {"CANCELLED"}
+            channelbag = next((c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot), None)  # type: ignore
+        if not channelbag or len(channelbag.fcurves) == 0:
+            self.report({"ERROR"}, "Animation data not found")
+            return {"CANCELLED"}
+
+        # 创建动作副本
+        if has_slot:
+            action_dup = slot.duplicate()  # type: ignore
+            channelbag = next(c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == action_dup)  # type: ignore
+        else:
+            action_dup = action.copy()
+            channelbag = action_dup  # type: bpy.types.Action
+
+        # 获取焦距动画
+        action_data_dup = None  # type: bpy.types.Action # type: ignore
+        channelbag_data = None  # type: bpy.types.Action # type: ignore
+        if camera.animation_data and (action_data := camera.animation_data.action):
+            if has_slot:
+                slot = camera.animation_data.action_slot
+                if slot:
+                    channelbag_data = next((c for l in action_data.layers for s in l.strips for c in s.channelbags if c.slot == slot), None)  # type: ignore
+                    if channelbag_data:
+                        action_data_dup = slot.duplicate()  # type: ignore
+                        channelbag_data = next(c for l in action_data.layers for s in l.strips for c in s.channelbags if c.slot == action_data_dup)  # type: ignore
+            else:
+                action_data_dup = action_data.copy()
+                channelbag_data = action_data_dup
+        #
+        self.action_dup = action_dup
+        self.action_data_dup = action_data_dup
+        self.channelbag = channelbag
+        self.channelbag_data = channelbag_data
+
+        if not bpy.data.filepath or (not self.main and self.action == "0"):
+            if not self.filepath:
+                self.filepath = f"{action_name}.cam"
+            context.window_manager.fileselect_add(self)
+            return {"RUNNING_MODAL"}
+        else:
+            self.filepath = str(Path(bpy.data.filepath).parent / f"{action_name}.cam")
+            return self.execute(context)
+
+
+# 摄像机导入
+class OT_ImportCamera(bpy.types.Operator):
+    bl_idname = "amagate.import_camera"
+    bl_label = "Import Camera"
+    bl_description = "Import Camera"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.cam", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene = context.scene
+        return scene.camera
+
+    def execute(self, context: Context):
+        scene = context.scene
+        scene_data = scene.amagate_data
+        camera_obj = scene.camera
+        camera = camera_obj.data  # type: bpy.types.Camera # type: ignore
+        filepath = Path(self.filepath)
+        if not (filepath.is_file() and filepath.suffix.lower() == ".cam"):
+            self.report({"ERROR"}, f"{pgettext('Invalid file')}: {filepath.name}")
+            return {"FINISHED"}
+        # 目标坐标系
+        # target_space_q = Quaternion((1, 0, 0), -math.pi / 2)  # type: ignore
+        action_name = filepath.stem
+        # 创建动作
+        action = bpy.data.actions.get(action_name)
+        if not action:
+            action = bpy.data.actions.new(name=action_name)
+        channelbag = action  # type: bpy.types.Action
+        action.use_fake_user = True
+
+        action_name_data = f"{action_name}.fov"
+        action_data = bpy.data.actions.get(action_name_data)
+        if not action_data:
+            action_data = bpy.data.actions.new(name=action_name_data)
+        channelbag_data = action_data  # type: bpy.types.Action
+        action_data.use_fake_user = True
+
+        has_slot = hasattr(action, "slots")
+        # 分配动作
+        if not camera_obj.animation_data:
+            camera_obj.animation_data_create()
+        if not camera.animation_data:
+            camera.animation_data_create()
+        camera_obj.animation_data.action = action
+        camera.animation_data.action = action_data
+        # 初始化层和轨道
+        camera_obj.keyframe_insert("location")
+        camera.keyframe_insert("lens")
+        if has_slot:
+            slot = camera_obj.animation_data.action_slot
+            channelbag = next(c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot)  # type: ignore
+
+            slot = camera.animation_data.action_slot
+            channelbag_data = next(c for l in action_data.layers for s in l.strips for c in s.channelbags if c.slot == slot)  # type: ignore
+
+        channelbag.fcurves.clear()
+        channelbag_data.fcurves.clear()
+        for i in channelbag.groups:
+            channelbag.groups.remove(i)
+        for i in channelbag_data.groups:
+            channelbag_data.groups.remove(i)
+        # 创建通道
+        fcurves_loc = []  # type: list[bpy.types.FCurve]
+        fcurves_rot = []  # type: list[bpy.types.FCurve]
+        for i in range(3):
+            fc = channelbag.fcurves.new("location", index=i)
+            fcurves_loc.append(fc)
+        for i in range(3):
+            fc = channelbag.fcurves.new("rotation_euler", index=i)
+            fcurves_rot.append(fc)
+        fcurve_fov = channelbag_data.fcurves.new("lens", index=0)
+
+        sensor_factor = camera.sensor_width / 36  # 传感器缩放
+        camera_obj.rotation_mode = "XYZ"
+        frame_start = 1
+
+        with open(filepath, "rb") as f:
+            file_size = os.fstat(f.fileno()).st_size
+            frame_len = int(unpack("I", f)[0] / 3 + frame_start)
+            if scene.frame_end < frame_len:
+                scene.frame_end = frame_len
+            # 固定4字节 0 0 64 64
+            mark = unpack("bbbb", f)
+            # print(mark)
+            for frame in range(frame_start, frame_len + 1):
+                if f.tell() >= file_size:
+                    logger.warning("End of file")
+                    break
+                # 轴角
+                axis = unpack("fff", f)
+                axis = -axis[0], -axis[2], axis[1]
+                angle = unpack("f", f)[0]
+                # 位置与fov
+                location = Vector(unpack("fff", f)) / 1000
+                location.yz = location.z, -location.y
+                lens = unpack("f", f)[0] / 0.037 * sensor_factor
+                #
+                rot = (Quaternion(axis, angle)).to_euler()  # type: ignore
+                for i in range(3):
+                    fcurves_loc[i].keyframe_points.insert(frame, location[i])
+                    fcurves_rot[i].keyframe_points.insert(frame, rot[i])
+                # lens = sensor_width / (2 * math.tan(fov / 2))
+                fcurve_fov.keyframe_points.insert(frame, lens)
+                # 跳过缩放的2帧
+                f.seek(64, 1)
+
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        # 设为上次选择目录，文件名为空
+        if not self.filepath:
+            self.filepath = self.directory
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+
+# 重置横滚角
+class OT_ResetRoll(bpy.types.Operator):
+    bl_idname = "amagate.reset_roll"
+    bl_label = "Reset Roll"
+    bl_description = "Reset Roll"
+    bl_options = {"UNDO", "INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene = context.scene
+        return scene.camera
+
+    def execute(self, context: Context):
+        camera = context.scene.camera
+        current_forward = -camera.matrix_world.col[2].xyz  # type: Vector
+        new_quat = current_forward.to_track_quat("-Z", "Y")
+        camera.rotation_euler = new_quat.to_euler()
+
+        return {"FINISHED"}
 
 
 ############################

@@ -236,9 +236,10 @@ def ensure_render_camera() -> Object:
     if not render_cam:
         cam_data = bpy.data.cameras.new("AG.RenderCamera")
         render_cam = bpy.data.objects.new("AG.RenderCamera", cam_data)  # type: ignore
-        cam_data.sensor_width = 100
+        # cam_data.sensor_width = 100
         cam_data.passepartout_alpha = 0.98
-        cam_data.lens = 49.0
+        cam_data.angle = 1.59
+        # cam_data.lens = 49.0
         # cam_data.show_limits = True
         render_cam.location = (0, -0.1, 0)  # 避免0位置崩溃
         render_cam.rotation_euler = (math.pi / 2, 0, 0)

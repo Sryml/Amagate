@@ -828,6 +828,8 @@ class SceneProperty(L3D_data.SceneProperty):
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
     # 骨架
     armature_obj: PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == "ARMATURE" and obj.library is None)  # type: ignore
+    # 摄像机
+    # camera_obj: PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == "CAMERA" and obj.library is None)  # type: ignore
 
 
 ############################
