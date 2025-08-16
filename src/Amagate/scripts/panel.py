@@ -253,6 +253,7 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
 ############################
 class AMAGATE_PT_SpaceConversion(AG_Panel, bpy.types.Panel):
     bl_label = "Space Conversion"
+    bl_options = {"DEFAULT_CLOSED"}
     bl_order = 1
 
     def draw(self, context: Context):
@@ -264,18 +265,17 @@ class AMAGATE_PT_SpaceConversion(AG_Panel, bpy.types.Panel):
         # 位置
         box = column.box()
         col = box.column()
-        col.label(text=f"Location")
-        col.separator(type="LINE")
-        col.prop(scene_data, "coord_conv_to", text=f"{pgettext('To')} Blade")
-        col.prop(scene_data, "coord_conv_from", text=f"{pgettext('From')} Blade")
+        # col.label(text=f"Blade Position")
+        # col.separator(type="LINE")
+        col.prop(scene_data, "coord_conv", text="Position")
+        col.prop(scene_data, "tpos_conv", text="TPos")
 
         # 旋转
         box = column.box()
         col = box.column()
-        col.label(text=f"Rotation")
+        col.label(text=f"Blade Orientation")
         col.separator(type="LINE")
-        col.prop(scene_data, "rot_conv_to", text=f"{pgettext('To')} Blade")
-        col.prop(scene_data, "rot_conv_from", text=f"{pgettext('From')} Blade")
+        col.prop(scene_data, "rot_conv", text="")
 
         # 方向
         box = column.box()

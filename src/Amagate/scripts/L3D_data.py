@@ -2020,11 +2020,9 @@ class SceneProperty(bpy.types.PropertyGroup):
     )  # type: ignore
 
     # 空间转换
-    coord_conv_to: StringProperty(name="Blade Coord", get=lambda self: self.get_coord_conv_to(), set=lambda self, value: None)  # type: ignore
-    coord_conv_from: StringProperty(name="Blade Coord", get=lambda self: self.get("coord_conv_from", "0, 0, 0"), set=lambda self, value: self.set_coord_conv_from(value))  # type: ignore
-
-    rot_conv_to: StringProperty(name="Blade Quaternion", get=lambda self: self.get_rot_conv_to(), set=lambda self, value: None)  # type: ignore
-    rot_conv_from: StringProperty(name="Blade Quaternion", default="1, 0, 0, 0", get=lambda self: self.get("rot_conv_from", "1, 0, 0, 0"), set=lambda self, value: self.set_rot_conv_from(value))  # type: ignore
+    coord_conv: StringProperty(name="Blade Position", get=lambda self: self.get_coord_conv(), set=lambda self, value: self.set_coord_conv(value))  # type: ignore
+    tpos_conv: StringProperty(name="Blade TPos (For Camera)", get=lambda self: self.get_tpos_conv(), set=lambda self, value: self.set_tpos_conv(value))  # type: ignore
+    rot_conv: StringProperty(name="Blade Orientation", get=lambda self: self.get_rot_conv(), set=lambda self, value: self.set_rot_conv(value))  # type: ignore
 
     x_dir_to: StringProperty(name="Blade Direction", get=lambda self: self.get_dir_to("x_dir_to", ""), set=lambda self, value: None)  # type: ignore
     y_dir_to: StringProperty(name="Blade Direction", get=lambda self: self.get_dir_to("y_dir_to", ""), set=lambda self, value: None)  # type: ignore
@@ -2052,7 +2050,7 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
 
-    def get_coord_conv_to(self):
+    def get_coord_conv(self):
         context = bpy.context
         selected_objects = context.selected_objects
         if selected_objects:
@@ -2063,13 +2061,16 @@ class SceneProperty(bpy.types.PropertyGroup):
         location.yz = -location.z, location.y
         return str(location.to_tuple(1))
 
-    def set_coord_conv_from(self, value):
-        key = "coord_conv_from"
-        self[key] = value
+    def set_coord_conv(self, value):
+        # key = "coord_conv"
+        # self[key] = value
+        value = value.strip()
+        if not value:
+            return
         context = bpy.context
         scene_data = context.scene.amagate_data
         try:
-            position = ast.literal_eval(value)
+            position = tuple(ast.literal_eval(value))
         except:
             ag_utils.popup_menu(
                 context, "Input format error", pgettext("Error"), "ERROR"
@@ -2083,7 +2084,7 @@ class SceneProperty(bpy.types.PropertyGroup):
             return
 
         position = tuple(round(i, 1) for i in position)
-        self[key] = str(position)
+        # self[key] = str(position)
         location = position[0] / 1000.0, position[2] / 1000.0, -position[1] / 1000.0
 
         selected_objects = context.selected_objects
@@ -2096,7 +2097,52 @@ class SceneProperty(bpy.types.PropertyGroup):
 
     ############################
 
-    def get_rot_conv_to(self):
+    def get_tpos_conv(self):
+        context = bpy.context
+        scene = context.scene
+        cam = scene.camera
+        if not cam:
+            return ""
+
+        direction = -cam.matrix_world.col[2].xyz.normalized()  # type: Vector
+        location = (cam.matrix_world.translation + direction) * 1000
+        location.yz = -location.z, location.y
+        return str(location.to_tuple(1))
+
+    def set_tpos_conv(self, value):
+        context = bpy.context
+        scene = context.scene
+        cam = scene.camera
+        if not cam:
+            return
+        value = value.strip()
+        if not value:
+            return
+        context = bpy.context
+        scene_data = context.scene.amagate_data
+        try:
+            position = tuple(ast.literal_eval(value))
+        except:
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
+            return
+        # 如果元组不是3个数字，则不处理
+        if len(position) != 3 or not all(isinstance(i, (int, float)) for i in position):
+            ag_utils.popup_menu(
+                context, "Input format error", pgettext("Error"), "ERROR"
+            )
+            return
+        #
+        position = Vector(round(i, 1) for i in position) / 1000
+        position.yz = position.z, -position.y
+        direction = position - cam.matrix_world.translation
+        new_quat = direction.to_track_quat("-Z", "Y")
+        cam.rotation_euler = new_quat.to_euler()
+
+    ############################
+
+    def get_rot_conv(self):
         context = bpy.context
         target_space = Matrix.Rotation(-math.pi / 2, 4, "X")
         selected_objects = context.selected_objects
@@ -2109,13 +2155,16 @@ class SceneProperty(bpy.types.PropertyGroup):
             return str(tuple(round(i, 3) for i in quat))
         return ""
 
-    def set_rot_conv_from(self, value):
-        key = "rot_conv_from"
-        self[key] = value
+    def set_rot_conv(self, value):
+        # key = "rot_conv"
+        # self[key] = value
+        value = value.strip()
+        if not value:
+            return
         context = bpy.context
         scene_data = context.scene.amagate_data
         try:
-            quat_tuple = ast.literal_eval(value)
+            quat_tuple = tuple(ast.literal_eval(value))
         except:
             ag_utils.popup_menu(
                 context, "Input format error", pgettext("Error"), "ERROR"
@@ -2131,7 +2180,7 @@ class SceneProperty(bpy.types.PropertyGroup):
             return
 
         quat = Quaternion(quat_tuple).normalized()
-        self[key] = str(tuple(round(i, 3) for i in quat))
+        # self[key] = str(tuple(round(i, 3) for i in quat))
 
         target_space = Matrix.Rotation(-math.pi / 2, 4, "X").to_quaternion()
         quat_conv = target_space @ quat @ target_space.inverted()

@@ -1867,7 +1867,9 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         row.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
         # col.separator(type="SPACE")
         # 玩家到摄像机
-        col.operator(OP_L3D.OT_Server_PlayerToCam.bl_idname)
+        # col.operator(OP_L3D.OT_Server_PlayerToCam.bl_idname)
+        # 服务器操作枚举
+        col.operator_enum(OP_L3D.OT_Server_Operator.bl_idname, "enum")
 
 
 ############################

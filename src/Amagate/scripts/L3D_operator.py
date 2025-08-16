@@ -1807,6 +1807,39 @@ class OT_Server_CamToClient(bpy.types.Operator):
         cam.rotation_euler = dir.to_track_quat("-Z", "Y").to_euler()
 
 
+class OT_Server_Operator(bpy.types.Operator):
+    bl_idname = "amagate.server_operator"
+    bl_label = "Server Operator"
+    bl_description = ""
+    bl_options = {"INTERNAL"}
+    # bl_property = "enum"
+
+    HUD_Display = 1
+    enum_items = [
+        (str(i), v, "")
+        for i, v in enumerate(("Player to Camera", "Switch HUD Display"))
+    ]
+
+    ############################
+    enum: EnumProperty(
+        translation_context="Operator",
+        items=enum_items,
+    )  # type: ignore
+
+    def execute(self, context: Context):
+        name = self.enum_items[self.properties["enum"]][1]
+        # print(name)
+        if name == "Player to Camera":
+            ag_service.exec_script_send("player_to_camera()")
+        elif name == "Switch HUD Display":
+            self.__class__.HUD_Display = 1 - self.__class__.HUD_Display
+            ag_service.exec_script_send(
+                f"import Scorer;Scorer.SetVisible({self.__class__.HUD_Display})"
+            )
+            # print(self.__class__.HUD_Display)
+        return {"FINISHED"}
+
+
 # 移动玩家到摄像机
 class OT_Server_PlayerToCam(bpy.types.Operator):
     bl_idname = "amagate.server_player_to_cam"

@@ -265,6 +265,7 @@
     ("*", "Align Camera to Client"): "对齐摄像机到客户端",
     ("*", "Camera Sync"): "摄像机同步",
     ("Operator", "Player to Camera"): "玩家到摄像机",
+    ("Operator", "Switch HUD Display"): "切换 HUD 显示",
     ("*", "Load Level"): "加载关卡",
     ("*", "Reload Level"): "重载关卡",
     ("*", "Missing runtime files"): "缺少运行时文件",
@@ -326,6 +327,7 @@
     # 空间转换
     ("*", "Space Conversion"): "空间转换",
     ("*", "Convert selected object/cursor"): "转换选中的物体/游标",
+    ("*", "Blade Orientation"): "Blade 方位",
     ("*", "Direction To Blade"): "方向到 Blade",
     # Cubemap 转换
     ("*", "Cubemap Conver"): "立方体贴图转换",
