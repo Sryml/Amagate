@@ -129,6 +129,7 @@ def load_ent_preview():
     gen_equipment()
     gen_prop()
     gen_character()
+    gen_animation()
 
 
 ############################
@@ -535,6 +536,30 @@ def add_contained_item(inter_name="", entity=None, undo=False):
 
     if undo:
         bpy.ops.ed.undo_push(message="Add Item")
+
+
+############################
+def get_anm_enum_search(this, context):
+    return ANM_ENUM_SEARCH
+
+
+# 生成动画枚举
+def gen_animation():
+    global ANM_ENUM_SEARCH
+    ANM_ENUM_SEARCH = []
+    count = 0
+
+    for k, v in data.E_MANIFEST["Animations"].items():
+        for filename in v:
+            ANM_ENUM_SEARCH.append(
+                (
+                    str(count),
+                    filename,
+                    k,
+                )
+            )
+            count += 1
+    ANM_ENUM_SEARCH.sort(key=lambda x: x[1])
 
 
 ############################

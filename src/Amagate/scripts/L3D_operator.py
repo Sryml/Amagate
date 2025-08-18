@@ -1276,6 +1276,38 @@ class OT_EntityCreate(bpy.types.Operator):
         bpy.ops.ed.undo_push(message="Create Entity")
         return ret
 
+    # 添加锚点
+    @staticmethod
+    def add_anchor(
+        context: Context, parent_lib: Object, parent: Object, entity_coll: Collection
+    ):
+        location = parent_lib.matrix_world.to_translation()
+        is_armature = parent.type == "ARMATURE"
+        parent_matrix = parent.matrix_world
+        for obj in parent_lib.children:  # type: ignore
+            if obj.type != "EMPTY":
+                continue
+            if len(obj.name) > 13 and obj.name.lower().startswith("blade_anchor_"):
+                # anchor = bpy.data.objects.new(obj.name, None)
+                anchor = obj.copy()
+                # anchor.empty_display_size = 0.1
+                # anchor.empty_display_type = "ARROWS"
+                # anchor.show_in_front = True
+                anchor.hide_select = True
+                # anchor.hide_viewport = True
+                data.link2coll(anchor, entity_coll)
+                # context.view_layer.update()
+
+                matrix = anchor.matrix_world.copy()
+                matrix.translation -= location
+                loc, rot, scale = (parent_matrix @ matrix).decompose()
+                matrix = Matrix.LocRotScale(loc, rot, None)
+                anchor.parent = parent
+                if is_armature:
+                    anchor.parent_type = "BONE"
+                    anchor.parent_bone = obj.parent_bone
+                anchor.matrix_world = matrix
+
     @staticmethod
     def add(this, context: Context, inter_name, entity: Object = None, obj_name="", change_skin=False):  # type: ignore
         from . import entity_operator as OP_ENTITY
@@ -1305,6 +1337,11 @@ class OT_EntityCreate(bpy.types.Operator):
                 )
             return {"CANCELLED"}, entity
 
+        entity_coll = L3D_data.ensure_collection(L3D_data.E_COLL)
+        instance_coll = entity_coll.children.get("Entity Instance")
+        if not instance_coll:
+            instance_coll = bpy.data.collections.new("Entity Instance")
+            entity_coll.children.link(instance_coll)
         coll_name = f"Blade_Object_{inter_name}"
         coll = bpy.data.collections.get(coll_name)  # type: ignore
         if coll is None:
@@ -1327,13 +1364,19 @@ class OT_EntityCreate(bpy.types.Operator):
 
                 data_to.collections = [coll_name]
             coll = data_to.collections[0]  # type: Collection # type: ignore
-            coll.use_fake_user = True
-            coll.library["is_entity"] = True
+            # coll.use_fake_user = True # 重新加载文件后又失效了
+            instance = bpy.data.objects.new(f"Instance.{inter_name}", None)
+            instance.instance_type = "COLLECTION"
+            instance.instance_collection = coll
+            data.link2coll(instance, instance_coll)
+            context.view_layer.update()
+            instance.hide_viewport = True
+            coll.library["AG.Library"] = True
 
-        ent_coll, entity_raw, has_fire, has_light = OP_ENTITY.get_ent_data(
+        _, entity_lib, has_fire, has_light = OP_ENTITY.get_ent_data(
             coll, check_visible=False
         )
-        if entity_raw is None:
+        if entity_lib is None:
             if is_operator:
                 this.report({"ERROR"}, "No visible entity Mesh")
             else:
@@ -1350,27 +1393,36 @@ class OT_EntityCreate(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.update_scene_edit_mode()
 
-        armature_data = next(
-            (m.object.data for m in entity_raw.modifiers if m.type == "ARMATURE"), None  # type: ignore
-        )  # type: bpy.types.Armature
+        armature_lib = next(
+            (m.object for m in entity_lib.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
+        if armature_lib:
+            armature_lib.data.show_names = False  # type: ignore
+            armature_lib.data.show_axes = False  # type: ignore
         scene_data = context.scene.amagate_data
         if obj_name == "":
             obj_name = entity_data.get_name(context, f"{inter_name}_")
         # 创建物体
         if entity is None:
             entity = bpy.data.objects.new(
-                "", entity_raw.data
+                "", entity_lib.data
             )  # type: Object # type: ignore
-            data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
+            data.link2coll(entity, entity_coll)
             entity.amagate_data.set_entity_data()
             # 创建骨架
-            if armature_data:
-                armature = bpy.data.objects.new(f"{inter_name}_Skel", armature_data)
-                data.link2coll(armature, L3D_data.ensure_collection(L3D_data.E_COLL))
+            if armature_lib:
+                armature = bpy.data.objects.new(f"{inter_name}_Skel", armature_lib.data)
+                data.link2coll(armature, entity_coll)
                 armature.hide_viewport = True
                 armature.parent = entity
                 entity.modifiers.new("Armature", "ARMATURE").object = armature
+                context.view_layer.update()
+                # 创建锚点
+                OT_EntityCreate.add_anchor(context, armature_lib, armature, entity_coll)
                 # 设置动作
+            else:
+                OT_EntityCreate.add_anchor(context, entity_lib, entity, entity_coll)
+
             # 如果是创建实体操作
             if is_operator:
                 ag_utils.select_active(context, entity)
@@ -1403,28 +1455,41 @@ class OT_EntityCreate(bpy.types.Operator):
                 ent_data.ObjType = "2"  # "Physic"
             else:
                 ent_data.ObjType = "6"  # "Assigned By Script"
+
+        # 更改Kind的情况
         else:
-            entity.data = entity_raw.data
+            entity.data = entity_lib.data
             ent_data = entity.amagate_data.get_entity_data()
             ent_data.skin = ""
+            # 清理锚点
+            for obj in entity.children_recursive:  # type: ignore
+                if obj.type == "EMPTY" and obj.name.lower().startswith("blade_anchor_"):
+                    bpy.data.objects.remove(obj)
             # 处理骨架
+            armature: Object
             armature, modifier = next(
                 ((m.object, m) for m in entity.modifiers if m.type == "ARMATURE"), (None, None)  # type: ignore
             )
-            if armature_data:
+            if armature_lib:
+                # 创建骨架
                 if armature is None:
-                    armature = bpy.data.objects.new(f"{inter_name}_Skel", armature_data)
-                    data.link2coll(
-                        armature, L3D_data.ensure_collection(L3D_data.E_COLL)
+                    armature = bpy.data.objects.new(
+                        f"{inter_name}_Skel", armature_lib.data
                     )
+                    data.link2coll(armature, entity_coll)
                     armature.hide_viewport = True
                     armature.parent = entity
                     armature.matrix_world = entity.matrix_world
                     entity.modifiers.new("Armature", "ARMATURE").object = armature  # type: ignore
                 else:
-                    armature.data = armature_data
+                    armature.data = armature_lib.data
+                context.view_layer.update()
+                # 创建锚点
+                OT_EntityCreate.add_anchor(context, armature_lib, armature, entity_coll)
                 # 设置动作
             else:
+                OT_EntityCreate.add_anchor(context, entity_lib, entity, entity_coll)
+                # 删除骨架
                 if armature:
                     entity.modifiers.remove(modifier)  # type: ignore
                     bpy.data.objects.remove(armature)  # type: ignore

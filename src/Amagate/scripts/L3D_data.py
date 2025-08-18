@@ -1282,10 +1282,14 @@ def load_post(filepath=""):
         models_path = Path.joinpath(Path(data.ADDON_PATH), "Models")
         scene_data.sky_tex_enum = scene_data.sky_tex_enum
         for lib in bpy.data.libraries:
-            if lib.get("is_entity"):
+            if lib.get("AG.Library"):
                 filepath = Path(lib.filepath)
                 filepath = models_path.joinpath(*filepath.parts[-2:])
                 lib.filepath = str(filepath)
+        # 为链接的动作设置伪用户
+        for a in bpy.data.actions:
+            if a.library:
+                a.use_fake_user = True
 
         # 更新集合名称
         for item in scene_data.ensure_coll:

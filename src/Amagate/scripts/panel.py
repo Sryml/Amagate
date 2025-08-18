@@ -207,7 +207,10 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         column = box.column()
         # column.prop(scene_data, "armature_obj", text="Armature")
         column.label(
-            text=f"{pgettext('Active Armature')}: {armature_obj.name if armature_obj and armature_obj.visible_get() and armature_obj.type == 'ARMATURE' and armature_obj.library is None else pgettext('None')}"
+            text=f"{pgettext('Active Armature')}: {obj.name if (obj:=context.view_layer.objects.active) and obj.type == 'ARMATURE' and obj.library is None else pgettext('None')}"
+        )
+        column.label(
+            text=f"{pgettext('Visible Armature')}: {armature_obj.name if armature_obj and armature_obj.visible_get() and armature_obj.type == 'ARMATURE' and armature_obj.library is None else pgettext('None')}"
         )
         column.separator(type="LINE")
 
@@ -226,6 +229,8 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         column.operator(
             OP.OT_MirrorAnim.bl_idname, text="Mirror Animation", icon="MOD_MIRROR"
         )
+        # 设置动画
+        column.operator(OP.OT_SetAnim.bl_idname, icon="VIEWZOOM")
 
         # 摄像机
         layout.label(text="Camera", icon="CAMERA_DATA")

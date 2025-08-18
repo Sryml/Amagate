@@ -37,7 +37,7 @@ from bpy.props import (
 )
 from mathutils import *  # type: ignore
 
-from . import data
+from . import data, entity_data
 from . import ag_utils
 
 
@@ -359,8 +359,10 @@ class OT_ImportAnim(bpy.types.Operator):
                 inter_name = unpack(f"{length}s", f)
                 # 骨骼数量
                 count = unpack("I", f)[0]
+                max_skip = count - bone_count
+                skip_num = 0
                 if count != bone_count:
-                    fail_list.append(filename)
+                    fail_list.append(f"{filename} - {count}")
                     continue
                 # 创建动作
                 action = bpy.data.actions.get(action_name)
@@ -393,7 +395,7 @@ class OT_ImportAnim(bpy.types.Operator):
                 # 清空姿态变换
                 bpy.ops.pose.transforms_clear()
                 # 创建通道并清除帧
-                for bone_idx in range(count):
+                for bone_idx in range(bone_count):
                     bone = pose_bones[bone_idx]
                     bone_name = bone.name
                     bone.keyframe_insert(
@@ -406,7 +408,7 @@ class OT_ImportAnim(bpy.types.Operator):
                     fc.keyframe_points.clear()
 
                 # start_time = time.time()
-                for bone_idx in range(count):
+                for bone_idx in range(bone_count):
                     bone = pose_bones[bone_idx]
                     # bone_quat_base = bone.matrix.to_quaternion().normalized()
                     #
@@ -442,8 +444,16 @@ class OT_ImportAnim(bpy.types.Operator):
 
                         loc, rot, scale = bone.matrix.decompose()
                         rot = (parent_quat @ quat).normalized()
+                        matrix = Matrix.LocRotScale(loc, rot, scale)
+                        # 检查旋转是否太大
+                        # if frame == 1 and skip_num < max_skip:
+                        #     diff = math.acos(bone.matrix.to_quaternion().dot(matrix.to_quaternion())) * 2
+                        #     if math.degrees(diff) > 120:
+                        #         skip_num += 1
+                        #         f.seek((frame_len - 1) * 16, 1)
+                        #         break
 
-                        bone.matrix = Matrix.LocRotScale(loc, rot, scale)
+                        bone.matrix = matrix
                         bone.keyframe_insert(
                             "rotation_quaternion", frame=frame, group=bone_name
                         )
@@ -703,6 +713,65 @@ class OT_MirrorAnim(bpy.types.Operator):
         bpy.data.actions.remove(armature_mirror.animation_data.action)  # type: ignore
         bpy.data.armatures.remove(armature_child.data)  # type: ignore
         bpy.data.armatures.remove(armature_mirror.data)  # type: ignore
+
+
+# 设置动画
+class OT_SetAnim(bpy.types.Operator):
+    bl_idname = "amagate.set_anim"
+    bl_label = "Set Animation"
+    bl_description = "Set Animation"
+    bl_options = {"INTERNAL"}
+    bl_property = "enum"
+
+    enum: EnumProperty(
+        items=entity_data.get_anm_enum_search,
+    )  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        armature_obj = context.view_layer.objects.active
+        return (
+            armature_obj
+            and armature_obj.type == "ARMATURE"
+            and armature_obj.library is None
+        )
+
+    def execute(self, context: Context):
+        action_name = bpy.types.UILayout.enum_item_name(self, "enum", self.enum)
+        filename = bpy.types.UILayout.enum_item_description(self, "enum", self.enum)
+        armature = context.view_layer.objects.active
+        armature_data = armature.data  # type: bpy.types.Armature # type: ignore
+        action = bpy.data.actions.get(action_name)  # type: ignore
+        if not action:
+            filepath = os.path.join(data.ADDON_PATH, "Models", "Anm", filename)
+            with bpy.data.libraries.load(filepath, link=True) as (data_from, data_to):
+                action_from = next(
+                    (i for i in data_from.actions if i == action_name), None
+                )
+                if not action_from:
+                    self.report(
+                        {"ERROR"}, f"Action {action_name} not found in {filename}"
+                    )
+                    return {"CANCELLED"}
+                data_to.actions = [action_from]
+            action = data_to.actions[0]  # type: bpy.types.Action
+            action.use_fake_user = True
+            action.library["AG.Library"] = True
+        # 分配动作
+        has_slot = hasattr(action, "slots")
+        if not armature.animation_data:
+            armature.animation_data_create()
+        armature.animation_data.action = action
+        if has_slot:
+            slot = action.slots[0] if len(action.slots) != 0 else None
+            if slot:
+                armature.animation_data.action_slot = slot
+
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        context.window_manager.invoke_search_popup(self)
+        return {"FINISHED"}
 
 
 ############################
@@ -1562,12 +1631,31 @@ class OT_Test(bpy.types.Operator):
     def test2(self, context: Context):
         from . import entity_operator as OP_ENTITY
 
-        root = Path("D:/GOG Galaxy/Games/Blade of Darkness V109 GOG/classic/3DObjs")
+        # root = Path("D:/GOG Galaxy/Games/Blade of Darkness V109 GOG/classic/3DObjs")
+        # count = 0
+        # for filepath in root.iterdir():
+        #     if filepath.suffix.lower() == ".bod":
+        #         OP_ENTITY.parse_bod(filepath)
+        #         count += 1
+        # print(count)
+
+        # manifest = json.load(
+        #     open(os.path.join(data.ADDON_PATH, "Models", "manifest.json"), encoding="utf-8"))
+        root = Path(data.ADDON_PATH, "Models", "Anm")
         count = 0
         for filepath in root.iterdir():
-            if filepath.suffix.lower() == ".bod":
-                OP_ENTITY.parse_bod(filepath)
-                count += 1
+            with contextlib.redirect_stdout(StringIO()):
+                bpy.ops.wm.open_mainfile(filepath=str(filepath))
+            anm_lst = [i.name for i in bpy.data.actions]
+            count += len(anm_lst)
+            # manifest["Animations"][filepath.name] = anm_lst
+        # json.dump(
+        #     manifest,
+        #     open(os.path.join(data.ADDON_PATH, "Models", "manifest.json"), "w", encoding="utf-8"),
+        #     indent=4,
+        #     ensure_ascii=False,
+        #     sort_keys=True,
+        # )
         print(count)
 
     def test3(self, context: Context):

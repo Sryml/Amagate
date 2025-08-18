@@ -1273,6 +1273,12 @@ def delete_entity(key="", ent=None):  # type: ignore
         if ent_data.ObjType == "0":  # "Person"
             ent_data.clear_inv()
         ent_data.clear_contained()
+        # 删除骨架和锚点
+        for obj in ent.children_recursive:
+            if (
+                obj.type == "EMPTY" and obj.name.lower().startswith("blade_anchor_")
+            ) or obj.type == "ARMATURE":
+                bpy.data.objects.remove(obj)
         bpy.data.objects.remove(ent)
     scene_data["EntityManage"].pop(key)
 

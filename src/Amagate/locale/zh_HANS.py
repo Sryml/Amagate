@@ -313,11 +313,13 @@
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",
     # 动画/摄像机
     ("*", "Animation/Camera"): "动画/摄像机",
+    ("*", "Visible Armature"): "可见骨架",
     ("*", "Active Armature"): "活动骨架",
     ("Operator", "Export Animation"): "导出动画",
     ("*", "Export Animation as ..."): "导出动画为...",
     ("Operator", "Import Animation"): "导入动画",
     ("Operator", "Mirror Animation"): "镜像动画",
+    ("Operator", "Set Animation"): "设置动画",
     ("*", "Please select armature object first"): "请先选择骨架对象",
     ("*", "Armature object is not visible"): "骨架对象不可见",
     ("*", "Please select the action to export in the Action Editor"): "请在动作编辑器中选择要导出的动作",
