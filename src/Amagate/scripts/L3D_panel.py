@@ -1215,26 +1215,12 @@ class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):
 
 
 ############################
-############################ 预制体面板
+############################ 实体面板
 ############################
-
-
-class AMAGATE_PT_Prefab(L3D_Panel, bpy.types.Panel):
-    bl_label = "Prefab"
+class AMAGATE_PT_Entity(L3D_Panel, bpy.types.Panel):
+    bl_label = "Entity"
     bl_parent_id = "AMAGATE_PT_L3D"
     bl_options = {"DEFAULT_CLOSED"}
-
-    @classmethod
-    def poll(cls, context):
-        return data.PY_PACKAGES_INSTALLED
-
-    def draw(self, context: Context):
-        layout = self.layout
-
-
-class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
-    bl_label = "Entity"
-    bl_parent_id = "AMAGATE_PT_Prefab"
 
     @classmethod
     def poll(cls, context):
@@ -1812,12 +1798,34 @@ class AMAGATE_PT_PrefabEntity(L3D_Panel, bpy.types.Panel):
 
 
 ############################
+############################ 预制体面板
+############################
+
+
+# class AMAGATE_PT_Prefab(L3D_Panel, bpy.types.Panel):
+#     bl_label = "Prefab"
+#     bl_parent_id = "AMAGATE_PT_L3D"
+#     bl_options = {"DEFAULT_CLOSED"}
+
+#     @classmethod
+#     def poll(cls, context):
+#         return data.PY_PACKAGES_INSTALLED
+
+#     def draw(self, context: Context):
+#         layout = self.layout
+
+
+############################
 ############################ 服务器面板
 ############################
 class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
     bl_label = "Server"
     bl_parent_id = "AMAGATE_PT_L3D"
     bl_options = {"DEFAULT_CLOSED"}
+
+    @classmethod
+    def poll(cls, context):
+        return data.PY_PACKAGES_INSTALLED
 
     def draw(self, context: Context):
         layout = self.layout
@@ -1868,7 +1876,9 @@ class AMAGATE_PT_Server(L3D_Panel, bpy.types.Panel):
         row = col.row(align=True)
         row.label(text=f"{pgettext('Camera')}:")
         row.operator(OP_L3D.OT_Server_CamToClient.bl_idname)
-        row.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
+        col2 = row.column(align=True)
+        col2.enabled = scene_data.is_blade
+        col2.prop(scene_data.operator_props, "camera_sync", text="Sync", toggle=True)
         # col.separator(type="SPACE")
         # 玩家到摄像机
         # col.operator(OP_L3D.OT_Server_PlayerToCam.bl_idname)

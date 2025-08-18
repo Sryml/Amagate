@@ -80,6 +80,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
         # 创建集合
         layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")
+        # 添加骨架
+        layout.operator(OP_ENTITY.OT_AddArmature.bl_idname, icon="ADD")
 
         row = layout.row(align=True)
         # 添加锚点
@@ -199,10 +201,14 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         scene_data = scene.amagate_data
         layout = self.layout
         # 动画
+        armature_obj = context.active_object
         layout.label(text="Animation", icon="ANIM_DATA")
         box = layout.box()
         column = box.column()
-        column.prop(scene_data, "armature_obj", text="Armature")
+        # column.prop(scene_data, "armature_obj", text="Armature")
+        column.label(
+            text=f"{pgettext('Active Armature')}: {armature_obj.name if armature_obj and armature_obj.visible_get() and armature_obj.type == 'ARMATURE' and armature_obj.library is None else pgettext('None')}"
+        )
         column.separator(type="LINE")
 
         # 导出
@@ -228,7 +234,7 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         # column.prop(scene_data, "camera_obj", text="Camera")
         # 活跃摄像机
         column.label(
-            text=f"{pgettext('Active Camera')}: {scene.camera.name if scene.camera else ''}"
+            text=f"{pgettext('Active Camera')}: {scene.camera.name if scene.camera else pgettext('None')}"
         )
         column.separator(type="SPACE")
         # 重置横滚角

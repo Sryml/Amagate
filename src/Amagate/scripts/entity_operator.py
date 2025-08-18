@@ -60,6 +60,46 @@ unpack = ag_utils.unpack
 ############################
 
 
+# 解析BOD
+def parse_bod(filepath: Path):
+    with open(filepath, "rb") as f:
+        # 内部名称
+        length = unpack("I", f)[0]
+        inter_name = unpack(f"{length}s", f)
+        # 顶点
+        verts_num = unpack("I", f)[0]
+        f.seek(48 * verts_num, 1)
+        # 面
+        faces_num = unpack("I", f)[0]
+        for i in range(faces_num):
+            # vert_idx
+            f.seek(12, 1)
+            length = unpack("I", f)[0]
+            # img_name = unpack(f"{length}s", f)
+            f.seek(length, 1)
+            # uv_list
+            f.seek(24, 1)
+            # 跳过0
+            f.seek(4, 1)
+        # 骨架
+        bones_num = unpack("I", f)[0]
+        if bones_num == 1:
+            parent_idx = unpack("i", f)[0]  # type: int
+            lst = unpack("dddd" * 4, f)
+            lst = [lst[i * 4 : (i + 1) * 4] for i in range(4)]
+            matrix = Matrix(lst)
+            matrix.transpose()  # 转置
+            matrix.translation /= 1000  # 转换位置单位
+            # 清除缩放
+            loc, rot, scale = matrix.decompose()
+            matrix = Matrix.LocRotScale(loc, rot, None)
+            if (
+                matrix.to_quaternion().dot(Quaternion()) < 0.999
+                or matrix.translation.length > 0.001
+            ):
+                logger.debug(f"{filepath.name}: {tuple(matrix.to_euler())}, {matrix.translation.to_tuple(1)}")  # type: ignore
+
+
 # 确保材质
 def ensure_material(tex: Image) -> bpy.types.Material:
     name = tex.name
@@ -698,6 +738,61 @@ class OT_CreateColl(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 添加骨架
+class OT_AddArmature(bpy.types.Operator):
+    bl_idname = "amagate.ent_add_armature"
+    bl_label = "Add Default Armature"
+    bl_options = {"UNDO", "INTERNAL"}
+
+    def execute(self, context: Context):
+        obj = context.active_object
+        if not (obj and obj.type == "MESH"):
+            self.report({"INFO"}, "No active object")
+            return {"CANCELLED"}
+        #
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+
+        is_entity = obj.amagate_data.is_entity
+        if is_entity:
+            ent_data = obj.amagate_data.get_entity_data()
+            armature_name = f"{ent_data.Kind}_Skel"
+        else:
+            armature_name = "Blade_Skeleton"
+
+        armature_obj = next(
+            (m.object for m in obj.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
+        if not armature_obj:
+            coll = obj.users_collection[0]
+            bone_name = "Bone"
+            armature = bpy.data.armatures.new(armature_name)
+            armature_obj = bpy.data.objects.new(armature_name, armature)
+            data.link2coll(armature_obj, coll)
+            # 添加骨骼
+            ag_utils.select_active(context, armature_obj)  # type: ignore
+            bpy.ops.object.mode_set(mode="EDIT")
+            bone = armature.edit_bones.new(bone_name)
+            bone.tail = (0, 0, -1)
+            bpy.ops.object.mode_set(mode="OBJECT")
+            #
+            if is_entity:
+                armature_obj.parent = obj
+            armature_obj.matrix_world = obj.matrix_world
+            obj.modifiers.new("Armature", "ARMATURE").object = armature_obj
+            # 添加顶点组
+            group = obj.vertex_groups.get(bone_name)
+            if not group:
+                group = obj.vertex_groups.new(name=bone_name)
+            group.add(tuple(range(len(obj.data.vertices))), 1.0, "REPLACE")
+            armature_obj.hide_viewport = True
+            # ag_utils.select_active(context, obj)
+        else:
+            logger.debug("Armature already exists")
+
+        return {"FINISHED"}
+
+
 # 添加锚点
 class OT_AddAnchor(bpy.types.Operator):
     bl_idname = "amagate.ent_add_anchor"
@@ -1072,7 +1167,7 @@ class OT_ImportBOD(bpy.types.Operator):
                     length = unpack("I", f)[0]
                     name = unpack(f"{length}s", f)
                 else:
-                    name = "None"
+                    name = ""
                 #
                 parent_idx = unpack("i", f)[0]  # type: int
                 lst = unpack("dddd" * 4, f)

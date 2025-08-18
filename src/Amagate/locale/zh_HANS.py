@@ -291,6 +291,7 @@
     ("*", "Export to temporary file (Selected Only)"): "导出到临时文件 (仅选中的)",
     # 实体编辑器面板
     ("*", "Entity Editor"): "实体编辑器",
+    ("Operator", "Add Default Armature"): "添加默认骨架",
     ("Operator", "Add Anchor"): "添加锚点",
     ("Operator", "Add Component"): "添加组件",
     ("Operator", "Select By Group"): "按组选择",
@@ -312,6 +313,7 @@
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",
     # 动画/摄像机
     ("*", "Animation/Camera"): "动画/摄像机",
+    ("*", "Active Armature"): "活动骨架",
     ("Operator", "Export Animation"): "导出动画",
     ("*", "Export Animation as ..."): "导出动画为...",
     ("Operator", "Import Animation"): "导入动画",
@@ -321,6 +323,7 @@
     ("*", "Please select the action to export in the Action Editor"): "请在动作编辑器中选择要导出的动作",
     ("*", "Please select the action slot to export in the Action Editor"): "请在动作编辑器中选择要导出的动作槽",
     ("*", "Animation data not found"): "动画数据未找到",
+    ("*", "Inconsistent number of bones"): "骨骼数量不一致",
     ("Operator", "Reset Roll"): "重置横滚角",
     ("Operator", "Export Camera"): "导出摄像机",
     ("*", "Export Camera as ..."): "导出摄像机为...",

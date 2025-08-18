@@ -1350,15 +1350,27 @@ class OT_EntityCreate(bpy.types.Operator):
             bpy.ops.object.mode_set(mode="OBJECT")
             L3D_data.update_scene_edit_mode()
 
+        armature_data = next(
+            (m.object.data for m in entity_raw.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: bpy.types.Armature
         scene_data = context.scene.amagate_data
         if obj_name == "":
             obj_name = entity_data.get_name(context, f"{inter_name}_")
+        # 创建物体
         if entity is None:
             entity = bpy.data.objects.new(
                 "", entity_raw.data
             )  # type: Object # type: ignore
             data.link2coll(entity, L3D_data.ensure_collection(L3D_data.E_COLL))
             entity.amagate_data.set_entity_data()
+            # 创建骨架
+            if armature_data:
+                armature = bpy.data.objects.new(f"{inter_name}_Skel", armature_data)
+                data.link2coll(armature, L3D_data.ensure_collection(L3D_data.E_COLL))
+                armature.hide_viewport = True
+                armature.parent = entity
+                entity.modifiers.new("Armature", "ARMATURE").object = armature
+                # 设置动作
             # 如果是创建实体操作
             if is_operator:
                 ag_utils.select_active(context, entity)
@@ -1395,6 +1407,27 @@ class OT_EntityCreate(bpy.types.Operator):
             entity.data = entity_raw.data
             ent_data = entity.amagate_data.get_entity_data()
             ent_data.skin = ""
+            # 处理骨架
+            armature, modifier = next(
+                ((m.object, m) for m in entity.modifiers if m.type == "ARMATURE"), (None, None)  # type: ignore
+            )
+            if armature_data:
+                if armature is None:
+                    armature = bpy.data.objects.new(f"{inter_name}_Skel", armature_data)
+                    data.link2coll(
+                        armature, L3D_data.ensure_collection(L3D_data.E_COLL)
+                    )
+                    armature.hide_viewport = True
+                    armature.parent = entity
+                    armature.matrix_world = entity.matrix_world
+                    entity.modifiers.new("Armature", "ARMATURE").object = armature  # type: ignore
+                else:
+                    armature.data = armature_data
+                # 设置动作
+            else:
+                if armature:
+                    entity.modifiers.remove(modifier)  # type: ignore
+                    bpy.data.objects.remove(armature)  # type: ignore
 
         #
         ent_data.skin = inter_name
