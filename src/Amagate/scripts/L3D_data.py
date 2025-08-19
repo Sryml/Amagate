@@ -1223,6 +1223,7 @@ def save_post(filepath=""):
 @bpy.app.handlers.persistent
 def load_post(filepath=""):
     from . import entity_data, L3D_data
+    from . import L3D_operator as OP_L3D
 
     global OPERATOR_POINTER, draw_handler, LOAD_POST_CALLBACK, ASYNC_THREAD
     context = bpy.context
@@ -1250,15 +1251,13 @@ def load_post(filepath=""):
             ############################
             # 初始版本
             if scene_data.version_date == 0:
-                from . import L3D_operator as OP_L3D
-
                 OP_L3D.OT_Node_Reset.reset_node()
                 scene_data.atmo_id_key = scene_data.atmospheres[0].name
 
             # 1.4.0之前版本
-            if scene_data.version_date < 20250803:
+            if scene_data.version_date < 20250820:
                 scene_data["EntityManage"] = {}
-                #
+                # 标记集合
                 name = L3D_data.M_COLL
                 coll = bpy.data.collections.get(name)
                 if coll:
@@ -1266,13 +1265,16 @@ def load_post(filepath=""):
                     item.name = name
                     item.obj = coll
                 L3D_data.ensure_collection(name)
+                # 加载放松动画
+                OP_L3D.load_rlx_anim()
                 # 添加玩家实体
                 location = 0, 0, 0
                 obj = bpy.data.objects.get("Player")
-                if obj:
+                if obj and obj.type == "EMPTY":
                     location = obj.location
                     bpy.data.objects.remove(obj)
                 OP_L3D.CreatePlayer(context)
+                bpy.data.objects["Player1"].location = location
             #
             scene_data.version = data.VERSION
             scene_data.version_date = data.VERSION_DATE

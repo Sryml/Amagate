@@ -2191,19 +2191,7 @@ def InitMap(imp_filepath=""):
     scene_data.is_blade = True
 
     ## 加载放松动画
-    root = Path(data.ADDON_PATH, "Models/Anm")
-    for filepath in root.glob("*.blend"):
-        with bpy.data.libraries.load(str(filepath), link=True) as (data_from, data_to):
-            names = []
-            for name in data_from.actions:
-                if "_rlx" in name.lower():
-                    names.append(name)
-            data_to.actions = names
-        action = None  # type: bpy.types.Action # type: ignore
-        for action in data_to.actions:
-            action.use_fake_user = True
-        if action:
-            action.library["AG.Library"] = True
+    load_rlx_anim()
 
     ## 创建玩家实体
     CreatePlayer(context)
@@ -2368,6 +2356,23 @@ def set_view(area, view_type):
             bpy.ops.view3d.view_axis(type=view_type)  # 前视图
 
     return warp
+
+
+# 加载放松动画
+def load_rlx_anim():
+    root = Path(data.ADDON_PATH, "Models/Anm")
+    for filepath in root.glob("*.blend"):
+        with bpy.data.libraries.load(str(filepath), link=True) as (data_from, data_to):
+            names = []
+            for name in data_from.actions:
+                if "_rlx" in name.lower():
+                    names.append(name)
+            data_to.actions = names
+        action = None  # type: bpy.types.Action # type: ignore
+        for action in data_to.actions:
+            action.use_fake_user = True
+        if action:
+            action.library["AG.Library"] = True
 
 
 # 烘焙世界

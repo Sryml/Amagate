@@ -698,6 +698,9 @@ def export_map(
             sec_data = sec.amagate_data.get_sector_data()
             matrix_world = sec.matrix_world
             sec_mesh = sec.data  # type: bpy.types.Mesh # type: ignore
+            # 调试
+            # if i == 471:
+            #     print(sec.name)
             #
             # sec_vertex_indices = sector_vertex_indices[sec_data.id]
             evaluated_obj = sec.evaluated_get(depsgraph)

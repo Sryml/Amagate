@@ -744,6 +744,10 @@ class OT_SetAnim(bpy.types.Operator):
         action = bpy.data.actions.get(action_name)  # type: ignore
         if not action:
             filepath = os.path.join(data.ADDON_PATH, "Models", "Anm", filename)
+            if not os.path.exists(filepath):
+                self.report({"ERROR"}, f"{pgettext('File not found')}: {filename}")
+                return {"CANCELLED"}
+
             with bpy.data.libraries.load(filepath, link=True) as (data_from, data_to):
                 action_from = next(
                     (i for i in data_from.actions if i == action_name), None
