@@ -87,6 +87,82 @@ OBJ_NONE = 99
 #
 PROP_RESET_NAME = 1
 
+# 默认动作
+DEFAULT_ANIM = {
+    "Amazon_L": "Amz_rlx_no",
+    "Amazon_N": "Amz_rlx_no",
+    "AmzSkin1": "Amz_rlx_no",
+    "AmzSkin2": "Amz_rlx_no",
+    # 'Ank2': '',
+    "BarSkin1": "bar_rlx_no",
+    "BarSkin2": "bar_rlx_no",
+    "Barbarian": "bar_rlx_no",
+    "Barbarian_L": "bar_rlx_no",
+    "Barbarian_N": "bar_rlx_no",
+    # "Bat": "bat_fly",
+    "ChaosKnight": "Chk_rlx_no",
+    "Cos": "Cos_rlx_no",
+    "Crw": "crw_rlx",
+    "DalGurak": "Dgk_rlx_1",
+    "DarkLord": "Ank_rlx",
+    "Dark_Knight": "Tkn_rlx_no",
+    "Dark_Ork": "Ork_rlx_no",
+    # 'Dragon': 'Drg_estatua',
+    "Duque": "kgt_rlx_no",
+    "Dwarf_L": "Dwf_rlx_no",
+    "Dwarf_M": "Dwf_rlx_no",
+    "Dwarf_N": "Dwf_rlx_no",
+    "DwfSkin1": "Dwf_rlx_no",
+    "DwfSkin2": "Dwf_rlx_no",
+    "Enano1": "Dwf_rlx_no",
+    "Enano2": "Dwf_rlx_no",
+    "Enano3": "Dwf_rlx_no",
+    "Enano4": "Dwf_rlx_no",
+    # 'Gargoyle_Stone_Form': '',
+    "Gold_Ork": "Ork_rlx_no",
+    "Golem_clay": "Glm_rlx_no",
+    "Golem_ice": "Glm_rlx_no",
+    "Golem_lava": "Glm_rlx_no",
+    "Golem_metal": "Glm_rlx_no",
+    "Golem_stone": "Glm_rlx_no",
+    "Great_Demon": "Gdm_rlx_no",
+    "Great_Ork": "Ork_rlx_no",
+    "KgtSkin1": "kgt_rlx_no",
+    "KgtSkin2": "kgt_rlx_no",
+    "Knight_F": "kgt_rlx_no",
+    "Knight_L": "kgt_rlx_no",
+    "Knight_M": "kgt_rlx_no",
+    "Knight_N": "kgt_rlx_no",
+    "Knight_Traitor": "Tkn_rlx_no",
+    "Knight_Zombie": "Lch_rlx_no",
+    "Knight_traitor": "Tkn_rlx_no",
+    "Lich": "Lch_rlx_no",
+    "Little_Demon": "Ldm_rlx_no",
+    "Minotaur": "Min_rlx_1h",
+    "Mortimer": "kgt_rlx_no",
+    "NP_Knight": "kgt_rlx_no",
+    "Ork": "Ork_rlx_no",
+    # 'Pio': '',
+    # "Prisoner_1": "Prs_1_escena01_volcan",
+    # "Prisoner_2": "Prs_1_escena01_volcan",
+    # "Prisoner_3": "Prs_1_escena01_volcan",
+    # "Prisoner_4": "Prs_1_escena01_volcan",
+    # "Prisoner_5": "Prs_1_escena01_volcan",
+    # "Prisoner_6": "Prs_1_escena01_volcan",
+    "Ragnar": "Rgn_rlx_1h",
+    # 'Rat': '',
+    "Salamander": "Slm_rlx_no",
+    # 'Sgl': '',
+    # 'Shank': '',
+    "Skeleton": "Skl_rlx_1h",
+    "Spidersmall": "Spd_rlx_no",
+    "Troll_Dark": "Trl_rlx_no",
+    "Troll_snow": "Trl_rlx_no",
+    "Vamp": "Vmp_rlx_1h",
+    # 'Vejete': '',
+    # 'Wyvern': '',
+}
+
 ############################
 ############################
 ############################
@@ -981,6 +1057,43 @@ class EntityProperty(bpy.types.PropertyGroup):
                 if not obj:
                     coll_prop.remove(item_idx)
 
+    # 设置动画
+    def set_animation(self):
+        action_name = DEFAULT_ANIM.get(self.Kind, "")
+        action = bpy.data.actions.get(action_name)
+        if not action:
+            return
+        ent = self.id_data  # type: Object
+        armature = next(
+            (m.object for m in ent.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
+        if not armature:
+            return
+        # 分配动作
+        has_slot = hasattr(action, "slots")
+        if not armature.animation_data:
+            armature.animation_data_create()
+        armature.animation_data.action = action
+        if has_slot:
+            slot = action.slots[0] if len(action.slots) != 0 else None
+            if slot:
+                armature.animation_data.action_slot = slot
+
+    # 清除动画
+    def clear_animation(self):
+        ent = self.id_data  # type: Object
+        armature = next(
+            (m.object for m in ent.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
+        if not armature:
+            return
+        armature.animation_data_clear()
+        # 清空变换
+        for bone in armature.pose.bones:
+            bone.location = (0, 0, 0)
+            bone.rotation_quaternion = (1, 0, 0, 0)
+            bone.scale = (1, 1, 1)
+
     ############################
     def get_kind(self, key, default):
         if self.target == "UI":
@@ -1128,11 +1241,15 @@ class EntityProperty(bpy.types.PropertyGroup):
                     self.Burnable = False
                     self.Breakable = False
                     self.torch_usable = False
+                    # 设置动画
+                    self.set_animation()
                 # 从Person切换到其他
                 elif curr_type == "Person":
                     ent.rotation_euler = 0, 0, 0
                     # 清空库存
                     self.clear_inv()
+                    # 清除动画
+                    self.clear_animation()
                 # 从Physic切换到其它
                 if curr_type == "Physic":
                     self.Static = False
