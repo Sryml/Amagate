@@ -24,9 +24,8 @@ src="https://img.shields.io/github/v/release/sryml/Amagate?style=flat"></a>
 # Amagate
 
 Amagate is a Blender extension that transforms Blender into a specialized environment for building 3D maps, managing assets, and exporting to Blade Engine's proprietary format.  
-The ultimate goal is to seamlessly interact with Blade and become an all-in-one development tool.
-
-Features already implemented and planned include: map creation and export, real-time interaction with the game, model export, animation export, MMP file visual editing, and more...
+It is also a one-stop development tool that makes the Blade workflow more efficient and convenient.  
+It is like a time-space bridge spanning over 20 years, connecting old games on one side to new engines on the other.
 
 The project has ambitious goals and a long road ahead.  
 I hope this tool can help those interested step into the gateway of the 3D world. This is Amagate.
@@ -49,7 +48,14 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 ## 🌠 Features
 
 - [Level Editor (L3D)](#level-editor-l3d)
-- Blade coordinate conversion
+- [L3D Entity Panel](#l3d-entity-panel)
+- Entity Placement and Export
+- Animation Settings
+- Mirror Animation
+- \*.BOD Import/Export and convenience features
+- \*.BMV Import/Export
+- \*.CAM Import/Export
+- Blade Space Conversion
 - Cubemap conversion
 
 ## Level Editor (L3D)
@@ -64,10 +70,6 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - Individual texture scaling for X/Y axes
 - Real-time sky texture switching
 - Real-time 3D preview and editing
-
-### 🎯 Marker Objects
-
-- `Player` indicates the player's position when exporting the map
 
 ### HUD Information
 
@@ -105,6 +107,9 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - Tools
   - Polyline path creation
   - Ghost sector creation and export
+  - Select connected sectors
+  - Select concave sectors
+  - Select sectors by group
   - Convert to sector
   - Separate convex parts
   - Connect sectors
@@ -118,8 +123,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Align camera to client
   - Real-time Blender-to-client camera synchronization
   - Move client player to camera position
-- Others
-  - Map compilation only compiles visible convex sectors
+  - Toggle client HUD display
 
 See [Documentation.md](https://github.com/Sryml/Amagate/blob/main/docs/en-US/Documentation.md) for details
 
@@ -129,7 +133,7 @@ See [ChangeLog.md](https://github.com/Sryml/Amagate/blob/main/docs/en-US/ChangeL
 
 ## 💡 Pooling Ideas
 
-The current workflow of Amagate is not yet perfect, and some features of the Blade engine have not been implemented, such as the particle system, physics system, halo effects, animation transitions, etc.  
+The current workflow of Amagate is not yet perfect, and some features of the Blade engine have not been implemented, such as the particle system, halo effects, etc.  
 If anyone can provide suggestions for a more efficient map-building workflow or ideas for simulating Blade functions in Blender, I would be very grateful.
 
 Any suggestions or questions are welcome. Feel free to submit [Issues](https://github.com/Sryml/Amagate/issues) on GitHub or discuss them on [Discord](https://discord.gg/ZWdfcx2KW2).
@@ -140,7 +144,9 @@ Any suggestions or questions are welcome. Feel free to submit [Issues](https://g
 - SNEG, Fire Falcom, General Arcade for re-releasing the game
 - The Blender Foundation for developing excellent software
 - LLM DeepSeek for providing much assistance
+- nutti's fake-bpy-module provides excellent type hints for Blender extension development
 - The reforged textures are from sfb's [Blade of Darkness Reforged](https://www.moddb.com/mods/blade-of-darkness-reforged)
+- Thanks to Harrison for sharing the .max files and scripts many years ago
 - Thanks for Ubaid's test
 
 ## License

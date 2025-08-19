@@ -12,7 +12,14 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 ## 🌠 Features
 
 - [Level Editor (L3D)](#level-editor-l3d)
-- Blade coordinate conversion
+- [L3D Entity Panel](#l3d-entity-panel)
+- Entity Placement and Export
+- Animation Settings
+- Mirror Animation
+- \*.BOD Import/Export and convenience features
+- \*.BMV Import/Export
+- \*.CAM Import/Export
+- Blade Space Conversion
 - Cubemap conversion
 
 ## Level Editor (L3D)
@@ -27,10 +34,6 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - Individual texture scaling for X/Y axes
 - Real-time sky texture switching
 - Real-time 3D preview and editing
-
-### 🎯 Marker Objects
-
-- `Player` indicates the player's position when exporting the map
 
 ### HUD Information
 
@@ -68,6 +71,9 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - Tools
   - Polyline path creation
   - Ghost sector creation and export
+  - Select connected sectors
+  - Select concave sectors
+  - Select sectors by group
   - Convert to sector
   - Separate convex parts
   - Connect sectors
@@ -81,8 +87,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   - Align camera to client
   - Real-time Blender-to-client camera synchronization
   - Move client player to camera position
-- Others
-  - Map compilation only compiles visible convex sectors
+  - Toggle client HUD display
 
 ### ⚠️ Notes
 
@@ -107,7 +112,46 @@ Upon first installation, the required Python packages (approximately 41MB) will 
   Perform `Split Concave Faces` first before separation, otherwise the resulting sectors may contain concave polyhedrons.  
   Cross-surface splitting is unreliable; recommend disabling auto-connect and manually adjusting split sectors before perform the connection
 
+## L3D Entity Panel
+
+### 🌟 Features
+
+- Entity preview list (searchable)
+- Create entity
+- Append/open selected entity file
+- Set as prefab
+- Remove prefab
+-
+- Name editing and reset
+- Object type setting
+- Character hiding settings
+- Character equipment inventory management
+- Character item inventory management
+- Settable entity properties
+  - Kind
+  - Alpha
+  - SelfIlum
+  - Static
+  - CastShadows
+  - Character skin
+  - Life
+  - Level
+  - Angle
+  - SetOnFloor
+  - Freeze
+  - Blind
+  - Deaf
+  - FiresIntensity
+  - Intensity
+  - Color
+  - Flick
+  - Visible
+-
+- Burnable setting
+- Breakable setting
+- Internal item management for breakable containers
+- Torch Usable setting
+
 ## 📝 Todo
 
 - Sector Prefabs (doors, windows, houses, stairs, etc.)
-- BOD item placement

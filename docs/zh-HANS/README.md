@@ -24,9 +24,8 @@ src="https://img.shields.io/github/v/release/sryml/Amagate?style=flat"></a>
 # Amagate
 
 Amagate 是一个 Blender 扩展，可以将 Blender 转变为一个专门用于构建 3D 地图、管理资产并导出到专有的 Blade 引擎格式的环境。  
-最终目标是与 Blade 无缝交互并成为一站式的开发工具。
-
-已实现和计划实现的功能包含：地图创建和导出，与游戏实时交互，模型导出，动画导出，MMP 文件可视化编辑等。。。
+也是使 Blade 工作流更高效便捷的一站式开发工具。  
+它就像是一座跨越 20 多年的时空桥梁，一边通往老游戏，另一边通往新引擎。
 
 该项目的目标很大，任重而道远。  
 我希望这个工具能够帮助那些有兴趣的人们踏入 3D 世界的大门，这就是阿门。
@@ -51,7 +50,14 @@ Blender 版本：4.3.0 或以上
 ## 🌠 功能
 
 - [关卡编辑器 (L3D)](#关卡编辑器-l3d)
-- Blade 坐标转换
+- [L3D 实体面板](#l3d-实体面板)
+- 实体放置与导出
+- 动画设置
+- 镜像动画
+- \*.BOD 导入/导出和便利性功能
+- \*.BMV 导入/导出
+- \*.CAM 导入/导出
+- Blade 空间转换
 - 立方体贴图转换
 
 ## 关卡编辑器 (L3D)
@@ -66,10 +72,6 @@ Blender 版本：4.3.0 或以上
 - 单独设置纹理的 X/Y 轴缩放
 - 实时切换天空纹理
 - 实时的 3D 预览与编辑
-
-### 🎯 标记对象
-
-- `Player`表示导出地图时的玩家位置
 
 ### HUD 信息
 
@@ -107,6 +109,9 @@ Blender 版本：4.3.0 或以上
 - 工具
   - 多线段路径创建
   - 虚拟扇区创建与导出
+  - 选择连接的扇区
+  - 选择凹扇区
+  - 按组选择扇区
   - 转换为扇区
   - 分离凸部分
   - 连接扇区
@@ -120,8 +125,7 @@ Blender 版本：4.3.0 或以上
   - 对齐摄像机到客户端
   - 实时同步 blender 摄像机到客户端
   - 移动客户端玩家到摄像机位置
-- 其它
-  - 编译地图只会编译可见的凸扇区
+  - 切换客户端 HUD 显示
 
 更多参阅 [Documentation.md](https://github.com/Sryml/Amagate/blob/main/docs/zh-HANS/Documentation.md)
 
@@ -131,7 +135,7 @@ Blender 版本：4.3.0 或以上
 
 ## 💡 集思广益
 
-目前 Amagate 的工作流尚不完善，还有一些 Blade 引擎的功能没有实现，例如粒子系统，物理系统，光环效果，动画过渡等。  
+目前 Amagate 的工作流尚不完善，还有一些 Blade 引擎的功能没有实现，例如粒子系统，光环效果等。  
 如果有人可以提供更高效的地图建造工作流或者在 Blender 中模拟 Blade 功能的建议，我将非常感谢。
 
 任何建议或问题，欢迎在 GitHub 上提交 [Issues](https://github.com/Sryml/Amagate/issues) 或在 [Discord](https://discord.gg/ZWdfcx2KW2) 上讨论。
@@ -142,7 +146,9 @@ Blender 版本：4.3.0 或以上
 - SNEG, Fire Falcom, General Arcade 重新发行了游戏
 - Blender 基金会开发了出色的软件
 - LLM DeepSeek 提供了许多帮助
+- nutti 的 fake-bpy-module 为 blender 扩展发开提供了很好的类型提示
 - 重铸纹理来自 sfb 的 [Blade of Darkness Reforged](https://www.moddb.com/mods/blade-of-darkness-reforged)
+- 感谢 Harrison 多年前分享的 .max 文件与脚本
 - 感谢 Ubaid 的测试
 
 ## License

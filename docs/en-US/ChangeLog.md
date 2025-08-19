@@ -1,5 +1,29 @@
 # Amagate ChangeLog
 
+## 1.4.0
+
+- Adapted for Blender 4.5.1
+- Added entity placement functionality
+- Added entity export functionality
+- Added entity animation set functionality
+- Added entity property editing functionality
+- Added \*.BOD import/export and convenience features
+- Added \*.BMV import/export functionality
+- Added \*.CAM import/export functionality
+- Added mirror animation functionality
+- Added reset roll angle functionality
+- Added world baking functionality
+- Added select sectors by group functionality
+- Added select concave sectors functionality
+- Added toggle for client HUD display
+- Added spatial transformation for orientation, direction, and camera
+- Added visibility buttons for atmosphere and external light panels
+-
+- Fixed Python package installation issues
+- Fixed L3D scene node loading errors
+- Fixed relative path issues when setting sky textures
+- Fixed texture icon preview issues
+
 ## 1.2.0
 
 - Added map import functionality

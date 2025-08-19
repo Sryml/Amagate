@@ -8,3 +8,9 @@ _LOG/
 **/_BAT/*.bat
 # **/version
 **/*.tmp
+**textures/
+**/Models/**/*.bod
+**/Models/**/*.blend
+**/Models/**/*.jpg
+**/Models/**/*.7z
+**/Models/**/*.zip
