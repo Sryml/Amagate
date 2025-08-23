@@ -664,6 +664,7 @@ def check_duplicate():
     from . import entity_data
 
     context = bpy.context
+    scene_data = context.scene.amagate_data
     dup_sectors = [
         obj for obj in context.selected_objects if obj.amagate_data.is_sector
     ]
@@ -695,6 +696,7 @@ def check_duplicate():
     coll = ensure_collection(E_COLL)
     for ent in dup_entities:
         ent_data = ent.amagate_data.get_entity_data()
+        ent_origin = scene_data["EntityManage"][ent_data.Name]  # type: Object
         split = ent_data.Name.split("_")
         if split[-1].isdecimal():
             prefix = "_".join(split[:-1]) + "_"
@@ -725,6 +727,33 @@ def check_duplicate():
                 data.link2coll(new_obj, coll)
         # 复制完库存再改名称
         ent_data.Name = new_name
+        # 复制骨架
+        armature: Object
+        armature, modifier = next(
+            ((m.object, m) for m in ent.modifiers if m.type == "ARMATURE"), (None, None)  # type: ignore
+        )
+        if armature:
+            new_armature = armature.copy()
+            data.link2coll(new_armature, coll)
+            context.view_layer.update()
+            for child in armature.children:
+                if child.type == "EMPTY" and child.name.lower().startswith(
+                    "blade_anchor_"
+                ):
+                    anchor = child.copy()
+                    data.link2coll(anchor, coll)
+                    anchor.parent = new_armature
+            new_armature.parent = ent
+            new_armature.matrix_world = ent.matrix_world
+            modifier.object = new_armature  # type: ignore
+        # 复制锚点
+        matrix = ent.matrix_world @ ent_origin.matrix_world.inverted()
+        for child in ent_origin.children:
+            if child.type == "EMPTY" and child.name.lower().startswith("blade_anchor_"):
+                anchor = child.copy()
+                data.link2coll(anchor, coll)
+                anchor.parent = ent
+                anchor.matrix_world = matrix @ child.matrix_world
 
     # 取消用户的操作选项
     if dup_sectors:
