@@ -39,7 +39,7 @@ body:
 
         Remember to attach screenshots/recordings for each step when possible!
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: expected
@@ -47,7 +47,7 @@ body:
       label: Expected Behavior
       description: A clear and concise description of what you expected to happen.
     validations:
-      required: true
+      required: false
 
   - type: textarea
     id: logs
