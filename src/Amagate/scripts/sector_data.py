@@ -187,13 +187,19 @@ class TextureProperty(bpy.types.PropertyGroup):
                     bm = item[0]
                     faces = []
 
-                    layers = bm.faces.layers.int.get(f"amagate_tex_id")
-                    amagate_flag = bm.faces.layers.int.get(f"amagate_flag")
+                    layers = {
+                        "tex_id": bm.faces.layers.int.get(f"amagate_tex_id"),
+                        "connected": bm.faces.layers.int.get(f"amagate_connected"),
+                        "flag": bm.faces.layers.int.get(f"amagate_flag"),
+                    }
                     selected_faces = item[1]
                     for face in selected_faces:
-                        face[amagate_flag] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
-                        if face[layers] != value:  # type: ignore
-                            face[layers] = value  # type: ignore
+                        # 如果是设置为天空纹理，则跳过已连接面
+                        if value == -1 and face[layers["connected"]] != 0:  # type: ignore
+                            continue
+                        face[layers["flag"]] = L3D_data.FACE_FLAG["Custom"]  # type: ignore
+                        if face[layers["tex_id"]] != value:  # type: ignore
+                            face[layers["tex_id"]] = value  # type: ignore
                             faces.append(face)
                             update = True
                     if faces:
@@ -226,6 +232,11 @@ class TextureProperty(bpy.types.PropertyGroup):
             for i, d in enumerate(mesh.attributes["amagate_flag"].data):  # type: ignore
                 if d.value == face_flag:
                     face_attr = mesh.attributes["amagate_tex_id"].data[i]  # type: ignore
+                    connected = mesh.attributes["amagate_connected"].data[i].value  # type: ignore
+                    # 如果是设置为天空纹理，则跳过已连接面，并将连接面设置为自定义面
+                    if value == -1 and connected != 0:
+                        d.value = L3D_data.FACE_FLAG["Custom"]
+                        continue
                     if face_attr.value != value:
                         face_attr.value = value
                         update = True

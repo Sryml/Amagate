@@ -2385,16 +2385,22 @@ class SceneProperty(bpy.types.PropertyGroup):
                 )
 
             flag_layer = bm.faces.layers.int.get("amagate_flag")
+            connected_layer = bm.faces.layers.int.get("amagate_connected")
             # selected_faces = ag_utils.expand_conn(item[1], bm)
-            selected_faces = item[1]
-            for face in selected_faces:
+            selected_faces = item[1].copy()
+            for face in selected_faces.copy():
                 face[flag_layer] = FACE_FLAG[identifier]  # type: ignore
                 #
                 if identifier != "Custom":
+                    # 如果是设置为天空纹理，则跳过已连接面，并将连接面设置为自定义面
+                    if tex_id == -1 and face[connected_layer] != 0:  # type: ignore
+                        face[flag_layer] = FACE_FLAG["Custom"]  # type: ignore
+                        selected_faces.remove(face)
+                        continue
                     for layer, value in attr_list:
                         face[layer] = value  # type: ignore
             #
-            if identifier != "Custom":
+            if identifier != "Custom" and selected_faces:
                 sec_data.set_matslot(ensure_material(tex), selected_faces, bm)
                 sec.update_tag()
         data.area_redraw("VIEW_3D")

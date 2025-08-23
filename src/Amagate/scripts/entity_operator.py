@@ -1722,13 +1722,12 @@ class OT_ExportBOD(bpy.types.Operator):
         entity_eval = entity.evaluated_get(depsgraph)
         ent_matrix = entity_eval.matrix_world.copy()
         # 计算几何中心
-        verts_co = [ent_matrix @ v.co for v in ent_mesh.vertices]
+        verts_co = [v.co for v in ent_mesh.vertices]
         geom_center = Vector(sum(verts_co, Vector()) / len(verts_co))
         #
         origin = ent_matrix.to_translation()
         bounds_length = [
-            ((ent_matrix @ Vector(corner)) - geom_center).length
-            for corner in entity_eval.bound_box
+            (Vector(corner) - geom_center).length for corner in entity_eval.bound_box
         ]
         bounds_length.sort(reverse=True)
         bound_max_length = bounds_length[0] * 1000
