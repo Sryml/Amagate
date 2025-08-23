@@ -1274,7 +1274,9 @@ def load_post(filepath=""):
                     location = obj.location
                     bpy.data.objects.remove(obj)
                 OP_L3D.CreatePlayer(context)
-                bpy.data.objects["Player1"].location = location
+                ent = bpy.data.objects.get("Player1")  # type: Object # type: ignore
+                if ent and ent.amagate_data.is_entity:
+                    ent.location = location
             #
             scene_data.version = data.VERSION
             scene_data.version_date = data.VERSION_DATE

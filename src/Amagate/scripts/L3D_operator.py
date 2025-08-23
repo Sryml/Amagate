@@ -104,19 +104,21 @@ FACE_PROPS = {
 # 创建玩家
 def CreatePlayer(context: Context):
     _, ent = OT_EntityCreate.add(None, context, "Knight_N")
-    ent_data = ent.amagate_data.get_entity_data()
-    ent_data.Name = "Player1"
-    ent_data.ObjType = "0"
-    ent_data.Hide = False
-    ent_data.Level = 20
-    inv_ent = entity_data.add_equipment("Antorcha", ent)
-    inv_ent.amagate_data.get_entity_data().light_prop.Intensity = 3
-    entity_data.add_equipment("EgyptSword", ent)
-    entity_data.add_equipment("Escudo7", ent)
-    entity_data.add_equipment("Arco", ent)
-    entity_data.add_equipment("Carcaj", ent)
-    entity_data.add_prop("PocimaTodo", ent)
-    entity_data.add_prop("PowerPotion", ent)
+    if ent:
+        ent_data = ent.amagate_data.get_entity_data()
+        ent_data.Name = "Player1"
+        ent_data.ObjType = "0"
+        ent_data.Hide = False
+        ent_data.Level = 20
+        inv_ent = entity_data.add_equipment("Antorcha", ent)
+        if inv_ent:
+            inv_ent.amagate_data.get_entity_data().light_prop.Intensity = 3
+        entity_data.add_equipment("EgyptSword", ent)
+        entity_data.add_equipment("Escudo7", ent)
+        entity_data.add_equipment("Arco", ent)
+        entity_data.add_equipment("Carcaj", ent)
+        entity_data.add_prop("PocimaTodo", ent)
+        entity_data.add_prop("PowerPotion", ent)
 
 
 ############################
@@ -1309,7 +1311,7 @@ class OT_EntityCreate(bpy.types.Operator):
                 anchor.matrix_world = matrix
 
     @staticmethod
-    def add(this, context: Context, inter_name, entity: Object = None, obj_name="", change_skin=False):  # type: ignore
+    def add(this, context: Context, inter_name, entity: Object = None, obj_name="", change_skin=False) -> tuple[set[str], Object | None]:  # type: ignore
         from . import entity_operator as OP_ENTITY
 
         is_operator = isinstance(this, bpy.types.Operator)

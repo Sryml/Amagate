@@ -1022,9 +1022,6 @@ class OT_ImportBOD(bpy.types.Operator):
             for obj in ent_coll.objects:
                 if not obj.parent:
                     obj.select_set(True)
-            # 调整实体中心
-            for obj in context.selected_objects:
-                obj.matrix_world.translation += center
             # 纠正方向
             if not transform_space:
                 for obj in context.selected_objects:
@@ -1155,12 +1152,12 @@ class OT_ImportBOD(bpy.types.Operator):
                 data.link2coll(armature_obj, ent_coll)
                 ag_utils.select_active(context, armature_obj)  # type: ignore
                 bpy.ops.object.mode_set(mode="EDIT")
-            elif transform_space:
-                bmesh.ops.transform(
-                    ent_bm,
-                    matrix=local_space,
-                    verts=ent_bm.verts,  # type: ignore
-                )
+            # elif transform_space:
+            #     bmesh.ops.transform(
+            #         ent_bm,
+            #         matrix=local_space,
+            #         verts=ent_bm.verts,  # type: ignore
+            #     )
 
             for i in range(bones_num):
                 if bones_num != 1:
@@ -1207,8 +1204,8 @@ class OT_ImportBOD(bpy.types.Operator):
                         dot = dir.dot(matrix.translation - parent_bone.head)
                         if dot > 0:
                             parent_bone.length = max(0.001, dot)
-                    elif transform_space:
-                        matrix = local_space @ matrix
+                    # elif transform_space:
+                    #     matrix = local_space @ matrix
                     bone_matrix[name] = matrix
                     # if transform_space:
                     #     bone_matrix[name][0] = local_space @ matrix
@@ -1254,10 +1251,10 @@ class OT_ImportBOD(bpy.types.Operator):
             ent_bm.to_mesh(ent_mesh)
             ent_bm.free()
             ent_mesh.shade_smooth()  # 平滑着色
-            # 中心
-            center = Vector(unpack("ddd", f)) / 1000
-            if transform_space:
-                center.yz = center.z, -center.y
+            # 几何中心
+            geom_center = Vector(unpack("ddd", f)) / 1000
+            # if transform_space:
+            #     center.yz = center.z, -center.y
             dist = unpack("d", f)[0] / 1000
 
             #
@@ -1290,7 +1287,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 if verts_multi_group:
                     logger.debug(f"verts_multi_group: {verts_multi_group}")
                 #
-
+            context.view_layer.update()
             # 火焰
             num = unpack("I", f)[0]
             for idx in range(num):
@@ -1299,8 +1296,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 prev_vert = None
                 for i in range(verts_num):
                     co = Vector(unpack("ddd", f)) / 1000
-                    if transform_space:
-                        co.yz = co.z, -co.y
+                    # if transform_space:
+                    #     co.yz = co.z, -co.y
                     vert = bm.verts.new(co)
                     if prev_vert is not None:
                         bm.edges.new([prev_vert, vert])
@@ -1328,8 +1325,8 @@ class OT_ImportBOD(bpy.types.Operator):
                         obj.parent_type = "BONE"
                         obj.parent_bone = bone_name
                         obj.matrix_world = Matrix()
-                    else:
-                        logger.debug(f"Fire - parent_idx not -1: {parent_idx}")
+                else:
+                    logger.debug(f"Fire - parent_idx not -1: {parent_idx}")
 
                 bm.to_mesh(mesh)
                 bm.free()
@@ -1345,8 +1342,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 strength = unpack("f", f)[0]
                 precision = unpack("f", f)[0]
                 co = Vector(unpack("ddd", f)) / 1000
-                if transform_space:
-                    co.yz = co.z, -co.y
+                # if transform_space:
+                #     co.yz = co.z, -co.y
                 #
                 obj_name = data.get_object_name("Blade_Light_")
                 obj = bpy.data.objects.new(
@@ -1365,8 +1362,8 @@ class OT_ImportBOD(bpy.types.Operator):
                         obj.parent = armature_obj  # type: ignore
                         obj.parent_type = "BONE"
                         obj.parent_bone = bone_name
-                    else:
-                        logger.debug(f"Light - parent_idx not -1: {parent_idx}")
+                else:
+                    logger.debug(f"Light - parent_idx not -1: {parent_idx}")
                 #
                 obj.matrix_world = Matrix.Translation(co)
 
@@ -1500,7 +1497,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 #
                 parent_idx = unpack("i", f)[0]  # type: int
                 pt1 = Vector(unpack("ddd", f)) / 1000
-                pt2 = Vector(unpack("ddd", f)) / 1000
+                pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
                 #
                 obj_name = data.get_object_name("Blade_Spike_")
                 mesh = bpy.data.meshes.new(obj_name)
@@ -1584,7 +1581,7 @@ class OT_ImportBOD(bpy.types.Operator):
                     logger.debug(f"Track - mark not 0: {mark}")
                 parent_idx = unpack("i", f)[0]  # type: int
                 pt1 = Vector(unpack("ddd", f)) / 1000
-                pt2 = Vector(unpack("ddd", f)) / 1000
+                pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
                 #
                 obj_name = data.get_object_name("Blade_Trail_")
                 mesh = bpy.data.meshes.new(obj_name)
@@ -1724,9 +1721,13 @@ class OT_ExportBOD(bpy.types.Operator):
         )  # type: bpy.types.Mesh # type: ignore
         entity_eval = entity.evaluated_get(depsgraph)
         ent_matrix = entity_eval.matrix_world.copy()
+        # 计算几何中心
+        verts_co = [ent_matrix @ v.co for v in ent_mesh.vertices]
+        geom_center = Vector(sum(verts_co, Vector()) / len(verts_co))
+        #
         origin = ent_matrix.to_translation()
         bounds_length = [
-            ((ent_matrix @ Vector(corner)) - origin).length
+            ((ent_matrix @ Vector(corner)) - geom_center).length
             for corner in entity_eval.bound_box
         ]
         bounds_length.sort(reverse=True)
@@ -1889,7 +1890,7 @@ class OT_ExportBOD(bpy.types.Operator):
                         "Image Texture"
                     )  # type: bpy.types.ShaderNodeTexImage # type: ignore
                     if img_node and img_node.image:
-                        img_name = img_node.image.name
+                        img_name = Path(bpy.path.basename(img_node.image.filepath)).stem
 
             if not img_name:
                 img_name = "NULL"
@@ -1961,13 +1962,13 @@ class OT_ExportBOD(bpy.types.Operator):
             buffer.write(struct.pack("I", 0))  # 顶点起始位置
             #
             buffer.write(struct.pack("I", 1))
-            center = origin * 1000
+            center = geom_center * 1000
             center.yz = -center.z, center.y
             buffer.write(struct.pack("dddd", *center, bound_max_length))
             buffer.write(struct.pack("II", 0, verts_num))
 
-        # 中心
-        center = origin * 1000
+        # 几何中心
+        center = geom_center * 1000
         center.yz = -center.z, center.y
         buffer.write(struct.pack("dddd", *center, bound_max_length))
 
@@ -2135,6 +2136,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 pt1 = parent_matrix @ pt1
                 pt2 = parent_matrix @ pt2
             #
+            pt2 = pt2 - pt1
             pt1 *= 1000
             pt2 *= 1000
             buffer.write(struct.pack("I", 0))  # 固定0
@@ -2184,6 +2186,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 pt1 = parent_matrix @ pt1
                 pt2 = parent_matrix @ pt2
             #
+            pt2 = pt2 - pt1
             pt1 *= 1000
             pt2 *= 1000
             buffer.write(struct.pack("I", 0))  # 固定0
