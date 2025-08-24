@@ -88,6 +88,13 @@ PY_PACKAGES_INSTALLING = False
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
     VERSION = v.readline().strip()
     VERSION_DATE = int(v.readline().strip())
+# 模型包版本
+filepath = Path(ADDON_PATH) / "Models/version"
+if filepath.exists():
+    with open(filepath, "r") as f:
+        MODELPACKAGE_VERSION = f.readline().strip()
+else:
+    MODELPACKAGE_VERSION = "None"
 
 DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 

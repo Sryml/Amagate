@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 from typing import Any, TYPE_CHECKING
+from pathlib import Path
 
 import bpy
 import bmesh
@@ -327,6 +328,26 @@ class AMAGATE_PT_Cubemap(AG_Panel, bpy.types.Panel):
         col.prop(preferences, "cubemap_out_res_y", text="Y")
         col = layout.column()
         col.operator(OP.OT_Cubemap2Equirect.bl_idname, icon="EXPORT")
+
+
+############################
+############################ 模型包
+############################
+
+
+class AMAGATE_PT_ModelPackage(AG_Panel, bpy.types.Panel):
+    bl_label = "Model Package"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = 1
+
+    def draw(self, context: Context):
+        layout = self.layout
+        column = layout.column()
+        column.label(
+            text=f"{pgettext('Version')}: {pgettext(data.MODELPACKAGE_VERSION)}"
+        )
+        column.operator(OP.OT_ModelPackOpen.bl_idname, icon="FILE_FOLDER")
+        column.operator(OP.OT_ModelPackImport.bl_idname, icon="IMPORT")
 
 
 ############################

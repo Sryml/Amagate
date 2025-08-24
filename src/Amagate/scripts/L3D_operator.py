@@ -996,7 +996,7 @@ class OT_SkyTexture_Download(bpy.types.Operator):
             if down_result:
                 save_file.flush()
                 extract_result = ag_utils.extract_file(
-                    save_file, os.path.join(data.ADDON_PATH, "textures/panorama")
+                    save_file, Path(data.ADDON_PATH) / "textures/panorama"
                 )
                 if extract_result:
                     logger.info("Panorama downloaded and extracted")

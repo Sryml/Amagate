@@ -15,6 +15,7 @@
     ("*", "Please enable online access in Preferences -> System"): "请在 [偏好设置 -> 系统] 中开启联机访问",
     ("*", "Input format error"): "输入格式错误",
     ("*", "Invalid file"): "无效文件",
+    ("*", "Import completed"): "导入完成",
     # ("*", "non-uniform"): "不一致的",
     ("Operator", "Don't Save"): "不保存",
     ("Operator", "Cancel"): "取消",
@@ -346,4 +347,8 @@
     ("*", "Export as panorama"): "导出为全景图",
     ("Operator", "Select and export"): "选择并导出",
     ("*", "Please select the six cubemap images"): "请选择六张立方体贴图",
+    # 模型包
+    ("*", "Model Package"): "模型包",
+    ("Operator", "Import"): "导入",
+    ("Operator", "Open in File Browser"): "在文件浏览器中打开",
 }

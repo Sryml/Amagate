@@ -22,6 +22,7 @@ import struct
 
 from typing import Any, TYPE_CHECKING
 from io import StringIO, BytesIO
+from pathlib import Path
 
 #
 import numpy as np
@@ -1520,28 +1521,28 @@ def download_file(url, save_file, referer):
             return False
 
 
-def extract_file(archive_file, extract_to):
-    # type: (tempfile._TemporaryFileWrapper, str) -> bool
+def extract_file(archive_file, extract_to, overwrite=False):
+    # type: (tempfile._TemporaryFileWrapper|Path, Path, bool) -> bool
     """
     解压文件到指定目录
     """
     try:
-        if not os.path.exists(extract_to):
+        if not extract_to.exists():
             os.makedirs(extract_to, exist_ok=True)
 
         if archive_file.name.endswith(".zip"):
             with zipfile.ZipFile(archive_file, "r") as zip_ref:
-                # zip_ref.extractall(extract_to)
-                for member in zip_ref.infolist():
-                    target_path = os.path.join(extract_to, member.filename)
-                    # 检查文件是否存在且不是目录
-                    if not (
-                        os.path.exists(target_path) and not os.path.isdir(target_path)
-                    ):
-                        zip_ref.extract(member, extract_to)
-                    else:
-                        pass
-                        # logger.info(f"文件已存在，跳过: {member.filename}")
+                if overwrite:
+                    zip_ref.extractall(extract_to)
+                else:
+                    for member in zip_ref.infolist():
+                        target_path = extract_to / member.filename
+                        # 检查覆盖
+                        if target_path.is_file():
+                            pass
+                            # logger.info(f"文件已存在，跳过: {member.filename}")
+                        else:
+                            zip_ref.extract(member, extract_to)
         # elif archive_path.endswith(('.tar.gz', '.tgz')):
         #     with tarfile.open(archive_path, 'r:gz') as tar_ref:
         #         tar_ref.extractall(extract_to)

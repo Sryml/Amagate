@@ -1305,6 +1305,65 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
 
 
 ############################
+############################ 模型包
+############################
+
+
+# 在文件浏览器中打开
+class OT_ModelPackOpen(bpy.types.Operator):
+    bl_idname = "amagate.model_pack_open"
+    bl_label = "Open in File Browser"
+    bl_description = "Open in File Browser"
+    bl_options = {"INTERNAL"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        return data.MODELPACKAGE_VERSION != "None"
+
+    def execute(self, context: Context):
+        filepath = Path(data.ADDON_PATH) / "Models"
+        bpy.ops.wm.path_open(filepath=str(filepath))
+        return {"FINISHED"}
+
+
+# 导入
+class OT_ModelPackImport(bpy.types.Operator):
+    bl_idname = "amagate.model_pack_import"
+    bl_label = "Import"
+    bl_description = "Import"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.zip", options={"HIDDEN"})  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+
+    def execute(self, context: Context):
+        filepath = Path(self.filepath)
+        if not (filepath.is_file() and filepath.suffix.lower() == ".zip"):
+            self.report({"ERROR"}, f"{pgettext('Invalid file')}: {filepath.name}")
+            return {"FINISHED"}
+        # 解压
+        ag_utils.extract_file(filepath, Path(data.ADDON_PATH), overwrite=True)
+        # 更新版本变量
+        filepath = Path(data.ADDON_PATH) / "Models/version"
+        if filepath.exists():
+            with open(filepath, "r") as f:
+                data.MODELPACKAGE_VERSION = f.readline().strip()
+        # 重载预览
+        entity_data.load_ent_preview(reload=True)
+
+        self.report({"INFO"}, f"Import completed")
+        return {"FINISHED"}
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        # 设为上次选择目录，文件名为空
+        if not self.filepath:
+            self.filepath = self.directory
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+
+############################
 ############################ 调试面板
 ############################
 

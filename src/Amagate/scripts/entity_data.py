@@ -192,14 +192,19 @@ def is_uniform(attr: str):
     return True
 
 
-def load_ent_preview():
+def load_ent_preview(reload=False):
     preview_dir = os.path.join(data.ADDON_PATH, "Models", "Preview")
+    if reload:
+        bpy.utils.previews.remove(data.ENT_PREVIEWS)
     data.ENT_PREVIEWS = bpy.utils.previews.new()
     for file in os.listdir(preview_dir):
         if file.lower().endswith(".jpg"):
             data.ENT_PREVIEWS.load(
-                file[:-4], os.path.join(preview_dir, file), "IMAGE"
-            )  # force_reload=True
+                file[:-4],
+                os.path.join(preview_dir, file),
+                "IMAGE",
+                # force_reload=reload
+            )
     # 生成实体枚举
     gen_ent_enum()
     gen_equipment()
