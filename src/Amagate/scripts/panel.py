@@ -78,22 +78,11 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         layout = self.layout
         wm_data = context.window_manager.amagate_data
 
-        # 创建集合
-        layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")
-        # 添加骨架
-        layout.operator(OP_ENTITY.OT_AddArmature.bl_idname, icon="ADD")
-
-        row = layout.row(align=True)
-        # 添加锚点
-        row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
-        # 添加组件
-        row.operator_menu_enum(OP_ENTITY.OT_AddComponent.bl_idname, "action")
-
         # 组
         box = layout.box()
         box.enabled = context.mode == "EDIT_MESH"
         column = box.column(align=True)
-        column.label(text=f"{pgettext('Groups')}:")
+        column.label(text=f"{pgettext('Wound Groups')}:")
         col_flow = column.grid_flow(row_major=True, columns=8, align=True)
         if context.mode == "EDIT_MESH":
             obj = context.object
@@ -173,8 +162,18 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         # 按肢解组选择
         box.operator_menu_enum(OP_ENTITY.OT_SelectByMutilateGroup.bl_idname, "action")
 
-        # 实体说明
-        layout.operator(OP_ENTITY.OT_EntityNote.bl_idname, icon="INFO")
+        # 创建集合
+        layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")
+        # 添加骨架
+        layout.operator(OP_ENTITY.OT_AddArmature.bl_idname, icon="ADD")
+        # 切换伤口纹理
+        layout.operator(OP_ENTITY.OT_SwitchWoundTex.bl_idname)
+
+        row = layout.row(align=True)
+        # 添加锚点
+        row.operator_menu_enum(OP_ENTITY.OT_AddAnchor.bl_idname, "action")
+        # 添加组件
+        row.operator_menu_enum(OP_ENTITY.OT_AddComponent.bl_idname, "action")
 
         layout.separator(type="LINE")
 
@@ -184,6 +183,11 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         row.operator_menu_enum(OP_ENTITY.OT_ExportBOD.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
         # 导入
         layout.operator(OP_ENTITY.OT_ImportBOD.bl_idname, icon="IMPORT")
+
+        layout.separator(type="LINE")
+
+        # 实体说明
+        layout.operator(OP_ENTITY.OT_EntityNote.bl_idname, icon="INFO")
 
 
 ############################

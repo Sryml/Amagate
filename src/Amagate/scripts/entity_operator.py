@@ -793,6 +793,44 @@ class OT_AddArmature(bpy.types.Operator):
         return {"FINISHED"}
 
 
+# 切换伤口纹理
+class OT_SwitchWoundTex(bpy.types.Operator):
+    bl_idname = "amagate.ent_switch_wound_tex"
+    bl_label = "Switch Wound Texture"
+    bl_options = {"UNDO", "INTERNAL"}
+
+    def execute(self, context: Context):
+        obj = context.active_object
+        if not (obj and obj.type == "MESH"):
+            self.report({"INFO"}, "No active object")
+            return {"CANCELLED"}
+        #
+        # if context.mode != "OBJECT":
+        #     bpy.ops.object.mode_set(mode="OBJECT")
+        for mat in obj.data.materials:  # type: ignore
+            img_node = mat.node_tree.nodes.get(
+                "Image Texture"
+            )  # type: bpy.types.ShaderNodeTexImage # type: ignore
+            if img_node and img_node.image:
+                is_relpath = True if img_node.image.filepath.startswith("//") else False
+                filepath = Path(bpy.path.abspath(img_node.image.filepath))
+                if filepath.stem.endswith("_W"):
+                    name = filepath.stem[:-2]
+                else:
+                    name = f"{filepath.stem}_W"
+                filepath = filepath.with_stem(name)
+                if filepath.exists():
+                    img_node.image.filepath = (
+                        bpy.path.relpath(str(filepath)) if is_relpath else str(filepath)
+                    )
+                else:
+                    self.report(
+                        {"INFO"}, f"{pgettext('File not found')}: {filepath.name}"
+                    )
+
+        return {"FINISHED"}
+
+
 # 添加锚点
 class OT_AddAnchor(bpy.types.Operator):
     bl_idname = "amagate.ent_add_anchor"
@@ -981,10 +1019,19 @@ class OT_EntityNote(bpy.types.Operator):
         layout = this.layout  # type: bpy.types.UILayout
         column = layout.column()
         column.label(
-            text=f"1. {pgettext('All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group')}"
+            text=f"1. {pgettext('For the character')}, {pgettext('Each vertex must be assigned to a bone vertex group and can only belong to one vertex group')}"
         )
         column.label(
             text=f"2. {pgettext('Do not link lights or flames to bone, as the BOD engine does not support it')}"
+        )
+        column.label(
+            text=f"3. {pgettext('The wound group is only useful for character model')}"
+        )
+        column.label(
+            text=f"""4. {pgettext("The wound texture does not need to be assigned to the model; simply ensure the name is the normal texture plus the suffix '_W'")}"""
+        )
+        column.label(
+            text=f"5. {pgettext('When exporting, the Blender material name will be used as the model texture name')}"
         )
         column.separator(factor=1, type="SPACE")
 
@@ -1755,7 +1802,7 @@ class OT_ExportBOD(bpy.types.Operator):
                 if len(vert_groups) != 1:
                     self.report(
                         {"ERROR"},
-                        "All vertices must be assigned to bone vertex groups and can only belong to one bone vertex group",
+                        "Each vertex must be assigned to a bone vertex group and can only belong to one vertex group",
                     )
                     entity.to_mesh_clear()
                     bpy.data.meshes.remove(entity.data)  # type: ignore
@@ -1885,11 +1932,11 @@ class OT_ExportBOD(bpy.types.Operator):
                 mat = entity.material_slots[poly.material_index].material
                 if mat:
                     img_name = mat.name
-                    img_node = mat.node_tree.nodes.get(
-                        "Image Texture"
-                    )  # type: bpy.types.ShaderNodeTexImage # type: ignore
-                    if img_node and img_node.image:
-                        img_name = Path(bpy.path.basename(img_node.image.filepath)).stem
+                    # img_node = mat.node_tree.nodes.get(
+                    #     "Image Texture"
+                    # )  # type: bpy.types.ShaderNodeTexImage # type: ignore
+                    # if img_node and img_node.image:
+                    #     img_name = Path(bpy.path.basename(img_node.image.filepath)).stem
 
             if not img_name:
                 img_name = "NULL"
