@@ -531,6 +531,8 @@ def check_delete():
 
     if deleted_ids or deleted_entities:
         bpy.ops.ed.undo()
+        if bpy.context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
         #
         if deleted_ids:
             coll = ensure_collection(S_COLL)
@@ -1012,45 +1014,47 @@ def depsgraph_update_post(scene: Scene, depsgraph: bpy.types.Depsgraph):
         #
         bl_label = context.window_manager.operators[-1].bl_label
         bl_idname = context.window_manager.operators[-1].bl_idname
-        # print(bl_idname)
-        if bl_idname == "OBJECT_OT_editmode_toggle":
-            update_scene_edit_mode()
-            # 从编辑模式切换到物体模式的回调
-            if context.mode == "OBJECT":
+        try:
+            if bl_idname == "OBJECT_OT_editmode_toggle":
+                update_scene_edit_mode()
+                # 从编辑模式切换到物体模式的回调
+                if context.mode == "OBJECT":
+                    geometry_modify_post()
+            # 应用修改器的回调
+            elif bl_idname == "OBJECT_OT_modifier_apply" and context.mode == "OBJECT":
                 geometry_modify_post()
-        # 应用修改器的回调
-        elif bl_idname == "OBJECT_OT_modifier_apply":
-            geometry_modify_post()
-        # 移动/移除扇区集合的回调
-        elif bl_label in COLLECTION_OP:
-            check_sector_coll()
-        # 删除扇区的回调
-        # elif bl_idname in DELETE_OP and s_coll_objects_neq:
-        #     check_sector_delete()
-        # 任意删除的回调
-        elif bl_idname in DELETE_OP:
-            check_delete()
-        # 合并扇区的回调
-        elif bl_idname == "OBJECT_OT_join":
-            check_sector_join()
-        # 分离扇区的回调
-        elif bl_idname == "MESH_OT_separate":
-            check_sector_separate()
-        # 复制回调 # FIXME 有时候没有触发该回调，原因未知
-        elif bl_idname in DUPLICATE_OP:
-            check_duplicate()
-        # 粘贴回调
-        elif bl_idname == "VIEW3D_OT_pastebuffer":
-            check_paste()
-        # 变换回调
-        elif bl_idname in TRANSFORM_OP:
-            check_transform(bl_idname)
-        # 选择物体的回调
-        elif bl_idname in SELECT_OP:
-            check_sector_select()
-        # 编辑模式删除的回调，有点复杂，因为不知道用户是单独删除面还是包括顶点
-        # elif bl_idname == "MESH_OT_delete":
-        #     ...
+            # 移动/移除扇区集合的回调
+            elif bl_label in COLLECTION_OP:
+                check_sector_coll()
+            # 删除扇区的回调
+            # elif bl_idname in DELETE_OP and s_coll_objects_neq:
+            #     check_sector_delete()
+            # 任意删除的回调
+            elif bl_idname in DELETE_OP:
+                check_delete()
+            # 合并扇区的回调
+            elif bl_idname == "OBJECT_OT_join":
+                check_sector_join()
+            # 分离扇区的回调
+            elif bl_idname == "MESH_OT_separate":
+                check_sector_separate()
+            # 复制回调 # FIXME 有时候没有触发该回调，原因未知
+            elif bl_idname in DUPLICATE_OP:
+                check_duplicate()
+            # 粘贴回调
+            elif bl_idname == "VIEW3D_OT_pastebuffer":
+                check_paste()
+            # 变换回调
+            elif bl_idname in TRANSFORM_OP and context.mode == "OBJECT":
+                check_transform(bl_idname)
+            # 选择物体的回调
+            elif bl_idname in SELECT_OP:
+                check_sector_select()
+            # 编辑模式删除的回调，有点复杂，因为不知道用户是单独删除面还是包括顶点
+            # elif bl_idname == "MESH_OT_delete":
+            #     ...
+        except:
+            logger.exception(f"depsgraph_update_post error: {bl_idname}")
     # 无操作回调，例如在属性面板修改
     # else:
     #     if depsgraph.id_type_updated("OBJECT") and context.mode == "OBJECT":
