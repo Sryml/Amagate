@@ -1110,25 +1110,21 @@ def check_before_save(filepath):
         scene_data.builtin_tex_saved = True
         img = None  # type: Image # type: ignore
         img_list = []
+        parent = Path(filepath).parent
         for img in bpy.data.images:  # type: ignore
             img_data = img.amagate_data
             if img_data.builtin:
                 img_data.builtin = False
-                os.makedirs(
-                    os.path.join(os.path.dirname(filepath), "textures"), exist_ok=True
-                )
-                new_path = os.path.join(
-                    os.path.dirname(filepath),
-                    "textures",
-                    os.path.basename(img.filepath),
-                )
+                os.makedirs(parent / "textures", exist_ok=True)
+                new_path = parent / "textures" / Path(img.filepath).name
                 shutil.copy(img.filepath, new_path)
-                img_list.append(
-                    (img, f"//{os.path.relpath(new_path, os.path.dirname(filepath))}")
-                )
-        # 保存内置纹理后，延迟设置文件路径
+                relpath = f"//{os.path.relpath(new_path, parent)}"
+                img.filepath = relpath
+                img_list.append(img)
+        # 保存内置纹理后，延迟重载图像
         if img_list:
-            bpy.app.timers.register(lambda: (tuple(map(lambda x: setattr(x[0], "filepath", x[1]), img_list)), None)[-1], first_interval=0.2)  # type: ignore
+            bpy.app.timers.register(lambda img_list=img_list: (tuple(map(lambda x: x.reload(), img_list)), None)[-1], first_interval=0.2)  # type: ignore
+            # bpy.app.timers.register(lambda img_list=img_list: (tuple(map(lambda x: setattr(x[0], "filepath", x[1]), img_list)), None)[-1], first_interval=0.2)  # type: ignore
 
 
 def draw_callback_3d():
@@ -1323,6 +1319,7 @@ def load_post(filepath=""):
                 filepath = Path(lib.filepath)
                 filepath = models_path.joinpath(*filepath.parts[-2:])
                 lib.filepath = str(filepath)
+                lib.reload()
         # 为链接的动作设置伪用户
         for a in bpy.data.actions:
             if a.library:
