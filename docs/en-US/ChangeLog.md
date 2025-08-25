@@ -1,5 +1,18 @@
 # Amagate ChangeLog
 
+## 1.4.2
+
+- Model packages are now manually imported for lightweight purposes
+- Added switch wound textures functionality
+- Optimized the logic for setting sector textures
+- Material names are now used as texture names for .BOD exports
+-
+- Fixed callback execution errors in L3D edit mode
+- Fixed Spike and Trail issues in .BOD import/export
+- Fixed geometric center issues in .BOD import/export
+- Fixed missing skeletons and anchors when duplicating entities
+- Fixed an error when creating a new map without a model package
+
 ## 1.4.0
 
 - Adapted for Blender 4.5.1

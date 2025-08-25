@@ -7,6 +7,7 @@ Blender version: 4.3.0 or above
 From the menu bar, select `Edit -> Preferences -> Get Extensions`,  
 then click `Install from Disk` in the top-right corner and choose the downloaded extension zip file.
 
+Entity creation and animation setup require a model pack to be usable, which can be imported from the model pack panel.  
 Upon first installation, the required Python packages (approximately 41MB) will be automatically installed.
 
 ## 🌠 Features
