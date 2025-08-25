@@ -1379,8 +1379,9 @@ class OT_Test(bpy.types.Operator):
         items=[
             ("1", "Batch Import BOD", ""),
             ("2", "Batch Import BMV", ""),
-            ("3", "test1", ""),
-            ("4", "test2", ""),
+            ("3", "update_trail_spike", ""),
+            ("4", "test1", ""),
+            ("5", "test2", ""),
         ],
         options={"HIDDEN"},
     )  # type: ignore
@@ -1389,6 +1390,7 @@ class OT_Test(bpy.types.Operator):
         cb_dict = {
             "Batch Import BOD": self.import_bod,
             "Batch Import BMV": self.import_bmv,
+            "update_trail_spike": self.update_trail_spike,
             "test1": self.test1,
             "test2": self.test2,
         }
@@ -1643,6 +1645,261 @@ class OT_Test(bpy.types.Operator):
         for f in paths:
             os.remove(f)
 
+    # 更新Trail和Spike
+    def update_trail_spike(self, context: Context):
+        from . import entity_operator as OP_ENTITY
+
+        models_path = Path(data.ADDON_PATH) / "Models"
+        count = 0
+        path = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
+        mesh_dict = pickle.load(open(path, "rb"))
+        target_space = Matrix.Rotation(-math.pi / 2, 4, "X")
+        target_space_inv = Matrix.Rotation(
+            -math.pi / 2, 4, "X"
+        ).inverted()  # type: Matrix
+
+        def final():
+            pass
+
+        def parse():
+            with open(bod_file, "rb") as f:
+                file_size = os.fstat(f.fileno()).st_size
+                # 内部名称
+                length = unpack("I", f)[0]
+                inter_name = unpack(f"{length}s", f)
+                # 顶点
+                verts_num = unpack("I", f)[0]
+                f.seek(48 * verts_num, 1)
+                # 面
+                faces_num = unpack("I", f)[0]
+                for i in range(faces_num):
+                    # vert_idx
+                    f.seek(12, 1)
+                    length = unpack("I", f)[0]
+                    # img_name = unpack(f"{length}s", f)
+                    f.seek(length, 1)
+                    # uv_list
+                    f.seek(24, 1)
+                    # 跳过0
+                    f.seek(4, 1)
+                # 骨架
+                bones_num = unpack("I", f)[0]
+                for i in range(bones_num):
+                    if bones_num != 1:
+                        length = unpack("I", f)[0]
+                        f.seek(length, 1)
+                        # name = unpack(f"{length}s", f)
+                    f.seek(140, 1)
+                    num = unpack("I", f)[0]
+                    for j in range(num):
+                        f.seek(40, 1)
+                # 几何中心
+                f.seek(32, 1)
+                # 火焰
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    verts_num = unpack("I", f)[0]
+                    for i in range(verts_num):
+                        f.seek(28, 1)
+                    f.seek(8, 1)
+                # 灯光
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    f.seek(36, 1)
+                # 锚点
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    length = unpack("I", f)[0]
+                    f.seek(length, 1)
+                    f.seek(132, 1)
+                # 剩余数据种类
+                data_num_remain = data_num = unpack("I", f)[0]
+                if data_num == 0:
+                    return final()
+
+                # 边缘
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    f.seek(80, 1)
+
+                data_num -= 1
+                if data_num == 0:
+                    return final()
+
+                # 尖刺
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    mark = unpack("I", f)[0]  # 默认0
+                    if mark != 0:
+                        logger.debug(f"Spike - mark not 0: {mark}")
+                    #
+                    parent_idx = unpack("i", f)[0]  # type: int
+                    pt1 = Vector(unpack("ddd", f)) / 1000
+                    pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
+                    #
+                    obj_name = data.get_object_name("Blade_Spike_")
+                    mesh = bpy.data.meshes.new(obj_name)
+                    obj = bpy.data.objects.new(
+                        obj_name, mesh
+                    )  # type: Object # type: ignore
+                    obj.show_in_front = True
+                    obj.amagate_data.ent_comp_type = 2
+                    data.link2coll(obj, ent_coll)
+                    #
+                    parent_matrix = None
+                    if parent_idx != -1:
+                        if armature is not None:
+                            bone_name = bones_name[parent_idx]
+                            parent_matrix = bone_matrix[bone_name]
+                            obj.parent = armature_obj  # type: ignore
+                            obj.parent_type = "BONE"
+                            obj.parent_bone = bone_name
+                        else:
+                            obj.parent = entity  # type: ignore
+                    #
+                    if parent_matrix:
+                        pt1 = parent_matrix @ pt1
+                        pt2 = parent_matrix @ pt2
+                    #
+                    mesh_data = mesh_dict["Blade_Spike_1"]
+                    bm = bmesh.new()
+                    verts = []
+                    for co in mesh_data["vertices"]:
+                        verts.append(bm.verts.new(co))
+                    for idx in mesh_data["edges"]:
+                        bm.edges.new([verts[i] for i in idx])
+                    # 调整大小
+                    move_y = (pt2 - pt1).length - 0.1
+                    bmesh.ops.translate(bm, vec=(0, move_y, 0), verts=[verts[i] for i in range(1, 6)])  # type: ignore
+                    # 调整朝向
+                    quat = (pt2 - pt1).normalized().to_track_quat("Y", "Z")
+                    bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=quat.to_matrix(), verts=bm.verts)  # type: ignore
+
+                    bm.to_mesh(mesh)
+                    bm.free()
+                    #
+                    context.view_layer.update()
+                    obj.matrix_world = target_space @ Matrix.Translation(pt1)
+
+                data_num -= 1
+                if data_num == 0:
+                    return final()
+
+                # 组
+                num = unpack("I", f)[0]
+                f.seek(num, 1)
+                # 肢解组
+                num = unpack("I", f)[0]
+                f.seek(num * 4, 1)
+
+                data_num -= 1
+                if data_num == 0:
+                    return final()
+
+                # 轨迹
+                num = unpack("I", f)[0]
+                for idx in range(num):
+                    mark = unpack("I", f)[0]  # 默认0
+                    if mark != 0:
+                        logger.debug(f"Track - mark not 0: {mark}")
+                    parent_idx = unpack("i", f)[0]  # type: int
+                    pt1 = Vector(unpack("ddd", f)) / 1000
+                    pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
+                    #
+                    obj_name = data.get_object_name("Blade_Trail_")
+                    mesh = bpy.data.meshes.new(obj_name)
+                    obj = bpy.data.objects.new(
+                        obj_name, mesh
+                    )  # type: Object # type: ignore
+                    obj.show_in_front = True
+                    obj.amagate_data.ent_comp_type = 3
+                    data.link2coll(obj, ent_coll)
+                    #
+                    parent_matrix = None
+                    if parent_idx != -1:
+                        if armature is not None:
+                            bone_name = bones_name[parent_idx]
+                            parent_matrix = bone_matrix[bone_name]
+                            obj.parent = armature_obj  # type: ignore
+                            obj.parent_type = "BONE"
+                            obj.parent_bone = bone_name
+                        else:
+                            obj.parent = entity  # type: ignore
+                    #
+                    if parent_matrix:
+                        pt1 = parent_matrix @ pt1
+                        pt2 = parent_matrix @ pt2
+                    #
+                    bm = bmesh.new()
+                    bm.verts.new(pt1)
+                    bm.verts.new(pt2)
+                    bm.edges.new(bm.verts)
+
+                    bm.to_mesh(mesh)
+                    bm.free()
+
+                    context.view_layer.update()
+                    obj.matrix_world = target_space
+
+                return final()
+
+        for dir in ("3DObjs", "3DChars"):
+            root = models_path / dir
+            for filepath in root.glob("*.blend"):
+                if 1:  # filepath.stem == "Sawsword":
+                    count += 1
+                    bpy.ops.wm.open_mainfile(filepath=str(filepath))
+                    for idx in range(len(bpy.data.objects) - 1, -1, -1):
+                        obj = bpy.data.objects[idx]
+                        if obj.name.lower().startswith(
+                            ("blade_spike_", "blade_trail_")
+                        ):
+                            bpy.data.objects.remove(obj)
+                    ent_coll, entity, has_fire, has_light = OP_ENTITY.get_ent_data()
+                    offset = entity.location.copy()
+                    for obj in ent_coll.objects:
+                        if not obj.parent:
+                            obj.location -= offset
+                    cam = bpy.context.scene.camera
+                    if cam:
+                        cam.location -= offset
+                    armature_obj = next(
+                        (m.object for m in entity.modifiers if m.type == "ARMATURE"),  # type: ignore
+                        None,
+                    )  # type: Object
+                    armature = (
+                        armature_obj.data if armature_obj else None
+                    )  # type: bpy.types.Armature # type: ignore
+                    if armature:
+                        bones_name = {
+                            i: bone.name for i, bone in enumerate(armature.bones)
+                        }
+                        bone_matrix = {
+                            bone.name: target_space_inv @ bone.matrix
+                            for i, bone in enumerate(armature_obj.pose.bones)
+                        }
+
+                    bod_file = (
+                        Path("D:/GOG Galaxy/Games/Blade of Darkness V109 GOG/classic")
+                        / dir
+                        / f"{filepath.stem}.bod"
+                    )
+                    if bod_file.exists():
+                        parse()
+                        area = next(
+                            a
+                            for a in bpy.data.screens["Layout"].areas
+                            if a.type == "VIEW_3D"
+                        )
+                        area.spaces[0].shading.type = "MATERIAL"  # type: ignore
+                        bpy.ops.wm.save_mainfile()
+                    else:
+                        print(f"{bod_file.name} not found")
+
+                    # break
+            # break
+        print(count)
+
     @staticmethod
     def test1(context: Context):
         from . import entity_operator as OP_ENTITY
@@ -1706,11 +1963,34 @@ class OT_Test(bpy.types.Operator):
         #     open(os.path.join(data.ADDON_PATH, "Models", "manifest.json"), encoding="utf-8"))
         root = Path(data.ADDON_PATH, "Models", "Anm")
         count = 0
-        for filepath in root.iterdir():
+        for filepath in root.glob("*.blend"):
+            count += 1
             with contextlib.redirect_stdout(StringIO()):
                 bpy.ops.wm.open_mainfile(filepath=str(filepath))
-            anm_lst = [i.name for i in bpy.data.actions]
-            count += len(anm_lst)
+            for idx in range(len(bpy.data.objects) - 1, -1, -1):
+                obj = bpy.data.objects[idx]
+                if obj.name.lower().startswith(("blade_spike_", "blade_trail_")):
+                    bpy.data.objects.remove(obj)
+            if filepath.stem != "Object":
+                entity = bpy.data.objects.get(filepath.stem)
+                offset = entity.location.copy()
+                for obj in bpy.data.objects:
+                    if not obj.parent:
+                        obj.location -= offset
+            else:
+                entity = bpy.data.objects.get("Totem2")
+                offset = entity.location.copy()
+                cam = bpy.context.scene.camera
+                if cam:
+                    cam.location -= offset
+                for obj in bpy.data.objects:
+                    if not obj.parent and obj.name != "Camera":
+                        obj.location = 0, 0, 0
+
+            bpy.ops.wm.save_mainfile()
+
+            # anm_lst = [i.name for i in bpy.data.actions]
+            # count += len(anm_lst)
             # manifest["Animations"][filepath.name] = anm_lst
         # json.dump(
         #     manifest,

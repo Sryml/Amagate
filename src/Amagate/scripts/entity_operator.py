@@ -62,7 +62,16 @@ unpack = ag_utils.unpack
 
 # 解析BOD
 def parse_bod(filepath: Path):
+    def final():
+        pass
+        # if f.tell() != file_size:
+        #     if num:=unpack("I", f)[0] != 0:
+        #         remain_byte = file_size - f.tell()
+        #         logger.warning(f"{filepath.name:<20}: 未解析完毕, 剩余{remain_byte:<4}字节, num={num}, data_num_remain={data_num_remain}")
+        # logger.warning(f"{filepath.name:<20}: 未解析完毕, 剩余{remain_byte:<4}字节, data_num_remain={data_num_remain}")
+
     with open(filepath, "rb") as f:
+        file_size = os.fstat(f.fileno()).st_size
         # 内部名称
         length = unpack("I", f)[0]
         inter_name = unpack(f"{length}s", f)
@@ -83,21 +92,87 @@ def parse_bod(filepath: Path):
             f.seek(4, 1)
         # 骨架
         bones_num = unpack("I", f)[0]
-        if bones_num == 1:
-            parent_idx = unpack("i", f)[0]  # type: int
-            lst = unpack("dddd" * 4, f)
-            lst = [lst[i * 4 : (i + 1) * 4] for i in range(4)]
-            matrix = Matrix(lst)
-            matrix.transpose()  # 转置
-            matrix.translation /= 1000  # 转换位置单位
-            # 清除缩放
-            loc, rot, scale = matrix.decompose()
-            matrix = Matrix.LocRotScale(loc, rot, None)
-            if (
-                matrix.to_quaternion().dot(Quaternion()) < 0.999
-                or matrix.translation.length > 0.001
-            ):
-                logger.debug(f"{filepath.name}: {tuple(matrix.to_euler())}, {matrix.translation.to_tuple(1)}")  # type: ignore
+        for i in range(bones_num):
+            if bones_num != 1:
+                length = unpack("I", f)[0]
+                f.seek(length, 1)
+                # name = unpack(f"{length}s", f)
+            f.seek(140, 1)
+            # parent_idx = unpack("i", f)[0]  # type: int
+            # lst = unpack("dddd" * 4, f)
+            # lst = [lst[i * 4 : (i + 1) * 4] for i in range(4)]
+            # matrix = Matrix(lst)
+            # matrix.transpose()  # 转置
+            # matrix.translation /= 1000  # 转换位置单位
+            # # 清除缩放
+            # loc, rot, scale = matrix.decompose()
+            # matrix = Matrix.LocRotScale(loc, rot, None)
+            # if (
+            #     matrix.to_quaternion().dot(Quaternion()) < 0.999
+            #     or matrix.translation.length > 0.001
+            # ):
+            #     logger.debug(f"{filepath.name}: {tuple(matrix.to_euler())}, {matrix.translation.to_tuple(1)}")  # type: ignore
+            num = unpack("I", f)[0]
+            for j in range(num):
+                f.seek(40, 1)
+        # 几何中心
+        f.seek(32, 1)
+        # 火焰
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            verts_num = unpack("I", f)[0]
+            for i in range(verts_num):
+                f.seek(28, 1)
+            f.seek(8, 1)
+        # 灯光
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            f.seek(36, 1)
+        # 锚点
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            length = unpack("I", f)[0]
+            f.seek(length, 1)
+            f.seek(132, 1)
+        # 剩余数据种类
+        data_num_remain = data_num = unpack("I", f)[0]
+        if data_num == 0:
+            return final()
+
+        # 边缘
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            f.seek(80, 1)
+
+        data_num -= 1
+        if data_num == 0:
+            return final()
+
+        # 尖刺
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            f.seek(56, 1)
+
+        data_num -= 1
+        if data_num == 0:
+            return final()
+
+        # 组
+        num = unpack("I", f)[0]
+        f.seek(num, 1)
+        # 肢解组
+        num = unpack("I", f)[0]
+        f.seek(num * 4, 1)
+
+        data_num -= 1
+        if data_num == 0:
+            return final()
+
+        # 轨迹
+        num = unpack("I", f)[0]
+        for idx in range(num):
+            f.seek(56, 1)
+        return final()
 
 
 # 确保材质

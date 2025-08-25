@@ -59,7 +59,7 @@ jobs:
           cp -p ../../LICENSE LICENSE
 
           # echo ${{ github.ref_name }} > version
-          VERSION=$(cat version | tr -d '\n')
+          VERSION=$(head -n 1 version | tr -d '\r\n')
           [[ "${VERSION:0:3}" != "dev" ]] && rm -f DEBUG || echo "PRERELEASE=1" >> $GITHUB_ENV
           VERSION_NAME="Amagate-${VERSION}"
           echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_ENV
