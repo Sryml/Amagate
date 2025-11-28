@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import re
+import ast
 import os
 import math
 import shutil
@@ -84,10 +85,11 @@ PY_PACKAGES_INSTALLED = False
 # python包正在安装
 PY_PACKAGES_INSTALLING = False
 
-
+# 版本号和日期
 with open(os.path.join(ADDON_PATH, "version"), "r") as v:
     VERSION = v.readline().strip()
     VERSION_DATE = int(v.readline().strip())
+
 # 模型包版本
 filepath = Path(ADDON_PATH) / "Models/version"
 if filepath.exists():
@@ -96,6 +98,7 @@ if filepath.exists():
 else:
     MODELPACKAGE_VERSION = "None"
 
+#
 DEBUG = os.path.exists(os.path.join(ADDON_PATH, "DEBUG"))
 
 ICONS: Any = None
@@ -114,7 +117,7 @@ IMAGE_FILTER = (
 )
 # fmt: on
 
-#
+# 日志相关
 logger = logging.getLogger(PACKAGE)
 if DEBUG:
     logger.setLevel(logging.DEBUG)
@@ -128,10 +131,36 @@ handler.setFormatter(
 logger.addHandler(handler)
 logger.propagate = False
 
-#
+# 模型包清单
 E_MANIFEST = json.load(
     open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
 )
+
+
+# 可用的渲染引擎
+def get_render_engines():
+    result = {
+        "EEVEE": "BLENDER_EEVEE",
+        "WORKBENCH": "BLENDER_EEVEE",
+        "CYCLES": "BLENDER_EEVEE",
+    }
+    try:
+        bpy.data.scenes[0].render.engine = ""  # type: ignore
+    except Exception as e:
+        match = re.search(r"\((.*?)\)", str(e))
+        try:
+            for engine in ast.literal_eval(match.group(1)):
+                if "EEVEE" in engine.upper():
+                    result["EEVEE"] = engine
+                elif "WORKBENCH" in engine.upper():
+                    result["WORKBENCH"] = engine
+                elif "CYCLES" in engine.upper():
+                    result["CYCLES"] = engine
+        except:
+            pass
+    return result
+
+
 ############################
 
 
@@ -840,6 +869,15 @@ class SceneProperty(L3D_data.SceneProperty):
 
 
 ############################
+
+
+def register_timer():
+    global RENDER_ENGINES
+    RENDER_ENGINES = get_render_engines()
+    L3D_data.load_post(None)
+
+
+############################
 ############################
 ############################
 main_classes = (ImageProperty, ObjectProperty, SceneProperty, WindowManagerProperty)
@@ -874,6 +912,8 @@ def register():
     entity_data.register()
     sector_data.register()
     L3D_data.register()
+    #
+    bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
     #
     for cls in main_classes:
         bpy.utils.register_class(cls)

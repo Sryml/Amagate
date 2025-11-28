@@ -2531,10 +2531,6 @@ class SceneProperty(bpy.types.PropertyGroup):
 ############################
 
 
-def register_timer():
-    load_post(None)
-
-
 ############################
 ############################
 class_tuple = (bpy.types.PropertyGroup, bpy.types.UIList)
@@ -2554,7 +2550,6 @@ def register():
     # 注册回调函数
     bpy.app.handlers.save_post.append(save_post)
     bpy.app.handlers.load_post.append(load_post)  # type: ignore
-    bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
 
 
 def unregister():

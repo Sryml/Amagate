@@ -2141,7 +2141,7 @@ def InitMap(imp_filepath=""):
     ## 创建节点
     L3D_data.ensure_node()
     ## 设置渲染引擎
-    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.engine = data.RENDER_ENGINES["EEVEE"]  # type: ignore
     scene.eevee.taa_samples = 2
     scene.eevee.use_shadows = True
     scene.view_settings.view_transform = "Standard"  # type: ignore
