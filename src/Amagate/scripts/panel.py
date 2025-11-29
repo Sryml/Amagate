@@ -331,6 +331,24 @@ class AMAGATE_PT_Cubemap(AG_Panel, bpy.types.Panel):
 
 
 ############################
+############################ PAK格式转换面板
+############################
+
+
+class AMAGATE_PT_Pak(AG_Panel, bpy.types.Panel):
+    bl_label = "PAK Conver"
+    bl_options = {"DEFAULT_CLOSED"}
+    bl_order = 1
+
+    def draw(self, context: Context):
+        layout = self.layout
+        row = layout.row()
+
+        row.operator(OP.OT_PakPack.bl_idname)
+        row.operator(OP.OT_PakUnpack.bl_idname)
+
+
+############################
 ############################ 模型包
 ############################
 

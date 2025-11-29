@@ -16,6 +16,7 @@
     ("*", "Input format error"): "输入格式错误",
     ("*", "Invalid file"): "无效文件",
     ("*", "Import completed"): "导入完成",
+    ("*", "Done"): "完成",
     # ("*", "non-uniform"): "不一致的",
     ("Operator", "Don't Save"): "不保存",
     ("Operator", "Cancel"): "取消",
@@ -347,6 +348,8 @@
     ("*", "Export as panorama"): "导出为全景图",
     ("Operator", "Select and export"): "选择并导出",
     ("*", "Please select the six cubemap images"): "请选择六张立方体贴图",
+    # PAK Conver
+    ("*", "PAK Conver"): "PAK 转换",
     # 模型包
     ("*", "Model Package"): "模型包",
     ("Operator", "Import"): "导入",

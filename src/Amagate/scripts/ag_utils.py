@@ -649,7 +649,8 @@ def unpack(fmat: str, f) -> Any:
         chunk = int(fmat_[:-1])
     else:
         chunk = (
-            fmat_.count("i") * 4
+            fmat_.count("h") * 2
+            + fmat_.count("i") * 4
             + fmat_.count("f") * 4
             + fmat_.count("d") * 8
             + fmat_.count("b")

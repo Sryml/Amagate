@@ -1305,6 +1305,180 @@ class OT_Cubemap2Equirect(bpy.types.Operator):
 
 
 ############################
+############################ PAK转换
+############################
+
+
+# PAK打包
+class OT_PakPack(bpy.types.Operator):
+    bl_idname = "amagate.pak_pack"
+    bl_label = "Pack"
+    bl_description = "Select a folder to package"
+    bl_options = {"INTERNAL"}
+
+    # 过滤文件
+    filter_folder: BoolProperty(default=True, options={"HIDDEN"})  # type: ignore
+
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # filename: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context: Context):
+        print(self.filepath, self.directory)
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        # 设为上次选择目录，文件名为空
+        # self.filepath = self.directory
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+
+# PAK解包
+class OT_PakUnpack(bpy.types.Operator):
+    bl_idname = "amagate.pak_unpack"
+    bl_label = "Unpack"
+    bl_description = "Select pak files to unpack"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.pak", options={"HIDDEN"})  # type: ignore
+
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # filename: StringProperty()  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context: Context):
+        directory = Path(self.directory)
+        suffix = ".pak"
+        if len(self.files) == 1 and self.files[0].name == "":
+            paths = [
+                f
+                for f in directory.iterdir()
+                if f.is_file() and f.suffix.lower() == suffix
+            ]
+        else:
+            paths = [
+                f
+                for i in self.files
+                if (f := directory / i.name).is_file() and f.suffix.lower() == suffix
+            ]
+        if len(paths) == 0:
+            self.report({"INFO"}, "No valid files selected")
+
+        #
+        for filepath in paths:
+            folderpath = filepath.with_name(filepath.stem)
+            folderpath.mkdir(parents=True, exist_ok=True)
+            files_dict = {}
+            #
+            with open(filepath, "rb") as f:
+                head_size = unpack("I", f)[0]
+                f.seek(5, 1)  # 重复头大小 b'\x04'
+                f.seek(20, 1)  # b"fileDescriptorTable\x00"
+                flag1 = unpack("B", f)[0]  # 未知
+                file_count = unpack("H", f)[0] + 2
+                for index in range(file_count):
+                    # print(index)
+                    f.seek(2, 1)  # 跳过 b'\x00\x03'
+
+                    buffer = f.read(1)
+                    while (b_str := f.read(1)) != b"\x00":
+                        buffer += b_str
+                    idx = int(buffer.decode("ascii"))
+                    if idx != index:
+                        logger.debug(f"Invalid index: {idx} != {index}")
+                    # f.seek(1, 1) # 跳过 b'\x00'
+
+                    flag2 = unpack("B", f)[0]  # 未知
+                    f.seek(4, 1)  # 跳过 00000010
+                    f.seek(10, 1)  # byteCount\x00
+                    file_size = unpack("I", f)[0]
+                    f.seek(1, 1)  # 跳过 b'\x10'
+                    f.seek(10, 1)  # byteIndex\x00
+                    data_offset = unpack("I", f)[0]
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(12, 1)  # compression\x00
+                    compression = unpack("I", f)[0]  # 默认5
+                    f.seek(5, 1)  # None\x00
+                    none = unpack("B", f)[0]  # 默认8
+                    f.seek(11, 1)  # isReadOnly\x00
+                    isReadOnly = unpack("B", f)[0]  # 默认0
+                    f.seek(1, 1)  # 跳过 b'\x08'
+                    f.seek(10, 1)  # isVirtual\x00
+                    f.seek(1, 1)  # 跳过 b'\x01'
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(21, 1)  # logicalDirectoryPath\x00
+                    length = unpack("I", f)[0]
+                    logicalDirectoryPath = folderpath / f.read(length).decode(
+                        "utf-8"
+                    ).strip("\x00")
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(12, 1)  # logicalName\x00
+                    length = unpack("I", f)[0]
+                    logicalName = f.read(length).decode("utf-8").strip("\x00")
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(22, 1)  # physicalDirectoryPath\x00
+                    length = unpack("I", f)[0]
+                    physicalDirectoryPath = f.read(length).decode("utf-8").strip("\x00")
+                    # f.seek(length, 1)
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(13, 1)  # physicalName\x00
+                    length = unpack("I", f)[0]
+                    # physicalName = unpack("B", f)[0]
+                    f.seek(1, 1)  # 跳过 b'\x00'
+                    f.seek(1, 1)  # 跳过 b'\x02'
+
+                    f.seek(5, 1)  # type\x00
+                    f.seek(4, 1)  # 默认5
+                    f.seek(5, 1)  # File\x00
+                    #
+                    files_dict[data_offset] = [
+                        flag2,
+                        file_size,
+                        compression,
+                        none,
+                        isReadOnly,
+                        logicalDirectoryPath,
+                        logicalName,
+                    ]
+                #
+                f.seek(3, 1)  # 000
+                # pprint(files_dict)
+                for k in sorted(files_dict.keys()):
+                    (
+                        flag2,
+                        file_size,
+                        compression,
+                        none,
+                        isReadOnly,
+                        logicalDirectoryPath,
+                        logicalName,
+                    ) = files_dict[k]
+                    logicalDirectoryPath.mkdir(parents=True, exist_ok=True)
+                    try:
+                        with open(logicalDirectoryPath / logicalName, "wb") as fw:
+                            fw.write(f.read(file_size))
+                    except:
+                        pass
+
+        self.report({"INFO"}, "Done")
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        # 设为上次选择目录，文件名为空
+        # self.filepath = self.directory
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
+
+
+############################
 ############################ 模型包
 ############################
 
