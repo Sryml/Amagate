@@ -350,6 +350,7 @@
     ("*", "Please select the six cubemap images"): "请选择六张立方体贴图",
     # PAK Conver
     ("*", "PAK Conver"): "PAK 转换",
+    ("*", "Used for converting pak files in the Save folder"): "用于转换 Save 文件夹中的 PAK 文件",
     # 模型包
     ("*", "Model Package"): "模型包",
     ("Operator", "Import"): "导入",

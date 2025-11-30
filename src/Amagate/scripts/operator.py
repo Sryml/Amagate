@@ -1325,7 +1325,102 @@ class OT_PakPack(bpy.types.Operator):
     files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
 
     def execute(self, context: Context):
-        print(self.filepath, self.directory)
+        directory = Path(self.directory)
+        paths = [filepath for filepath in directory.rglob("*") if filepath.is_file()]
+        if not paths:
+            self.report({"INFO"}, "Folder is empty")
+            return {"FINISHED"}
+        pak_filepath = directory.parent / (directory.name + ".pak")
+        try:
+            pak_file = open(pak_filepath, "wb+")
+        except IOError:
+            self.report({"ERROR"}, f"Failed to open {pak_filepath}")
+            return {"FINISHED"}
+
+        physicalDirectoryPath = Path("Save") / pak_filepath.name
+        b_physicalDirectoryPath = f"{physicalDirectoryPath.as_posix()}\x00".encode(
+            "utf-8"
+        )
+        #
+        pak_file.write(b"\x00" * 8)
+        pak_file.write(b"\x04")
+        pak_file.write(b"fileDescriptorTable\x00")
+        pak_file.write(b"\xf0")  # 未知
+        pak_file.write(struct.pack("H", len(paths) - 2))
+        #
+        data_offset = 0
+        for idx, filepath in enumerate(paths):
+            file_size = filepath.stat().st_size
+            rel_path = filepath.relative_to(directory)
+
+            pak_file.write(b"\x00\x03")
+            pak_file.write(f"{idx}\x00".encode("ascii"))
+            pak_file.write(b"\xf0")  # 未知
+            pak_file.write(bytes.fromhex("00000010"))
+
+            pak_file.write(b"byteCount\x00")
+            pak_file.write(struct.pack("I", file_size))
+            pak_file.write(b"\x10")
+
+            pak_file.write(b"byteIndex\x00")
+            pak_file.write(struct.pack("I", data_offset))
+            data_offset += file_size
+            pak_file.write(b"\x02")
+
+            pak_file.write(b"compression\x00")
+            pak_file.write(struct.pack("I", 5))
+
+            pak_file.write(b"None\x00")
+            pak_file.write(struct.pack("B", 8))
+
+            pak_file.write(b"isReadOnly\x00")
+            pak_file.write(struct.pack("B", 0))
+            pak_file.write(b"\x08")
+
+            pak_file.write(b"isVirtual\x00")
+            pak_file.write(struct.pack("B", 1))
+            pak_file.write(b"\x02")
+            #
+            pak_file.write(b"logicalDirectoryPath\x00")
+            b_str = f"{rel_path.parent.as_posix()}/\x00".encode("utf-8")
+            pak_file.write(struct.pack("I", len(b_str)))
+            pak_file.write(b_str)
+            pak_file.write(b"\x02")
+
+            pak_file.write(b"logicalName\x00")
+            b_str = f"{rel_path.name}\x00".encode("utf-8")
+            pak_file.write(struct.pack("I", len(b_str)))
+            pak_file.write(b_str)
+            pak_file.write(b"\x02")
+
+            pak_file.write(b"physicalDirectoryPath\x00")
+            pak_file.write(struct.pack("I", len(b_physicalDirectoryPath)))
+            pak_file.write(b_physicalDirectoryPath)
+            pak_file.write(b"\x02")
+
+            pak_file.write(b"physicalName\x00")
+            pak_file.write(struct.pack("I", 1))
+            pak_file.write(b"\x00")
+            pak_file.write(b"\x02")
+            #
+            pak_file.write(b"type\x00")
+            pak_file.write(struct.pack("I", 5))
+
+            pak_file.write(b"File\x00")
+            #
+        pak_file.write(b"\x00" * 3)
+
+        head_end_pos = pak_file.tell()
+        head_size = head_end_pos - 4
+        pak_file.seek(0, 0)
+        pak_file.write(struct.pack("II", head_size, head_size))
+        pak_file.seek(head_end_pos, 0)
+        #
+        for filepath in paths:
+            with open(filepath, "rb") as f:
+                pak_file.write(f.read())
+        #
+        self.report({"INFO"}, "Done")
         return {"FINISHED"}
 
     def invoke(self, context, event):

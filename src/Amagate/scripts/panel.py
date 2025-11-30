@@ -342,8 +342,10 @@ class AMAGATE_PT_Pak(AG_Panel, bpy.types.Panel):
 
     def draw(self, context: Context):
         layout = self.layout
-        row = layout.row()
+        column = layout.column()
+        column.label(text="Used for converting pak files in the Save folder")
 
+        row = column.row()
         row.operator(OP.OT_PakPack.bl_idname)
         row.operator(OP.OT_PakUnpack.bl_idname)
 
