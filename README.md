@@ -15,7 +15,7 @@ src="https://img.shields.io/badge/YouTube-gray?style=flat&logo=youtube"></a>
 
 <p>
   <a href="https://github.com/Sryml/Amagate/releases" target="_blank"><img alt="GitHub release (latest by date)"
-src="https://img.shields.io/github/v/release/sryml/Amagate?style=flat"></a>
+src="https://img.shields.io/github/v/release/Sryml/Amagate?style=flat"></a>
   <a href="https://deepwiki.com/Sryml/Amagate"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
@@ -58,6 +58,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - \*.CAM Import/Export
 - Blade Space Conversion
 - Cubemap conversion
+- PAK conversion
 
 ## Level Editor (L3D)
 

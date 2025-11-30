@@ -15,7 +15,7 @@ src="https://img.shields.io/badge/YouTube-gray?style=flat&logo=youtube"></a>
 
 <p>
   <a href="https://github.com/Sryml/Amagate/releases" target="_blank"><img alt="GitHub release (latest by date)"
-src="https://img.shields.io/github/v/release/sryml/Amagate?style=flat"></a>
+src="https://img.shields.io/github/v/release/Sryml/Amagate?style=flat"></a>
   <a href="https://deepwiki.com/Sryml/Amagate"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
 
@@ -60,6 +60,7 @@ Blender 版本：4.3.0 或以上
 - \*.CAM 导入/导出
 - Blade 空间转换
 - 立方体贴图转换
+- PAK 转换
 
 ## 关卡编辑器 (L3D)
 

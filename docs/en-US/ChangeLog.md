@@ -1,5 +1,12 @@
 # Amagate ChangeLog
 
+## 1.4.3
+
+- Adapted for Blender 5
+- Added \*.PAK unpack/pack functionality
+- Fixed built-in textures were not converted to relative paths when saving maps
+- Fixed external libraries wouldn't reload after updating the library paths
+
 ## 1.4.2
 
 - Model packages are now manually imported for lightweight purposes

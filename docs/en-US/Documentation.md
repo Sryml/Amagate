@@ -22,6 +22,7 @@ Upon first installation, the required Python packages (approximately 41MB) will 
 - \*.CAM Import/Export
 - Blade Space Conversion
 - Cubemap conversion
+- PAK conversion
 
 ## Level Editor (L3D)
 
