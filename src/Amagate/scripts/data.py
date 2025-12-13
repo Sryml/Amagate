@@ -136,6 +136,8 @@ E_MANIFEST = json.load(
     open(os.path.join(ADDON_PATH, "Models/manifest.json"), "r", encoding="utf-8")
 )
 
+RENDER_ENGINES = {}
+
 
 # 可用的渲染引擎
 def get_render_engines():
@@ -872,8 +874,8 @@ class SceneProperty(L3D_data.SceneProperty):
 
 
 def register_timer():
-    global RENDER_ENGINES
-    RENDER_ENGINES = get_render_engines()
+    # global RENDER_ENGINES
+    # RENDER_ENGINES = get_render_engines()
     L3D_data.load_post(None)
 
 
@@ -912,7 +914,7 @@ def register():
     entity_data.register()
     sector_data.register()
     L3D_data.register()
-    #
+    # XXX 仅用于热更新调用，直接从blend文件打开blender不会触发
     bpy.app.timers.register(register_timer, first_interval=0.5)  # type: ignore
     #
     for cls in main_classes:

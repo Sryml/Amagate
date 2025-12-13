@@ -1259,6 +1259,8 @@ def load_post(filepath=""):
     scene_data = context.scene.amagate_data
     wm_data = context.window_manager.amagate_data
     #
+    data.RENDER_ENGINES = data.get_render_engines()
+    #
     if len(wm_data.ent_groups) == 0:
         for i in range(32):
             prop = wm_data.ent_groups.add()
