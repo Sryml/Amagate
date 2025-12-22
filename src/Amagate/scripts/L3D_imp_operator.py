@@ -578,6 +578,7 @@ def import_map(bw_file):
             # 读取面
             face_num = unpack("<I", f)[0]
             for i in range(face_num):
+                face = None  # type: bmesh.types.BMFace # type: ignore
                 # 面类型
                 face_type = unpack("<I", f)[0]
                 # 法向
@@ -715,17 +716,19 @@ def import_map(bw_file):
                         vert = sec_bm.verts.new(global_vertex_map[verts_idx])
                         sec_vertex_map[verts_idx] = vert
                     verts_list.append(vert)
-                face = sec_bm.faces.new(verts_list)
-                # sec_bm.to_mesh(sec_mesh)
-                #
-                face[layers["flag"]] = L3D_data.FACE_FLAG[tex_type]
-                face.material_index = slot_index
-                face[layers["tex_id"]] = tex_id
-                face[layers["tex_xpos"]] = tex_xpos
-                face[layers["tex_ypos"]] = tex_ypos
-                face[layers["tex_angle"]] = tex_angle
-                face[layers["tex_xzoom"]] = tex_xzoom
-                face[layers["tex_yzoom"]] = tex_yzoom
+                # XXX 错误的面，顶点数量小于3
+                if len(verts_list) > 2:
+                    face = sec_bm.faces.new(verts_list)
+                    # sec_bm.to_mesh(sec_mesh)
+                    #
+                    face[layers["flag"]] = L3D_data.FACE_FLAG[tex_type]
+                    face.material_index = slot_index
+                    face[layers["tex_id"]] = tex_id
+                    face[layers["tex_xpos"]] = tex_xpos
+                    face[layers["tex_ypos"]] = tex_ypos
+                    face[layers["tex_angle"]] = tex_angle
+                    face[layers["tex_xzoom"]] = tex_xzoom
+                    face[layers["tex_yzoom"]] = tex_yzoom
                 # 切割面
                 if face_type == 7003:
                     vertex_sub_num = unpack("<I", f)[0]
@@ -743,9 +746,10 @@ def import_map(bw_file):
 
                     # inner_face = hole_split(sec_bm, face, tangent_data)
                     # inner_face[layers["connected"]] = conn_sid
-                    hole_split_list.append((face, tangent_data, conn_sid))
-                    #
-                    sec_data.connect_num += 1
+                    if face:
+                        hole_split_list.append((face, tangent_data, conn_sid))
+                        #
+                        sec_data.connect_num += 1
                 #
                 elif face_type == 7004:
                     holes_data = []
@@ -768,7 +772,8 @@ def import_map(bw_file):
                             tangent_data.append((plane_no, plane_co))
                         holes_data.append((tangent_data, conn_sid))
                     #
-                    sec_data.connect_num += hole_num
+                    if face:
+                        sec_data.connect_num += hole_num
                     #
                     block_mark = unpack("<I", f)[0]
                     if block_mark in (8001, 8002):
@@ -844,11 +849,11 @@ def import_map(bw_file):
                             conn_sid = holes_data[hole_idx][1]
                             # inner_face = hole_split(sec_bm, face, tangent_data)
                             # inner_face[layers["connected"]] = holes_data[hole_idx][1]
-                        if holes_idx_num != 0:
+                        if holes_idx_num != 0 and face:
                             hole_split_list.append((face, tangent_data, conn_sid))
                             sec_data.connect_num += 1
                     # 切割
-                    else:
+                    elif face:
                         flat_split_list.append((face, cut_data))
                         # flat_split(sec_bm, face, cut_data, layers)
 
