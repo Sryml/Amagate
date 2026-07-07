@@ -37,6 +37,7 @@ from bpy.props import (
     StringProperty,
 )
 from mathutils import *  # type: ignore
+from bpy_extras.io_utils import ExportHelper
 
 from . import data, entity_data
 from . import ag_utils
@@ -809,6 +810,9 @@ class OT_CreateColl(bpy.types.Operator):
         coll_name = data.get_coll_name("Blade_Object_")
         coll = bpy.data.collections.new(coll_name)
         context.scene.collection.children.link(coll)
+        context.view_layer.active_layer_collection = (
+            context.view_layer.layer_collection.children[coll.name]
+        )
         bpy.ops.ed.undo_push(message="New Collection")
         return {"FINISHED"}
 
@@ -842,6 +846,7 @@ class OT_AddArmature(bpy.types.Operator):
             coll = obj.users_collection[0]
             bone_name = "Bone"
             armature = bpy.data.armatures.new(armature_name)
+            armature.collections.new("Blade_Bones")
             armature_obj = bpy.data.objects.new(armature_name, armature)
             data.link2coll(armature_obj, coll)
             # 添加骨骼
@@ -860,10 +865,14 @@ class OT_AddArmature(bpy.types.Operator):
             if not group:
                 group = obj.vertex_groups.new(name=bone_name)
             group.add(tuple(range(len(obj.data.vertices))), 1.0, "REPLACE")
-            armature_obj.hide_viewport = True
-            # ag_utils.select_active(context, obj)
+
+            if is_entity:
+                armature_obj.hide_viewport = True
+            else:
+                ag_utils.select_active(context, armature_obj)
         else:
             logger.debug("Armature already exists")
+            self.report({"INFO"}, "Armature already exists")
 
         return {"FINISHED"}
 
@@ -1093,21 +1102,42 @@ class OT_EntityNote(bpy.types.Operator):
     def draw_menu(this, context: Context):
         layout = this.layout  # type: bpy.types.UILayout
         column = layout.column()
-        column.label(
-            text=f"1. {pgettext('For the character')}, {pgettext('Each vertex must be assigned to a bone vertex group and can only belong to one vertex group')}"
+        text = (
+            pgettext(
+                "The translation and rotation of the model will only take effect in the export after being applied"
+            ),
+            pgettext(
+                "Adding character bones to the bone collection `Blade_Bones` allows excluding IK helper bones during export"
+            ),
+            f'{pgettext("For the character")}, {pgettext("Each vertex must be assigned to a bone vertex group and can only belong to one vertex group")}',
+            pgettext(
+                "Do not link lights or flames to bone, as the BOD engine does not support it"
+            ),
+            pgettext("The wound group is only useful for character model"),
+            pgettext(
+                "The wound texture does not need to be assigned to the model; simply ensure the name is the normal texture plus the suffix '_W'"
+            ),
+            pgettext(
+                "When exporting, the Blender material name will be used as the model texture name"
+            ),
         )
-        column.label(
-            text=f"2. {pgettext('Do not link lights or flames to bone, as the BOD engine does not support it')}"
-        )
-        column.label(
-            text=f"3. {pgettext('The wound group is only useful for character model')}"
-        )
-        column.label(
-            text=f"""4. {pgettext("The wound texture does not need to be assigned to the model; simply ensure the name is the normal texture plus the suffix '_W'")}"""
-        )
-        column.label(
-            text=f"5. {pgettext('When exporting, the Blender material name will be used as the model texture name')}"
-        )
+        for i, txt in enumerate(text):
+            column.label(text=f"{i+1}. {txt}")
+        # column.label(
+        #     text=f"1. {pgettext('For the character')}, {pgettext('Each vertex must be assigned to a bone vertex group and can only belong to one vertex group')}"
+        # )
+        # column.label(
+        #     text=f"2. {pgettext('Do not link lights or flames to bone, as the BOD engine does not support it')}"
+        # )
+        # column.label(
+        #     text=f"3. {pgettext('The wound group is only useful for character model')}"
+        # )
+        # column.label(
+        #     text=f"""4. {pgettext("The wound texture does not need to be assigned to the model; simply ensure the name is the normal texture plus the suffix '_W'")}"""
+        # )
+        # column.label(
+        #     text=f"5. {pgettext('When exporting, the Blender material name will be used as the model texture name')}"
+        # )
         column.separator(factor=1, type="SPACE")
 
 
@@ -1134,12 +1164,27 @@ class OT_ImportBOD(bpy.types.Operator):
             self.report({"ERROR"}, f"{pgettext('Invalid file')}: {filepath.name}")
             return {"FINISHED"}
 
-        self.import_bod(context, filepath)
+        entity, lack_texture, folded_faces, multiple_folded_face, zero_width_faces = (
+            self.import_bod(context, filepath)
+        )
+        if folded_faces:
+            self.report({"INFO"}, f"{pgettext('Folded face count')}: {folded_faces}")
+        if multiple_folded_face:
+            self.report(
+                {"INFO"},
+                f"{pgettext('Multiple folded face count')}: {multiple_folded_face}",
+            )
+        if zero_width_faces:
+            self.report(
+                {"WARNING"},
+                f"{pgettext('Zero-width face count(deletion)')}: {zero_width_faces}",
+            )
+
         return {"FINISHED"}
 
     @staticmethod
     def import_bod(context: Context, filepath):
-        def final():
+        def _final():
             ag_utils.select_active(context, entity)  # type: ignore
             for obj in ent_coll.objects:
                 if not obj.parent:
@@ -1155,7 +1200,13 @@ class OT_ImportBOD(bpy.types.Operator):
             bpy.ops.object.select_all(action="DESELECT")
             #
             bpy.ops.view3d.view_all(center=True)
-            return entity, lack_texture, dup_face
+            return (
+                entity,
+                lack_texture,
+                folded_faces,
+                multiple_folded_face,
+                zero_width_faces,
+            )
 
         #
         if context.mode != "OBJECT":
@@ -1163,7 +1214,9 @@ class OT_ImportBOD(bpy.types.Operator):
         context.space_data.shading.type = "WIREFRAME"  # type: ignore
         #
         lack_texture = False
-        dup_face = False
+        folded_faces = 0
+        multiple_folded_face = 0
+        zero_width_faces = 0
         # 局部空间
         local_space = Matrix.Rotation(-math.pi / 2, 4, "X")
         # local_space_inv = local_space.inverted()
@@ -1208,20 +1261,48 @@ class OT_ImportBOD(bpy.types.Operator):
             faces_num = unpack("I", f)[0]
             for i in range(faces_num):
                 vert_idx = unpack("III", f)
-                try:
-                    face = ent_bm.faces.new([bm_verts[i] for i in vert_idx])
-                except:
-                    dup_face = True
-                    verts = []
-                    for i in vert_idx:
-                        vert = ent_bm.verts.new(bm_verts[i].co)
-                        verts.append(vert)
-                        bm_verts_dup.setdefault(i, []).append(
-                            verts_num + verts_dup_count
-                        )
-                        verts_dup_count += 1
-                    face = ent_bm.faces.new(verts)
-                    bm_verts.extend(verts)
+                if len(set(vert_idx)) != 3:
+                    face = None
+                    zero_width_faces += 1
+                else:
+                    try:
+                        face = ent_bm.faces.new([bm_verts[i] for i in vert_idx])
+                    except:
+                        level = 0
+                        while True:
+                            verts = [
+                                bm_verts[bm_verts_dup[i][level]]
+                                for i in vert_idx
+                                if i in bm_verts_dup and level < len(bm_verts_dup[i])
+                            ]
+                            if len(verts) == 3:
+                                try:
+                                    face = ent_bm.faces.new(verts)
+                                except:
+                                    level += 1
+                                    continue
+                            else:
+                                verts = []
+                                for i in vert_idx:
+                                    if i in bm_verts_dup and level < len(
+                                        bm_verts_dup[i]
+                                    ):
+                                        verts.append(bm_verts[bm_verts_dup[i][level]])
+                                    else:
+                                        vert = ent_bm.verts.new(bm_verts[i].co)
+                                        index = verts_num + verts_dup_count
+                                        bm_verts_dup.setdefault(i, []).append(index)
+                                        verts.append(vert)
+                                        bm_verts.append(vert)
+                                        verts_dup_count += 1
+                                        if level != 0:
+                                            multiple_folded_face += 1
+                                face = ent_bm.faces.new(verts)
+                            break
+                        #
+                        if level == 0:
+                            folded_faces += 1
+                #
                 length = unpack("I", f)[0]
                 img_name = unpack(f"{length}s", f)
                 uv_list = unpack("ffffff", f)
@@ -1268,6 +1349,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 armature = bpy.data.armatures.new("Blade_Skeleton")
                 armature.show_names = True
                 armature.show_axes = True
+                armature.collections.new("Blade_Bones")
                 # armature.display_type = "STICK"
                 armature_obj = bpy.data.objects.new("Blade_Skeleton", armature)
                 armature_obj.show_in_front = True
@@ -1304,6 +1386,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 if armature is not None:
                     # pose_matrix_list.append(matrix)
                     bone = armature.edit_bones.new(name)
+                    armature.collections["Blade_Bones"].assign(bone)
                     bones_name.append(name)
                     bone.length = 0.1
                     if parent_idx != -1:
@@ -1387,6 +1470,13 @@ class OT_ImportBOD(bpy.types.Operator):
             #
 
             # 添加顶点组
+            if multiple_folded_face:
+                group = entity.vertex_groups.new(name="Multiple Folded Face")
+                group.add(
+                    list([i for v in bm_verts_dup.values() for i in v[1:]]),
+                    1.0,
+                    "REPLACE",
+                )
             if armature is not None:
                 for idx, name in enumerate(bones_name):
                     group = entity.vertex_groups.new(name=name)
@@ -1447,7 +1537,6 @@ class OT_ImportBOD(bpy.types.Operator):
                         obj.parent_type = "BONE"
                         obj.parent_bone = bone_name
                         obj.matrix_world = Matrix()
-                else:
                     logger.debug(f"Fire - parent_idx not -1: {parent_idx}")
 
                 bm.to_mesh(mesh)
@@ -1484,7 +1573,6 @@ class OT_ImportBOD(bpy.types.Operator):
                         obj.parent = armature_obj  # type: ignore
                         obj.parent_type = "BONE"
                         obj.parent_bone = bone_name
-                else:
                     logger.debug(f"Light - parent_idx not -1: {parent_idx}")
                 #
                 obj.matrix_world = Matrix.Translation(co)
@@ -1539,7 +1627,7 @@ class OT_ImportBOD(bpy.types.Operator):
             # 剩余数据种类
             data_num = unpack("I", f)[0]
             if data_num == 0:
-                return final()
+                return _final()
 
             # 边缘
             num = unpack("I", f)[0]
@@ -1608,7 +1696,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                return final()
+                return _final()
 
             # 尖刺
             num = unpack("I", f)[0]
@@ -1672,7 +1760,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                return final()
+                return _final()
 
             # 组
             num = unpack("I", f)[0]
@@ -1693,7 +1781,7 @@ class OT_ImportBOD(bpy.types.Operator):
             #
             data_num -= 1
             if data_num == 0:
-                return final()
+                return _final()
 
             # 轨迹
             num = unpack("I", f)[0]
@@ -1739,7 +1827,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 bm.free()
 
             #
-            return final()
+            return _final()
 
     def invoke(self, context: Context, event):
         # 设为上次选择目录，文件名为空
@@ -1753,11 +1841,12 @@ class OT_ImportBOD(bpy.types.Operator):
 ############################
 
 
-class OT_ExportBOD(bpy.types.Operator):
+class OT_ExportBOD(bpy.types.Operator, ExportHelper):
     bl_idname = "amagate.export_bod"
     bl_label = "Export BOD"
     bl_description = "Export BOD"
     bl_options = {"INTERNAL"}
+    filename_ext = ".bod"
 
     main: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
     action: EnumProperty(
@@ -1770,8 +1859,8 @@ class OT_ExportBOD(bpy.types.Operator):
         options={"HIDDEN"},
     )  # type: ignore
     filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
-    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
-    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    # filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     def execute(self, context: Context):
         # print(f"main: {self.main}, action: {self.action}")
@@ -1782,6 +1871,23 @@ class OT_ExportBOD(bpy.types.Operator):
         # logger.debug(f"filepath: {self.filepath}")
         ent_dict = self.ent_dict
         lack_texture = False
+
+        active_object = context.active_object
+        selected_objects = [
+            i for i in context.view_layer.objects if i.select_get()
+        ]  # type: list[Object] # type: ignore
+
+        #
+        def _final():
+            entity.to_mesh_clear()
+            bpy.data.meshes.remove(entity.data)  # type: ignore
+            # 恢复选择
+            if selected_objects:
+                ag_utils.select_active(context, selected_objects[0])
+                for obj in selected_objects:
+                    obj.select_set(True)
+            context.view_layer.objects.active = active_object
+            return {"FINISHED"}
 
         # 获取主实体
         # if ent_dict["skin"] is not None:
@@ -1838,6 +1944,18 @@ class OT_ExportBOD(bpy.types.Operator):
             -math.pi / 2, 4, "X"
         ).inverted()  # type: Matrix
 
+        bones_name = []  # type: list[str]
+        armature = None  # type: ignore
+        armature_obj = next(
+            (m.object for m in entity.modifiers if m.type == "ARMATURE"), None  # type: ignore
+        )  # type: Object
+        if armature_obj is not None:
+            armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+            if "Blade_Bones" in armature.collections:
+                bones_name = armature.collections["Blade_Bones"].bones.keys()
+            if not bones_name:
+                bones_name = armature.bones.keys()
+
         ent_mesh = entity.to_mesh(
             preserve_all_data_layers=True, depsgraph=depsgraph
         )  # type: bpy.types.Mesh # type: ignore
@@ -1858,19 +1976,13 @@ class OT_ExportBOD(bpy.types.Operator):
         uv_layer = ent_mesh.uv_layers.active.data
         #
         cursor = context.scene.cursor
-        armature_obj = next(
-            (m.object for m in entity.modifiers if m.type == "ARMATURE"), None  # type: ignore
-        )  # type: Object
         if armature_obj is not None:
             # 判断顶点组是否包含所有骨骼
             names = set(i.name for i in entity.vertex_groups)
-            bone_names = set(i.name for i in armature_obj.data.bones)  # type: ignore
-            if not names.issuperset(bone_names):
+            if not names.issuperset(set(bones_name)):
                 self.report({"ERROR"}, "Missing bone vertex group")
-                entity.to_mesh_clear()
-                bpy.data.meshes.remove(entity.data)  # type: ignore
-                return {"FINISHED"}
-            groups_idx = [entity.vertex_groups[name].index for name in bone_names]
+                return _final()
+            groups_idx = [entity.vertex_groups[name].index for name in bones_name]
             for v in ent_mesh.vertices:
                 # has_vg = next((1 for g in v.groups if g.group in groups_idx), 0)
                 vert_groups = [1 for g in v.groups if g.group in groups_idx]
@@ -1879,34 +1991,29 @@ class OT_ExportBOD(bpy.types.Operator):
                         {"ERROR"},
                         "Each vertex must be assigned to a bone vertex group and can only belong to one vertex group",
                     )
-                    entity.to_mesh_clear()
-                    bpy.data.meshes.remove(entity.data)  # type: ignore
-                    return {"FINISHED"}
+                    return _final()
 
             #
-            prev_cursor = cursor.location.copy()
-            cursor.location = origin
-            ag_utils.select_active(context, armature_obj)
-            bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
-            bpy.ops.object.select_all(action="DESELECT")
-            cursor.location = prev_cursor
-            armature_matrix = Matrix.LocRotScale(
-                None, None, armature_obj.matrix_world.to_scale()
-            )
-            armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
-            rot = armature_obj.matrix_world.to_quaternion()
+            # prev_cursor = cursor.location.copy()
+            # cursor.location = origin
+            # ag_utils.select_active(context, armature_obj)
+            # bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+            # bpy.ops.object.select_all(action="DESELECT")
+            # cursor.location = prev_cursor
+            # armature_matrix = Matrix.LocRotScale(
+            #     None, None, armature_obj.matrix_world.to_scale()
+            # )
+            armature_matrix = armature_obj.matrix_world.copy()
+            # rot = armature_obj.matrix_world.to_quaternion()
         else:
-            armature = None  # type: ignore
             armature_matrix = Matrix()
-            rot = ent_matrix.to_quaternion()
-        # 全局逆旋转矩阵
-        glob_rot_inv = (
-            Matrix.Translation(origin)
-            @ Matrix.LocRotScale(origin, rot, None).inverted()
-        )  # type: Matrix
+        rot = ent_matrix.to_quaternion()
+        # 全局逆变换矩阵，因为网格顶点只应用了缩放没有应用旋转和平移
+        glob_rot_inv = Matrix.LocRotScale(origin, rot, None).inverted()  # type: Matrix
 
         # 导出BOD
         buffer = BytesIO()
+        bone_verts_map = {}
         global_verts_map = {}
         global_verts_count = 0
         # 写入内部名称
@@ -1915,48 +2022,57 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(inter_name)
 
         # 写入顶点数据
-        verts_num = len(ent_mesh.vertices)
+        verts_num = 0
+        s_pos_verts_num = buffer.tell()
         buffer.write(struct.pack("I", verts_num))
-        bones_name = []  # type: list[str]
         bones_list = []
         bones_matrix = {}  # type: dict[str, tuple[Matrix, Matrix]]
         # 如果有骨架
         if armature is not None:
             bone_verts_start = 0
-            for bone in armature_obj.pose.bones:
-                name = bone.name
+            for name in bones_name:
+                bone = armature_obj.pose.bones[name]
                 matrix = armature_matrix @ bone.matrix
                 # 应用缩放
                 loc, rot, scale = matrix.decompose()
                 matrix = Matrix.LocRotScale(loc, rot, None)
+                matrix = target_space_inv @ glob_rot_inv @ matrix
                 bone_matrix = bones_matrix.setdefault(
                     name,
                     (
-                        target_space_inv @ matrix,
-                        (target_space_inv @ matrix).inverted(),
+                        matrix,
+                        matrix.inverted(),
                     ),
                 )[1]
+                bone_quat = bone_matrix.to_quaternion()
                 # bone_matrix = bone.matrix.inverted()  # type: Matrix
                 vertex_indices = ag_utils.get_vertex_in_group(
                     entity, name
                 )  # type: set[int]
                 co_list = []
                 max_length = 0
-                if len(vertex_indices) > 512:
-                    logger.warning(f"Bone [{name}] has more than 512 vertices!")
+                bone_verts_map[name] = {}
                 for idx in vertex_indices:
-                    if idx in global_verts_map:
-                        continue
+                    # if idx in global_verts_map:
+                    #     continue
 
-                    global_verts_map[idx] = global_verts_count
-                    global_verts_count += 1
                     #
                     vert = ent_mesh.vertices[idx]
+                    co = vert.co.copy()
+                    co_key = co.to_tuple(5)
+                    # 优化重叠顶点
+                    if (v := bone_verts_map[name].get(co_key, None)) is not None:
+                        global_verts_map[idx] = v
+                        continue
+                    else:
+                        bone_verts_map[name][co_key] = global_verts_count
+                        global_verts_map[idx] = global_verts_count
+                        global_verts_count += 1
+
                     normal = vert.normal.copy()
                     normal.yz = -normal.z, normal.y
-                    normal = bone_matrix.to_quaternion() @ normal
+                    normal = bone_quat @ normal
 
-                    co = vert.co.copy()
                     co.yz = -co.z, co.y
                     co = bone_matrix @ co
                     co *= 1000
@@ -1969,44 +2085,76 @@ class OT_ExportBOD(bpy.types.Operator):
                     #
                     buffer.write(struct.pack("ddd", *co))
                     buffer.write(struct.pack("ddd", *normal))
+                    verts_num += 1
                 #
                 bone_verts_num = len(co_list)
                 if bone_verts_num == 0:
                     bone_center = Vector()
                 else:
                     bone_center = sum(co_list, Vector()) / bone_verts_num
-                bones_name.append(name)
                 bones_list.append(
                     (bone_verts_num, bone_verts_start, bone_center, max_length)
                 )
                 bone_verts_start += bone_verts_num
+                if bone_verts_num > 512:
+                    self.report(
+                        {"ERROR"},
+                        pgettext("Bone [{}] has more than 512 vertices!").format(name),
+                    )
         else:
+            bone_verts_map["Default"] = {}
             for vert in ent_mesh.vertices:
+                idx = vert.index
+                co = vert.co.copy()
+                co_key = co.to_tuple(5)
+                # 优化重叠顶点
+                if (v := bone_verts_map["Default"].get(co_key, None)) is not None:
+                    global_verts_map[idx] = v
+                    continue
+                else:
+                    bone_verts_map["Default"][co_key] = global_verts_count
+                    global_verts_map[idx] = global_verts_count
+                    global_verts_count += 1
+
                 normal = vert.normal.copy()
                 normal.yz = -normal.z, normal.y
-                co = vert.co * 1000
+                co *= 1000
                 co.yz = -co.z, co.y
                 # co = co.to_tuple(1)
                 buffer.write(struct.pack("ddd", *co))
                 buffer.write(struct.pack("ddd", *normal))
+                verts_num += 1
+            if verts_num > 512:
+                self.report(
+                    {"ERROR"},
+                    pgettext("Bone [{}] has more than 512 vertices!").format("Default"),
+                )
+        # 更新顶点数
+        s_pos = buffer.tell()
+        buffer.seek(s_pos_verts_num)
+        buffer.write(struct.pack("I", verts_num))
+        buffer.seek(s_pos)
 
         # 写入面数据
         faces_num = len(ent_mesh.polygons)
         buffer.write(struct.pack("I", faces_num))
         for poly in ent_mesh.polygons:
             # 写顶点索引
-            if armature is not None:
-                buffer.write(
-                    struct.pack("III", *[global_verts_map[i] for i in poly.vertices])
-                )
-            else:
-                buffer.write(struct.pack("III", *poly.vertices))
+            buffer.write(
+                struct.pack("III", *[global_verts_map[i] for i in poly.vertices])
+            )
+            # if armature is not None:
+            #     buffer.write(
+            #         struct.pack("III", *[global_verts_map[i] for i in poly.vertices])
+            #     )
+            # else:
+            #     buffer.write(struct.pack("III", *poly.vertices))
             # 写材质
             img_name = ""
             if poly.material_index < len(entity.material_slots):
                 mat = entity.material_slots[poly.material_index].material
                 if mat:
-                    img_name = mat.name
+                    img_name = ag_utils.remove_dup_suffix(mat.name)
                     # img_node = mat.node_tree.nodes.get(
                     #     "Image Texture"
                     # )  # type: bpy.types.ShaderNodeTexImage # type: ignore
@@ -2077,7 +2225,7 @@ class OT_ExportBOD(bpy.types.Operator):
             buffer.write(struct.pack("I", 1))  # 骨骼为1
             parent_idx = -1
             buffer.write(struct.pack("i", parent_idx))
-            for row in Matrix():
+            for row in armature_matrix:
                 buffer.write(struct.pack("dddd", *row))
             buffer.write(struct.pack("I", verts_num))  # 顶点数量
             buffer.write(struct.pack("I", 0))  # 顶点起始位置
@@ -2098,16 +2246,16 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["fires"])))
         for index, obj in enumerate(ent_dict["fires"]):
             obj = obj.evaluated_get(depsgraph)
-            matrix_world = obj.matrix_world.copy()
-            matrix_world.translation -= origin
+            matrix_world = glob_rot_inv @ obj.matrix_world
+            # matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             buffer.write(struct.pack("I", len(mesh.vertices)))
             #
-            # parent_matrix = None
+            parent_matrix = None
             parent_idx = -1
             # if obj.parent:
             #     if obj.parent_bone in bones_name:
-            #         parent_matrix = bones_matrix[obj.parent_bone][1]
+            #         # parent_matrix = bones_matrix[obj.parent_bone][1]
             #         parent_idx = bones_name.index(obj.parent_bone)
             #     else:
             #         parent_idx = 0
@@ -2115,8 +2263,8 @@ class OT_ExportBOD(bpy.types.Operator):
             for vert in mesh.vertices:
                 co = matrix_world @ vert.co
                 co.yz = -co.z, co.y
-                # if parent_matrix:
-                #     co = parent_matrix @ co
+                if parent_matrix:
+                    co = parent_matrix @ co
                 #
                 co *= 1000
                 buffer.write(struct.pack("ddd", *co))
@@ -2133,20 +2281,20 @@ class OT_ExportBOD(bpy.types.Operator):
             buffer.write(struct.pack("f", strength))
             buffer.write(precision)
 
-            co = obj.matrix_world.translation - origin
+            co = (glob_rot_inv @ obj.matrix_world).translation
             co.yz = -co.z, co.y
             #
-            # parent_matrix = None
+            parent_matrix = None
             parent_idx = -1
             # if obj.parent:
             #     if obj.parent_bone in bones_name:
-            #         parent_matrix = bones_matrix[obj.parent_bone][1]
+            #         # parent_matrix = bones_matrix[obj.parent_bone][1]
             #         parent_idx = bones_name.index(obj.parent_bone)
             #     else:
             #         parent_idx = 0
 
-            # if parent_matrix:
-            #     co = parent_matrix @ co
+            if parent_matrix:
+                co = parent_matrix @ co
             #
             co *= 1000
             buffer.write(struct.pack("ddd", *co))
@@ -2156,7 +2304,7 @@ class OT_ExportBOD(bpy.types.Operator):
         buffer.write(struct.pack("I", len(ent_dict["anchors"])))
         for obj in ent_dict["anchors"]:
             obj = obj.evaluated_get(depsgraph)
-            name = obj.name[13:].encode("utf-8")
+            name = ag_utils.remove_dup_suffix(obj.name[13:]).encode("utf-8")
             buffer.write(struct.pack("I", len(name)))
             buffer.write(name)
             #
@@ -2170,11 +2318,11 @@ class OT_ExportBOD(bpy.types.Operator):
                     parent_idx = 0
 
             matrix = glob_rot_inv @ obj.matrix_world.copy()
-            # 清除缩放
+            # 应用缩放
             loc, rot, scale = matrix.decompose()
             matrix = Matrix.LocRotScale(loc, rot, None)
 
-            matrix.translation -= origin
+            # matrix.translation -= origin
             matrix = target_space_inv @ matrix
             if parent_matrix:
                 matrix = parent_matrix @ matrix
@@ -2193,7 +2341,7 @@ class OT_ExportBOD(bpy.types.Operator):
         for obj in ent_dict["edges"]:
             obj = obj.evaluated_get(depsgraph)
             matrix_world = glob_rot_inv @ obj.matrix_world.copy()
-            matrix_world.translation -= origin
+            # matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
             pt1 = (
@@ -2236,7 +2384,7 @@ class OT_ExportBOD(bpy.types.Operator):
         for obj in ent_dict["spikes"]:
             obj = obj.evaluated_get(depsgraph)
             matrix_world = glob_rot_inv @ obj.matrix_world.copy()
-            matrix_world.translation -= origin
+            # matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
             pt1 = matrix_world @ mesh.vertices[0].co
@@ -2286,7 +2434,7 @@ class OT_ExportBOD(bpy.types.Operator):
         for obj in ent_dict["trails"]:
             obj = obj.evaluated_get(depsgraph)
             matrix_world = glob_rot_inv @ obj.matrix_world.copy()
-            matrix_world.translation -= origin
+            # matrix_world.translation -= origin
             mesh = obj.data  # type: bpy.types.Mesh # type: ignore
             #
             pt1 = matrix_world @ mesh.vertices[0].co
@@ -2320,8 +2468,6 @@ class OT_ExportBOD(bpy.types.Operator):
             f.write(buffer.getvalue())
         buffer.close()
         #
-        entity.to_mesh_clear()
-        bpy.data.meshes.remove(entity.data)  # type: ignore
         if lack_texture:
             self.report({"WARNING"}, "The object lacks texture")
         else:
@@ -2329,10 +2475,24 @@ class OT_ExportBOD(bpy.types.Operator):
                 {"INFO"},
                 f"{pgettext('Export successfully')}: {os.path.basename(self.filepath)}",
             )
-        return {"FINISHED"}
+        return _final()
 
     def invoke(self, context: Context, event):
         ent_coll = None
+        for n in [
+            context.collection.name
+        ] + context.view_layer.layer_collection.children.keys():
+            layer_coll = context.view_layer.layer_collection.children.get(n)
+            if (
+                layer_coll
+                and layer_coll.is_visible
+                and layer_coll.name.lower().startswith("blade_object_")
+            ):
+                coll = bpy.data.collections[layer_coll.name]
+                if len(coll.objects) != 0:
+                    ent_coll = coll
+                    break
+        """
         for coll in bpy.data.collections:
             if len(coll.name) < 14:
                 continue
@@ -2353,6 +2513,7 @@ class OT_ExportBOD(bpy.types.Operator):
             #             continue
             ent_coll = coll
             break
+        """
         if ent_coll is None:
             self.report(
                 {"ERROR"}, "No collection with the prefix `Blade_Object_` was found"
@@ -2361,7 +2522,7 @@ class OT_ExportBOD(bpy.types.Operator):
 
         # 找到实体集合
         ent_dict = {
-            "kind": ent_coll.name[13:],
+            "kind": ag_utils.remove_dup_suffix(ent_coll.name[13:]),
             "objects": [],
             # "skin": None,
             # "skeleton": None,
@@ -2424,6 +2585,10 @@ class OT_ExportBOD(bpy.types.Operator):
         # return {"CANCELLED"}
         # 找到实体对象
         self.ent_dict = ent_dict
+
+        for k in ("anchors", "edges", "spikes", "trails", "fires", "lights"):
+            ent_dict[k].sort(key=lambda x: ag_utils.natural_sort_key(x.name))
+            # logger.debug(f"ent_dict[{k}] = {ent_dict[k]}")
 
         if not bpy.data.filepath or (not self.main and self.action == "2"):
             if not self.filepath:

@@ -752,6 +752,11 @@ class ImageProperty(bpy.types.PropertyGroup):
 class WindowManagerProperty(bpy.types.PropertyGroup):
     ent_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
     ent_mutilation_groups: CollectionProperty(type=EntityGroupCollection)  # type: ignore
+    ignore_dup_suffix: BoolProperty(
+        name="Ignore Duplicate Suffixes",
+        description='e.g. Ignore ".001" in "Blade_Anchor_Inv.001"',
+        default=True,
+    )  # type: ignore
     #
     ent_inter_name: StringProperty(default="", get=lambda self: self.get_ent_inter_name(), set=lambda self, value: None)  # type: ignore
     ent_enum: EnumProperty(

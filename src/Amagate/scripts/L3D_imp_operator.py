@@ -729,6 +729,10 @@ def import_map(bw_file):
                     face[layers["tex_angle"]] = tex_angle
                     face[layers["tex_xzoom"]] = tex_xzoom
                     face[layers["tex_yzoom"]] = tex_yzoom
+                else:
+                    logger.error(
+                        f"Invalid face: type {face_type}, vertex_num {[v.co for v in verts_list]}"
+                    )
                 # 切割面
                 if face_type == 7003:
                     vertex_sub_num = unpack("<I", f)[0]

@@ -178,6 +178,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
 
         layout.separator(type="LINE")
 
+        # 选项
+        layout.prop(wm_data, "ignore_dup_suffix")
         # 导出
         row = layout.row(align=True)
         row.operator(OP_ENTITY.OT_ExportBOD.bl_idname, icon="EXPORT").main = True  # type: ignore

@@ -313,6 +313,13 @@
     ("*", "No visible entity Mesh"): "没有可见的实体网格",
     ("*", "The entity is missing UV map"): "实体缺少UV贴图",
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
+    ("*", "Armature already exists"): "骨架已经存在",
+    ("*", "Ignore Duplicate Suffixes"): "忽略重复后缀",
+    ("*", 'e.g. Ignore ".001" in "Blade_Anchor_Inv.001"'): '例如：忽略"Blade_Anchor_Inv.001"中的".001"',
+    ("*", "Bone [{}] has more than 512 vertices!"): "骨骼 [{}] 超过 512 个顶点!",
+
+    ("*", "The translation and rotation of the model will only take effect in the export after being applied"): "模型的平移和旋转需应用后才会在导出时生效",
+    ("*", "Adding character bones to the bone collection `Blade_Bones` allows excluding IK helper bones during export"): "将角色骨骼添加到骨骼集合`Blade_Bones`中，可在导出时排除IK辅助骨骼等",
     ("*", "For the character"): "对于角色",
     ("*", "Each vertex must be assigned to a bone vertex group and can only belong to one vertex group"): "每个顶点必须分配骨骼顶点组且只能属于一个顶点组",
     ("*", "Do not link lights or flames to bone, as the BOD engine does not support it"): "不要将灯光或火焰链接到骨骼上，因为BOD引擎不支持",

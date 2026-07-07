@@ -19,6 +19,7 @@ import zipfile
 import tempfile
 import typing
 import struct
+import re
 
 from typing import Any, TYPE_CHECKING
 from io import StringIO, BytesIO
@@ -1367,9 +1368,8 @@ def ensure_lookup_table(bm: bmesh.types.BMesh):
 
 ############################
 
+
 # 无符号与有符号整数之间的转换
-
-
 def int_to_uint(i: int) -> int:
     """将整数转换为无符号整数"""
     return i & 0xFFFFFFFF if i < 0 else i
@@ -1378,6 +1378,21 @@ def int_to_uint(i: int) -> int:
 def uint_to_int(i: int) -> int:
     """将无符号整数转换为整数"""
     return i - (1 << 32) if i >= (1 << 31) else i
+
+
+def remove_dup_suffix(name: str):
+    wm_data = bpy.context.window_manager.amagate_data
+    ignore_dup_suffix = wm_data.ignore_dup_suffix
+    if ignore_dup_suffix:
+        name = re.sub(r"\.\d{1,}$", "", name)
+    return name
+
+
+def natural_sort_key(text):
+    # 将字符串按数字切分，例如 "item10_v2" -> ['item', '10', '_v', '2', '']
+    parts = re.split(r"(\d+)", text)
+    # 将纯数字部分转为 int，非数字部分转为小写字符串（忽略大小写）
+    return [int(part) if part.isdigit() else part.lower() for part in parts]
 
 
 ############################
@@ -1494,8 +1509,8 @@ def download_file(url, save_file, referer):
     下载文件到指定路径
     """
     proxies = {
-        "http": "http://127.0.0.1:10809",  # HTTP 代理
-        "https": "http://127.0.0.1:10809",  # HTTPS 代理（如果代理支持）
+        "http": "http://127.0.0.1:10808",  # HTTP 代理
+        "https": "http://127.0.0.1:10808",  # HTTPS 代理（如果代理支持）
     }
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
