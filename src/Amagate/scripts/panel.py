@@ -117,7 +117,9 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 toggle=True,
             )
         # 按组选择
-        box.operator_menu_enum(OP_ENTITY.OT_SelectByGroup.bl_idname, "action")
+        row = box.row(align=True)
+        row.operator_menu_enum(OP_ENTITY.OT_SelectByGroup.bl_idname, "action")
+        row.operator_menu_enum(OP_ENTITY.OT_DeselectByGroup.bl_idname, "action")
 
         # 肢解组
         box = layout.box()
@@ -161,7 +163,9 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
                 toggle=True,
             )
         # 按肢解组选择
-        box.operator_menu_enum(OP_ENTITY.OT_SelectByMutilateGroup.bl_idname, "action")
+        row = box.row(align=True)
+        row.operator_menu_enum(OP_ENTITY.OT_SelectByMutilateGroup.bl_idname, "action")
+        row.operator_menu_enum(OP_ENTITY.OT_DeselectByMutilateGroup.bl_idname, "action")
 
         # 创建集合
         layout.operator(OP_ENTITY.OT_CreateColl.bl_idname, icon="COLLECTION_NEW")

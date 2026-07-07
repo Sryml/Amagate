@@ -1046,9 +1046,39 @@ class OT_SelectByGroup(bpy.types.Operator):
                 face.select_set(True)
 
         bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        bpy.ops.ed.undo_push(message=self.bl_label)
 
         return {"FINISHED"}
 
+
+class OT_DeselectByGroup(bpy.types.Operator):
+    bl_idname = "amagate.deselect_by_group"
+    bl_label = "Deselect By Group"
+    bl_options = {"INTERNAL"}
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        index = int(self.action)
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        edit_bm = bmesh.from_edit_mesh(mesh)
+        layer = edit_bm.faces.layers.int.get("amagate_group")
+        for face in edit_bm.faces:
+            if (face[layer] >> index) & 1:  # type: ignore
+                face.select_set(False)
+
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        bpy.ops.ed.undo_push(message=self.bl_label)
+
+        return {"FINISHED"}
 
 # 按肢解组选择
 class OT_SelectByMutilateGroup(bpy.types.Operator):
@@ -1080,6 +1110,41 @@ class OT_SelectByMutilateGroup(bpy.types.Operator):
         # edit_bm.select_flush_mode()
         # edit_bm.select_flush(True)
         bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        bpy.ops.ed.undo_push(message=self.bl_label)
+
+        return {"FINISHED"}
+
+
+class OT_DeselectByMutilateGroup(bpy.types.Operator):
+    bl_idname = "amagate.deselect_by_mutilate_group"
+    bl_label = "Deselect By Group"
+    bl_options = {"INTERNAL"}
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        index = int(self.action)
+        obj = context.object
+        mesh = obj.data  # type: bpy.types.Mesh # type: ignore
+        edit_bm = bmesh.from_edit_mesh(mesh)
+        layer = edit_bm.faces.layers.int.get("amagate_mutilation_group")
+        # edit_bm.verts.ensure_lookup_table()
+        # 取消选择
+        # bpy.ops.object.select_all(action="DESELECT")
+        for face in edit_bm.faces:
+            if (face[layer] >> index) & 1:  # type: ignore
+                face.select_set(False)
+        # edit_bm.select_flush_mode()
+        # edit_bm.select_flush(True)
+        bmesh.update_edit_mesh(mesh, loop_triangles=False, destructive=False)
+        bpy.ops.ed.undo_push(message=self.bl_label)
 
         return {"FINISHED"}
 

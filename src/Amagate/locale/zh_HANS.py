@@ -298,6 +298,7 @@
     ("Operator", "Add Anchor"): "添加锚点",
     ("Operator", "Add Component"): "添加组件",
     ("Operator", "Select By Group"): "按组选择",
+    ("Operator", "Deselect By Group"): "按组弃选",
     ("Operator", "Entity Note"): "实体说明",
     ("EntAnchor", "Object"): "物体",
     ("EntAnchor", "Person"): "人物",
