@@ -36,6 +36,7 @@ from bpy.props import (
     StringProperty,
 )
 from mathutils import *  # type: ignore
+from bpy_extras.io_utils import ExportHelper
 
 from . import data, entity_data
 from . import ag_utils
@@ -97,11 +98,12 @@ class OT_InstallPyPackages(bpy.types.Operator):
 
 
 # 导出动画
-class OT_ExportAnim(bpy.types.Operator):
+class OT_ExportAnim(bpy.types.Operator, ExportHelper):
     bl_idname = "amagate.export_anim"
     bl_label = "Export Animation"
     bl_description = "Export Animation"
     bl_options = {"INTERNAL"}
+    filename_ext = ".bmv"
 
     main: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
     action: EnumProperty(
@@ -111,8 +113,8 @@ class OT_ExportAnim(bpy.types.Operator):
         options={"HIDDEN"},
     )  # type: ignore
     filter_glob: StringProperty(default="*.bmv", options={"HIDDEN"})  # type: ignore
-    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
-    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    # filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
@@ -780,11 +782,12 @@ class OT_SetAnim(bpy.types.Operator):
 
 ############################
 # 摄像机导出
-class OT_ExportCamera(bpy.types.Operator):
+class OT_ExportCamera(bpy.types.Operator, ExportHelper):
     bl_idname = "amagate.export_camera"
     bl_label = "Export Camera"
     bl_description = "Export Camera"
     bl_options = {"INTERNAL"}
+    filename_ext = ".cam"
 
     main: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
     action: EnumProperty(
@@ -794,8 +797,8 @@ class OT_ExportCamera(bpy.types.Operator):
         options={"HIDDEN"},
     )  # type: ignore
     filter_glob: StringProperty(default="*.cam", options={"HIDDEN"})  # type: ignore
-    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
-    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    # directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    # filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
 
     @classmethod
     def poll(cls, context: Context):
@@ -1693,7 +1696,10 @@ class OT_Test(bpy.types.Operator):
 
     @staticmethod
     def import_bod(context: Context):
+        # 基于4.3版本使用
         from . import entity_operator as OP_ENTITY
+
+        update_existing = 1
 
         models_path = os.path.join(data.ADDON_PATH, "Models")
         preview_dir = os.path.join(models_path, "Preview")
@@ -1734,13 +1740,14 @@ class OT_Test(bpy.types.Operator):
         dup_face_lst = []
         name_lst = []
         print(len(name_lst))
-        # for f_name in os.listdir(root):
-        #     if not f_name.lower().endswith(".bod"):
-        #         continue
-        for i in name_lst:
-            f_name = i + ".bod"
+        for f_name in os.listdir(root):
+            if f_name.lower().endswith(".bod"):
+                name_lst.append(f_name)
+        for f_name in name_lst:
+            # f_name = f_name + ".bod"
             count += 1
             filepath = os.path.join(root, f_name)
+
             if context.mode != "OBJECT":
                 bpy.ops.object.mode_set(mode="OBJECT")
             # 清空场景
@@ -1760,9 +1767,19 @@ class OT_Test(bpy.types.Operator):
                     d.remove(d[-1])  # type: ignore
 
             # 导入
-            entity, lack_texture, dup_face = OP_ENTITY.OT_ImportBOD.import_bod(
-                context, filepath
-            )
+            (
+                entity,
+                lack_texture,
+                folded_faces,
+                multiple_folded_face,
+                zero_width_faces,
+            ) = OP_ENTITY.OT_ImportBOD.import_bod(context, filepath)
+            if folded_faces:
+                print(f"Folded faces found in {f_name}: {folded_faces}")
+            else:
+                continue
+            if multiple_folded_face:
+                print(f"Abnormal faces found in {f_name}: {multiple_folded_face}")
             # if lack_texture:
             #     lack_texture_lst.append(Path(filepath).stem)
             # if dup_face:
@@ -1789,62 +1806,78 @@ class OT_Test(bpy.types.Operator):
             # bpy.ops.view3d.view_axis(type=view)
 
             #
-            camera = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
-            scene.collection.objects.link(camera)
-            scene.camera = camera  # 设置活动摄像机
-            rv3d.view_perspective = "CAMERA"
-            camera.hide_set(True)
-            fov = math.degrees(camera.data.angle)  # type: ignore
+            if update_existing:
+                # bpy.ops.wm.open_mainfile(filepath=os.path.splitext(filepath)[0] + ".blend")
+                with bpy.data.libraries.load(
+                    os.path.splitext(filepath)[0] + ".blend", link=False
+                ) as (
+                    data_from,
+                    data_to,
+                ):
+                    data_to.objects = ["Camera"]
+                camera = data_to.objects[0]
+                scene.collection.objects.link(camera)
+                scene.camera = camera  # 设置活动摄像机
+                rv3d.view_perspective = "CAMERA"
+                camera.hide_set(True)
+                bpy.data.libraries.remove(bpy.data.libraries[0])
+            else:
+                camera = bpy.data.objects.new("Camera", bpy.data.cameras.new("Camera"))
+                scene.collection.objects.link(camera)
+                scene.camera = camera  # 设置活动摄像机
+                rv3d.view_perspective = "CAMERA"
+                camera.hide_set(True)
+                fov = math.degrees(camera.data.angle)  # type: ignore
 
-            verts = [entity.matrix_world @ Vector(v) for v in entity.bound_box]
+                verts = [entity.matrix_world @ Vector(v) for v in entity.bound_box]
 
-            if view == "Top":
-                look_at = Vector((0, 0, -1))
-                u, v = Vector((1, 0, 0)), Vector((0, 1, 0))
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Front":
-                look_at = Vector((0, 1, 0))
-                u, v = Vector((1, 0, 0)), Vector((0, 0, 1))
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Front 45°":
-                look_at = Vector((0, 1, -1)).normalized()
-                u, v = Vector((1, 0, 0)), Vector((0, 1, 1)).normalized()
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Right":
-                look_at = Vector((-1, 0, 0))
-                u, v = Vector((0, 1, 0)), Vector((0, 0, 1))
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Right 45°":
-                look_at = Vector((-1, 0, -1)).normalized()
-                u, v = Vector((0, 1, 0)), Vector((-1, 0, 1)).normalized()
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Back":
-                look_at = Vector((0, -1, 0))
-                u, v = Vector((-1, 0, 0)), Vector((0, 0, 1))
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Left":
-                look_at = Vector((1, 0, 0))
-                u, v = Vector((0, -1, 0)), Vector((0, 0, 1))
-                base_len = min(v.dot(look_at) for v in verts)
-            elif view == "Bottom":
-                look_at = Vector((0, 0, 1))
-                u, v = Vector((1, 0, 0)), Vector((0, -1, 0))
-                base_len = min(v.dot(look_at) for v in verts)
+                if view == "Top":
+                    look_at = Vector((0, 0, -1))
+                    u, v = Vector((1, 0, 0)), Vector((0, 1, 0))
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Front":
+                    look_at = Vector((0, 1, 0))
+                    u, v = Vector((1, 0, 0)), Vector((0, 0, 1))
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Front 45°":
+                    look_at = Vector((0, 1, -1)).normalized()
+                    u, v = Vector((1, 0, 0)), Vector((0, 1, 1)).normalized()
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Right":
+                    look_at = Vector((-1, 0, 0))
+                    u, v = Vector((0, 1, 0)), Vector((0, 0, 1))
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Right 45°":
+                    look_at = Vector((-1, 0, -1)).normalized()
+                    u, v = Vector((0, 1, 0)), Vector((-1, 0, 1)).normalized()
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Back":
+                    look_at = Vector((0, -1, 0))
+                    u, v = Vector((-1, 0, 0)), Vector((0, 0, 1))
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Left":
+                    look_at = Vector((1, 0, 0))
+                    u, v = Vector((0, -1, 0)), Vector((0, 0, 1))
+                    base_len = min(v.dot(look_at) for v in verts)
+                elif view == "Bottom":
+                    look_at = Vector((0, 0, 1))
+                    u, v = Vector((1, 0, 0)), Vector((0, -1, 0))
+                    base_len = min(v.dot(look_at) for v in verts)
 
-            verts = [Vector((vert.dot(u), vert.dot(v))) for vert in verts]
-            min_x = min(v.x for v in verts)
-            max_x = max(v.x for v in verts)
-            min_y = min(v.y for v in verts)
-            max_y = max(v.y for v in verts)
-            width = max_x - min_x
-            height = max_y - min_y
-            max_dimension = max(width, height) + padding
-            distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
-            x = (min_x + max_x) * 0.5 * u
-            y = (min_y + max_y) * 0.5 * v
-            z = look_at * (base_len - distance)
-            camera.rotation_euler = look_at.to_track_quat("-Z", "Y").to_euler()
-            camera.location = x + y + z  # type: ignore
+                verts = [Vector((vert.dot(u), vert.dot(v))) for vert in verts]
+                min_x = min(v.x for v in verts)
+                max_x = max(v.x for v in verts)
+                min_y = min(v.y for v in verts)
+                max_y = max(v.y for v in verts)
+                width = max_x - min_x
+                height = max_y - min_y
+                max_dimension = max(width, height) + padding
+                distance = (max_dimension / 2) / math.tan(math.radians(fov / 2))
+                x = (min_x + max_x) * 0.5 * u
+                y = (min_y + max_y) * 0.5 * v
+                z = look_at * (base_len - distance)
+                camera.rotation_euler = look_at.to_track_quat("-Z", "Y").to_euler()
+                camera.location = x + y + z  # type: ignore
 
             #
             scene.render.filepath = "//tmp"
@@ -1864,19 +1897,20 @@ class OT_Test(bpy.types.Operator):
             #     context.space_data.shading.type = "MATERIAL"  # type: ignore
 
             # 渲染
-            for mat in bpy.data.materials:
-                mat.use_backface_culling = False
-            ag_utils.select_active(context, entity)  # type: ignore
-            camera.select_set(True)
-            bpy.ops.object.select_all(action="INVERT")
-            bpy.ops.object.delete()
+            if not update_existing:
+                for mat in bpy.data.materials:
+                    mat.use_backface_culling = False
+                ag_utils.select_active(context, entity)  # type: ignore
+                camera.select_set(True)
+                bpy.ops.object.select_all(action="INVERT")
+                bpy.ops.object.delete()
 
-            scene.render.filepath = os.path.join(
-                preview_dir, os.path.splitext(save_name)[0]
-            )
-            bpy.ops.render.render(write_still=True)
+                scene.render.filepath = os.path.join(
+                    preview_dir, os.path.splitext(save_name)[0]
+                )
+                bpy.ops.render.render(write_still=True)
 
-        context.preferences.filepaths.save_version = save_version
+        # context.preferences.filepaths.save_version = save_version
         # print(f"dup face: {dup_face_lst}")
         # print(f"lack texture: {lack_texture_lst}")
         #

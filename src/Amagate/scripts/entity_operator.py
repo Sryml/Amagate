@@ -2038,7 +2038,8 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         bound_max_length = bounds_length[0] * 1000
         # matrix = entity.matrix_world.copy()
         # quat = matrix.to_quaternion()
-        uv_layer = ent_mesh.uv_layers.active.data
+        # uv_layer = ent_mesh.uv_layers.active.data
+        uv_layer = next(i.data for i in ent_mesh.uv_layers if i.active_render)
         #
         cursor = context.scene.cursor
         if armature_obj is not None:
