@@ -370,6 +370,8 @@ class OT_ImportAnim(bpy.types.Operator):
                 action = bpy.data.actions.get(action_name)
                 if not action:
                     action = bpy.data.actions.new(name=action_name)
+                if action.library:
+                    action.make_local()
                 channelbag = action  # type: bpy.types.Action
                 action.use_fake_user = True
                 has_slot = hasattr(action, "slots")
@@ -1001,6 +1003,8 @@ class OT_ImportCamera(bpy.types.Operator):
         action = bpy.data.actions.get(action_name)
         if not action:
             action = bpy.data.actions.new(name=action_name)
+        if action.library:
+            action.make_local()
         channelbag = action  # type: bpy.types.Action
         action.use_fake_user = True
 
@@ -1008,6 +1012,8 @@ class OT_ImportCamera(bpy.types.Operator):
         action_data = bpy.data.actions.get(action_name_data)
         if not action_data:
             action_data = bpy.data.actions.new(name=action_name_data)
+        if action_data.library:
+            action_data.make_local()
         channelbag_data = action_data  # type: bpy.types.Action
         action_data.use_fake_user = True
 
