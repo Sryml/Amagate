@@ -89,59 +89,59 @@ PROP_RESET_NAME = 1
 
 # 默认动作
 DEFAULT_ANIM = {
-    "Amazon_L": "Amz_rlx_no",
-    "Amazon_N": "Amz_rlx_no",
-    "AmzSkin1": "Amz_rlx_no",
-    "AmzSkin2": "Amz_rlx_no",
+    "Amazon_L": ("Amz_rlx_no", "Amazon_N"),
+    "Amazon_N": ("Amz_rlx_no", "Amazon_N"),
+    "AmzSkin1": ("Amz_rlx_no", "Amazon_N"),
+    "AmzSkin2": ("Amz_rlx_no", "Amazon_N"),
     # 'Ank2': '',
-    "BarSkin1": "bar_rlx_no",
-    "BarSkin2": "bar_rlx_no",
-    "Barbarian": "bar_rlx_no",
-    "Barbarian_L": "bar_rlx_no",
-    "Barbarian_N": "bar_rlx_no",
+    "BarSkin1": ("bar_rlx_no", "Barbarian_N"),
+    "BarSkin2": ("bar_rlx_no", "Barbarian_N"),
+    "Barbarian": ("bar_rlx_no", "Barbarian_N"),
+    "Barbarian_L": ("bar_rlx_no", "Barbarian_N"),
+    "Barbarian_N": ("bar_rlx_no", "Barbarian_N"),
     # "Bat": "bat_fly",
-    "ChaosKnight": "Chk_rlx_no",
-    "Cos": "Cos_rlx_no",
-    "Crw": "crw_rlx",
-    "DalGurak": "Dgk_rlx_1",
-    "DarkLord": "Ank_rlx",
-    "Dark_Knight": "Tkn_rlx_no",
-    "Dark_Ork": "Ork_rlx_no",
+    "ChaosKnight": ("Chk_rlx_no", "ChaosKnight"),
+    "Cos": ("Cos_rlx_no", "Cos"),
+    "Crw": ("crw_rlx", "Crw"),
+    "DalGurak": ("Dgk_rlx_1", "DalGurak"),
+    "DarkLord": ("Ank_rlx", "DarkLord"),
+    "Dark_Knight": ("Tkn_rlx_no", "Knight_Traitor"),
+    "Dark_Ork": ("Ork_rlx_no", "Ork"),
     # 'Dragon': 'Drg_estatua',
-    "Duque": "kgt_rlx_no",
-    "Dwarf_L": "Dwf_rlx_no",
-    "Dwarf_M": "Dwf_rlx_no",
-    "Dwarf_N": "Dwf_rlx_no",
-    "DwfSkin1": "Dwf_rlx_no",
-    "DwfSkin2": "Dwf_rlx_no",
-    "Enano1": "Dwf_rlx_no",
-    "Enano2": "Dwf_rlx_no",
-    "Enano3": "Dwf_rlx_no",
-    "Enano4": "Dwf_rlx_no",
+    "Duque": ("kgt_rlx_no", "Knight_N"),
+    "Dwarf_L": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Dwarf_M": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Dwarf_N": ("Dwf_rlx_1h", "Dwarf_N"),
+    "DwfSkin1": ("Dwf_rlx_1h", "Dwarf_N"),
+    "DwfSkin2": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Enano1": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Enano2": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Enano3": ("Dwf_rlx_1h", "Dwarf_N"),
+    "Enano4": ("Dwf_rlx_1h", "Dwarf_N"),
     # 'Gargoyle_Stone_Form': '',
-    "Gold_Ork": "Ork_rlx_no",
-    "Golem_clay": "Glm_rlx_no",
-    "Golem_ice": "Glm_rlx_no",
-    "Golem_lava": "Glm_rlx_no",
-    "Golem_metal": "Glm_rlx_no",
-    "Golem_stone": "Glm_rlx_no",
-    "Great_Demon": "Gdm_rlx_no",
-    "Great_Ork": "Ork_rlx_no",
-    "KgtSkin1": "kgt_rlx_no",
-    "KgtSkin2": "kgt_rlx_no",
-    "Knight_F": "kgt_rlx_no",
-    "Knight_L": "kgt_rlx_no",
-    "Knight_M": "kgt_rlx_no",
-    "Knight_N": "kgt_rlx_no",
-    "Knight_Traitor": "Tkn_rlx_no",
-    "Knight_Zombie": "Lch_rlx_no",
-    "Knight_traitor": "Tkn_rlx_no",
-    "Lich": "Lch_rlx_no",
-    "Little_Demon": "Ldm_rlx_no",
-    "Minotaur": "Min_rlx_1h",
-    "Mortimer": "kgt_rlx_no",
-    "NP_Knight": "kgt_rlx_no",
-    "Ork": "Ork_rlx_no",
+    "Gold_Ork": ("Ork_rlx_no", "Ork"),
+    "Golem_clay": ("Glm_rlx_no", "Golem_stone"),
+    "Golem_ice": ("Glm_rlx_no", "Golem_stone"),
+    "Golem_lava": ("Glm_rlx_no", "Golem_stone"),
+    "Golem_metal": ("Glm_rlx_no", "Golem_stone"),
+    "Golem_stone": ("Glm_rlx_no", "Golem_stone"),
+    "Great_Demon": ("Gdm_rlx_no", "Great_Demon"),
+    "Great_Ork": ("Ork_rlx_no", "Ork"),
+    "KgtSkin1": ("kgt_rlx_no", "Knight_N"),
+    "KgtSkin2": ("kgt_rlx_no", "Knight_N"),
+    "Knight_F": ("kgt_rlx_no", "Knight_N"),
+    "Knight_L": ("kgt_rlx_no", "Knight_N"),
+    "Knight_M": ("kgt_rlx_no", "Knight_N"),
+    "Knight_N": ("kgt_rlx_no", "Knight_N"),
+    "Knight_Traitor": ("Tkn_rlx_no", "Knight_Traitor"),
+    "Knight_Zombie": ("Lch_rlx_no", "Lich"),
+    "Knight_traitor": ("Tkn_rlx_no", "Knight_Traitor"),
+    "Lich": ("Lch_rlx_no", "Lich"),
+    "Little_Demon": ("Ldm_rlx_no", "Little_Demon"),
+    "Minotaur": ("Min_rlx_1h", "Minotaur"),
+    "Mortimer": ("kgt_rlx_no", "Knight_N"),
+    "NP_Knight": ("kgt_rlx_no", "Knight_N"),
+    "Ork": ("Ork_rlx_no", "Ork"),
     # 'Pio': '',
     # "Prisoner_1": "Prs_1_escena01_volcan",
     # "Prisoner_2": "Prs_1_escena01_volcan",
@@ -149,16 +149,16 @@ DEFAULT_ANIM = {
     # "Prisoner_4": "Prs_1_escena01_volcan",
     # "Prisoner_5": "Prs_1_escena01_volcan",
     # "Prisoner_6": "Prs_1_escena01_volcan",
-    "Ragnar": "Rgn_rlx_1h",
+    "Ragnar": ("Rgn_rlx_1h", "Ragnar"),
     # 'Rat': '',
-    "Salamander": "Slm_rlx_no",
+    "Salamander": ("Slm_rlx_no", "Salamander"),
     # 'Sgl': '',
     # 'Shank': '',
-    "Skeleton": "Skl_rlx_1h",
-    "Spidersmall": "Spd_rlx_no",
-    "Troll_Dark": "Trl_rlx_no",
-    "Troll_snow": "Trl_rlx_no",
-    "Vamp": "Vmp_rlx_1h",
+    "Skeleton": ("Skl_rlx_1h", "Skeleton"),
+    "Spidersmall": ("Spd_rlx_no", "Spidersmall"),
+    "Troll_Dark": ("Trl_rlx_no", "Troll_Dark"),
+    "Troll_snow": ("Trl_rlx_no", "Troll_Dark"),
+    "Vamp": ("Vmp_rlx_1h", "Vamp"),
     # 'Vejete': '',
     # 'Wyvern': '',
 }
@@ -1064,10 +1064,13 @@ class EntityProperty(bpy.types.PropertyGroup):
 
     # 设置动画
     def set_animation(self):
-        action_name = DEFAULT_ANIM.get(self.Kind, "")
-        action = bpy.data.actions.get(action_name)
-        if not action:
+        from . import operator as OP
+        action_name, filename = DEFAULT_ANIM.get(self.Kind, ("", ""))
+        if not filename:
             return
+        # action = bpy.data.actions.get(action_name)
+        # if not action:
+        #     return
         ent = self.id_data  # type: Object
         armature = next(
             (m.object for m in ent.modifiers if m.type == "ARMATURE"), None  # type: ignore
@@ -1075,14 +1078,15 @@ class EntityProperty(bpy.types.PropertyGroup):
         if not armature:
             return
         # 分配动作
-        has_slot = hasattr(action, "slots")
-        if not armature.animation_data:
-            armature.animation_data_create()
-        armature.animation_data.action = action
-        if has_slot:
-            slot = action.slots[0] if len(action.slots) != 0 else None
-            if slot:
-                armature.animation_data.action_slot = slot
+        OP.OT_SetAnim.execute_static(None, bpy.context, armature, action_name, f"{filename}.blend")
+        # has_slot = hasattr(action, "slots")
+        # if not armature.animation_data:
+        #     armature.animation_data_create()
+        # armature.animation_data.action = action
+        # if has_slot:
+        #     slot = action.slots[0] if len(action.slots) != 0 else None
+        #     if slot:
+        #         armature.animation_data.action_slot = slot
 
     # 清除动画
     def clear_animation(self):

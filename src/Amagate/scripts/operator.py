@@ -509,6 +509,8 @@ class OT_MirrorAnim(bpy.types.Operator):
     bl_description = "Mirror Animation"
     bl_options = {"INTERNAL"}
 
+    undo: BoolProperty(default=True)  # type: ignore
+
     @classmethod
     def poll(cls, context: Context):
         armature_obj = context.active_object
@@ -535,9 +537,14 @@ class OT_MirrorAnim(bpy.types.Operator):
         action = armature_obj.animation_data.action
         if not action:
             self.report(
-                {"WARNING"}, "Please select the action to export in the Action Editor"
+                {"WARNING"}, "Please select the action to mirror in the Action Editor"
             )
             return {"CANCELLED"}
+        
+        if action.library:
+            action.make_local()
+            bpy.ops.ed.undo_push(message="Make Local")
+
         action_name = action.name
         channelbag = action  # type: bpy.types.Action
         has_slot = hasattr(armature_obj.animation_data, "action_slot")
@@ -546,7 +553,7 @@ class OT_MirrorAnim(bpy.types.Operator):
             if not slot:
                 self.report(
                     {"WARNING"},
-                    "Please select the action slot to export in the Action Editor",
+                    "Please select the action slot to mirror in the Action Editor",
                 )
                 return {"CANCELLED"}
             action_name = slot.name_display
@@ -557,6 +564,9 @@ class OT_MirrorAnim(bpy.types.Operator):
         #
         self.channelbag = channelbag
         self.execute2(context)
+        if self.undo:
+            bpy.ops.ed.undo_push(message=self.bl_label)
+
         return {"FINISHED"}
 
     def execute2(self, context: Context):
@@ -727,6 +737,8 @@ class OT_SetAnim(bpy.types.Operator):
     bl_options = {"INTERNAL"}
     bl_property = "enum"
 
+    undo: BoolProperty(default=True)  # type: ignore
+
     enum: EnumProperty(
         items=entity_data.get_anm_enum_search,
     )  # type: ignore
@@ -744,12 +756,23 @@ class OT_SetAnim(bpy.types.Operator):
         action_name = bpy.types.UILayout.enum_item_name(self, "enum", self.enum)
         filename = bpy.types.UILayout.enum_item_description(self, "enum", self.enum)
         armature = context.view_layer.objects.active
-        armature_data = armature.data  # type: bpy.types.Armature # type: ignore
+        # armature_data = armature.data  # type: bpy.types.Armature # type: ignore
+        return self.execute_static(self, context, armature, action_name, filename)  # type: ignore
+
+    @staticmethod
+    def execute_static(
+        this, context: Context, armature: Object, action_name: str, filename: str
+    ):
+        is_operator = isinstance(this, OT_SetAnim)
+
         action = bpy.data.actions.get(action_name)  # type: ignore
         if not action:
             filepath = os.path.join(data.ADDON_PATH, "Models", "Anm", filename)
             if not os.path.exists(filepath):
-                self.report({"ERROR"}, f"{pgettext('File not found')}: {filename}")
+                if is_operator:
+                    this.report({"ERROR"}, f"{pgettext('File not found')}: {filename}")
+                else:
+                    logger.error(f"{pgettext('File not found')}: {filename}")
                 return {"CANCELLED"}
 
             with bpy.data.libraries.load(filepath, link=True) as (data_from, data_to):
@@ -757,9 +780,12 @@ class OT_SetAnim(bpy.types.Operator):
                     (i for i in data_from.actions if i == action_name), None
                 )
                 if not action_from:
-                    self.report(
-                        {"ERROR"}, f"Action {action_name} not found in {filename}"
-                    )
+                    if is_operator:
+                        this.report(
+                            {"ERROR"}, f"Action {action_name} not found in {filename}"
+                        )
+                    else:
+                        logger.error(f"Action {action_name} not found in {filename}")
                     return {"CANCELLED"}
                 data_to.actions = [action_from]
             action = data_to.actions[0]  # type: bpy.types.Action
@@ -774,6 +800,9 @@ class OT_SetAnim(bpy.types.Operator):
             slot = action.slots[0] if len(action.slots) != 0 else None
             if slot:
                 armature.animation_data.action_slot = slot
+
+        if is_operator and this.undo:
+            bpy.ops.ed.undo_push(message=this.bl_description)
 
         return {"FINISHED"}
 

@@ -19,7 +19,7 @@ import asyncio
 from pathlib import Path
 from asyncio import run_coroutine_threadsafe
 from io import StringIO, BytesIO
-from typing import Any, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING, Callable
 
 # from collections import Counter
 #
@@ -1297,7 +1297,7 @@ def load_post(filepath=""):
                     item.obj = coll
                 L3D_data.ensure_collection(name)
                 # 加载放松动画
-                OP_L3D.load_rlx_anim()
+                # OP_L3D.load_rlx_anim()
                 # 添加玩家实体
                 location = 0, 0, 0
                 obj = bpy.data.objects.get("Player")
@@ -1315,13 +1315,15 @@ def load_post(filepath=""):
 
         # 更新插件资产路径
         models_path = Path.joinpath(Path(data.ADDON_PATH), "Models")
-        scene_data.sky_tex_enum = scene_data.sky_tex_enum
+        scene_data.sky_tex_enum = scene_data.sky_tex_enum # 重新赋值触发set函数
         for lib in bpy.data.libraries:
             if lib.get("AG.Library"):
-                filepath = Path(lib.filepath)
-                filepath = models_path.joinpath(*filepath.parts[-2:])
-                lib.filepath = str(filepath)
-                lib.reload()
+                filepath = Path(bpy.path.abspath(lib.filepath))
+                new_filepath = models_path.joinpath(*filepath.parts[-2:])
+                if not filepath.samefile(new_filepath):
+                    lib.filepath = str(new_filepath)
+                    lib.reload()
+                    # logger.debug(f"lib.filepath: {filepath}, new_filepath: {new_filepath}")
         # 为链接的动作设置伪用户
         for a in bpy.data.actions:
             if a.library:
