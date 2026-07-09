@@ -573,10 +573,10 @@ class AMAGATE_PT_Sector(L3D_Panel, bpy.types.Panel):
         col.operator(OP_SECTOR.OT_GhostSector_Create.bl_idname, icon="ADD")
         # 选择连接扇区
         col.operator(OP_L3D.OT_SelectConnected.bl_idname, icon="RESTRICT_SELECT_OFF")
-        row = col.row()
         # 按组选择
-        row.operator_menu_enum(OP_L3D.OT_SelectByGroup.bl_idname, "action")
-        row.operator(OP_L3D.OT_SelectConcave.bl_idname)
+        # row = col.row()
+        # row.operator_menu_enum(OP_L3D.OT_SelectByGroup.bl_idname, "action")
+        col.operator(OP_L3D.OT_SelectConcave.bl_idname)
 
         #
         box = layout.box()
@@ -643,9 +643,9 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
     def poll(cls, context: Context):
         # 不在编辑模式且有选择扇区，显示面板
         if context.objects_in_mode == []:
-            for obj in context.selected_objects:
-                if obj.amagate_data.is_sector:  # type: ignore
-                    return True
+            # for obj in context.selected_objects:
+            #     if obj.amagate_data.is_sector:  # type: ignore
+            return True
         return False
 
     def draw(self, context: Context):
@@ -654,29 +654,36 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         #
         layout = self.layout
         scene_data = context.scene.amagate_data
-        active_sec_data = active_sector.amagate_data.get_sector_data()
+        active_sec_data = (
+            active_sector.amagate_data.get_sector_data() if active_sector else None
+        )
 
         # 陡峭
         box = layout.box()
+        box.enabled = bool(active_sector)
         col = box.column(align=True)
 
         # split = row.split(factor=0.5, align=True)
 
         # row = split.row()
         is_uniform = True
-        steep_check = active_sec_data.steep_check
+        steep_check = active_sec_data.steep_check if active_sec_data else None
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.steep_check != steep_check:
                 is_uniform = False
                 break
 
-        text = ("Yes" if steep_check else "No") if is_uniform else "*"
+        text = (
+            ("" if steep_check is None else "Yes" if steep_check else "No")
+            if is_uniform
+            else "*"
+        )
         col.label(text=f"{pgettext('Is Too Steep')}: {text}")
         #
         # row = split.row()
         is_uniform = True
-        steep = active_sec_data.steep
+        steep = active_sec_data.steep if active_sec_data else None
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.steep != steep:
@@ -693,7 +700,9 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         layout.separator()
 
         # 大气
-        atmo_id = active_sec_data.atmo_id
+        atmo_id = (
+            active_sec_data.atmo_id if active_sec_data else scene_data.defaults.atmo_id
+        )
         is_uniform = True
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
@@ -709,6 +718,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
             name = "*"
 
         row = layout.row()
+        row.enabled = bool(active_sector)
         split = row.split(factor=0.7)
         row = split.row()
 
@@ -737,17 +747,42 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         layout.separator()
 
         box = layout.box()
+        box.enabled = bool(active_sector)
         # 地板 天花板 墙壁
         for i, name in enumerate(("Floor", "Ceiling", "Wall")):
             prop = scene_data.sector_public.textures[name]
             # name = prop.name
 
-            tex_id = active_sec_data.textures[name].id
-            xpos = active_sec_data.textures[name].xpos
-            ypos = active_sec_data.textures[name].ypos
-            angle = active_sec_data.textures[name].angle
-            xzoom = active_sec_data.textures[name].xzoom
-            yzoom = active_sec_data.textures[name].yzoom
+            tex_id = (
+                active_sec_data.textures[name].id
+                if active_sec_data
+                else scene_data.defaults.textures[name].id
+            )
+            xpos = (
+                active_sec_data.textures[name].xpos
+                if active_sec_data
+                else scene_data.defaults.textures[name].xpos
+            )
+            ypos = (
+                active_sec_data.textures[name].ypos
+                if active_sec_data
+                else scene_data.defaults.textures[name].ypos
+            )
+            angle = (
+                active_sec_data.textures[name].angle
+                if active_sec_data
+                else scene_data.defaults.textures[name].angle
+            )
+            xzoom = (
+                active_sec_data.textures[name].xzoom
+                if active_sec_data
+                else scene_data.defaults.textures[name].xzoom
+            )
+            yzoom = (
+                active_sec_data.textures[name].yzoom
+                if active_sec_data
+                else scene_data.defaults.textures[name].yzoom
+            )
             is_tex_uniform = True
             is_xpos_uniform = True
             is_ypos_uniform = True
@@ -857,17 +892,22 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         layout.separator()
 
         box = layout.box()
+        box.enabled = bool(active_sector)
         column = box.column(align=True)
         # 外部光
         is_uniform = True
-        external_id = active_sec_data.external_id
+        external_id = (
+            active_sec_data.external_id
+            if active_sec_data
+            else scene_data.defaults.external_id
+        )
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.external_id != external_id:
                 is_uniform = False
                 break
 
-        idx, item = L3D_data.get_external_by_id(scene_data, sec_data.external_id)
+        idx, item = L3D_data.get_external_by_id(scene_data, external_id)
 
         row = column.row()
         split = row.split(factor=0.7)
@@ -895,7 +935,11 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         # 环境光
         is_uniform = True
-        ambient_color = active_sec_data.ambient_color
+        ambient_color = (
+            active_sec_data.ambient_color
+            if active_sec_data
+            else scene_data.defaults.ambient_color
+        )
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.ambient_color != ambient_color:
@@ -918,7 +962,11 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         # 平面光
         is_uniform = True
-        flat_color = active_sec_data.flat_light.color
+        flat_color = (
+            active_sec_data.flat_light.color
+            if active_sec_data
+            else scene_data.defaults.flat_light
+        )
         for sec in selected_sectors:
             sec_data = sec.amagate_data.get_sector_data()
             if sec_data.flat_light.color != flat_color:
@@ -941,6 +989,7 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
 
         # 灯泡
         box = layout.box()
+        box.enabled = bool(active_sector)
         column = box.column(align=True)
 
         enabled = len(selected_sectors) == 1
@@ -972,17 +1021,22 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
         # 组
         box = layout.box()
         column = box.column(align=True)
+        column.enabled = bool(active_sector)
         column.label(text=f"{pgettext('Groups')}:")
         col_flow = column.grid_flow(row_major=True, columns=8, align=True)
         for i in range(32):
             flag = ""
-            active_group = ag_utils.int_to_uint(active_sec_data.group)
+            # col_flow.alert = False
+            active_group = (
+                ag_utils.int_to_uint(active_sec_data.group) if active_sec_data else 0
+            )
             check = (active_group >> i) & 1  # 访问第i位
             for sec in selected_sectors:
                 sec_data = sec.amagate_data.get_sector_data()
                 group = ag_utils.int_to_uint(sec_data.group)
                 if (group >> i) & 1 != check:
                     flag = "*"
+                    # col_flow.alert = True
                     break
 
             col_flow.prop(
@@ -991,6 +1045,10 @@ class AMAGATE_PT_Sector_Props(L3D_Panel, bpy.types.Panel):
                 text=f"{i+1}{flag}",
                 toggle=True,
             )
+        # 按组选择
+        row = box.row(align=True)
+        row.operator_menu_enum(OP_L3D.OT_SelectByGroup.bl_idname, "action")
+        row.operator_menu_enum(OP_L3D.OT_DeselectByGroup.bl_idname, "action")
 
 
 class AMAGATE_PT_SectorFace_Props(L3D_Panel, bpy.types.Panel):

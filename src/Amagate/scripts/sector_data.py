@@ -112,7 +112,11 @@ class BoolCollection(bpy.types.PropertyGroup):
     def get_value(self):
         from . import L3D_data
 
-        active_sec_data = L3D_data.ACTIVE_SECTOR.amagate_data.get_sector_data()
+        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        if not ACTIVE_SECTOR:
+            return False
+
+        active_sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
         group = ag_utils.int_to_uint(active_sec_data.group)
         return (group >> self.index) & 1
 
@@ -266,8 +270,11 @@ class TextureProperty(bpy.types.PropertyGroup):
                     return 0.0
             else:
                 ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-                return getattr(sec_data.textures[self.name], attr)
+                if ACTIVE_SECTOR:
+                    sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+                    return getattr(sec_data.textures[self.name], attr)
+                else:
+                    return 0.0
         else:
             return self.get(attr, -1.0)
 
@@ -345,8 +352,11 @@ class TextureProperty(bpy.types.PropertyGroup):
                     return 0.0
             else:
                 ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-                return getattr(sec_data.textures[self.name], attr)
+                if ACTIVE_SECTOR:
+                    sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+                    return getattr(sec_data.textures[self.name], attr)
+                else:
+                    return 0.0
         else:
             return self.get(attr, -1.0)
 
@@ -445,8 +455,11 @@ class TextureProperty(bpy.types.PropertyGroup):
                     return 0.0
             else:
                 ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
-                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-                return getattr(sec_data.textures[self.name], attr)
+                if ACTIVE_SECTOR:
+                    sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+                    return getattr(sec_data.textures[self.name], attr)
+                else:
+                    return 0.0
         else:
             return self.get(attr, -1.0)
 
@@ -514,7 +527,7 @@ class FlatLightProperty(bpy.types.PropertyGroup):
         size=3,
         min=0.0,
         max=1.0,
-        # default=(0.784, 0.784, 0.784),
+        default=(0.784, 0.784, 0.784),
         get=lambda self: self.get_color(),
         set=lambda self, value: self.set_color(value),
     )  # type: ignore
@@ -534,10 +547,13 @@ class FlatLightProperty(bpy.types.PropertyGroup):
 
         attr = "color"
         if self.target == "SectorPublic":
-            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            return getattr(sec_data.flat_light, attr)
+            if ACTIVE_SECTOR:
+                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+                return getattr(sec_data.flat_light, attr)
+            else:
+                return self.bl_rna.properties[attr].default_array  # type: ignore
         else:
-            return self.get(attr, (0.784, 0.784, 0.784))
+            return self.get(attr, self.bl_rna.properties[attr].default_array)  # type: ignore
 
     def set_color(self, value):
         from . import L3D_data
@@ -941,8 +957,11 @@ class SectorProperty(bpy.types.PropertyGroup):
 
         attr = "ambient_color"
         if self.target == "SectorPublic":
-            sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
-            return getattr(sec_data, attr)
+            if ACTIVE_SECTOR:
+                sec_data = ACTIVE_SECTOR.amagate_data.get_sector_data()
+                return getattr(sec_data, attr)
+            else:
+                return (0.42, 0.42, 0.42)
         else:
             return self.get(attr, (0.42, 0.42, 0.42))
 
@@ -1012,6 +1031,8 @@ class SectorProperty(bpy.types.PropertyGroup):
         from . import L3D_data
 
         ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
+        if not ACTIVE_SECTOR:
+            return 0
 
         attr = "steep"
         if self.target == "SectorPublic":
@@ -1025,7 +1046,6 @@ class SectorProperty(bpy.types.PropertyGroup):
     def set_steep(self, value: int):
         from . import L3D_data
 
-        ACTIVE_SECTOR = L3D_data.ACTIVE_SECTOR
         SELECTED_SECTORS = L3D_data.SELECTED_SECTORS
 
         attr = "steep"

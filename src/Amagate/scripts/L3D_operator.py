@@ -1077,7 +1077,9 @@ class OT_SelectConnected(bpy.types.Operator):
 class OT_SelectByGroup(bpy.types.Operator):
     bl_idname = "amagate.sec_select_by_group"
     bl_label = "Select By Group"
-    bl_options = {"UNDO", "INTERNAL"}
+    bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
 
     @staticmethod
     def get_items():
@@ -1098,6 +1100,43 @@ class OT_SelectByGroup(bpy.types.Operator):
             group = sec_data.group
             if (group >> index) & 1:
                 sec.select_set(True)
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message=self.bl_label)
+
+        return {"FINISHED"}
+
+
+# 按组弃选
+class OT_DeselectByGroup(bpy.types.Operator):
+    bl_idname = "amagate.sec_deselect_by_group"
+    bl_label = "Deselect By Group"
+    bl_options = {"INTERNAL"}
+
+    undo: BoolProperty(default=True)  # type: ignore
+
+    @staticmethod
+    def get_items():
+        items = [(str(i), str(i + 1), "") for i in range(32)]
+        items.insert(16, ("", "Group", ""))
+        items.insert(0, ("", "Group", ""))
+        return items
+
+    action: EnumProperty(items=get_items())  # type: ignore
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        # bpy.ops.object.select_all(action="DESELECT")
+        index = int(self.action)
+        for item in scene_data["SectorManage"]["sectors"].values():
+            sec = item["obj"]  # type: Object
+            sec_data = sec.amagate_data.get_sector_data()
+            group = sec_data.group
+            if (group >> index) & 1:
+                sec.select_set(False)
+
+        if self.undo:
+            bpy.ops.ed.undo_push(message=self.bl_label)
 
         return {"FINISHED"}
 
@@ -1367,6 +1406,7 @@ class OT_EntityCreate(bpy.types.Operator):
                 data_to.collections = [coll_name]
             coll = data_to.collections[0]  # type: Collection # type: ignore
             # coll.use_fake_user = True # 重新加载文件后又失效了
+            # 实例集合用于辅助锚点位置的设置，否则锚点的世界矩阵为0
             instance = bpy.data.objects.new(f"Instance.{inter_name}", None)
             instance.instance_type = "COLLECTION"
             instance.instance_collection = coll
@@ -2193,7 +2233,7 @@ def InitMap(imp_filepath=""):
     scene_data.is_blade = True
 
     ## 加载放松动画
-    load_rlx_anim()
+    # load_rlx_anim()
 
     ## 创建玩家实体
     CreatePlayer(context)
@@ -2367,7 +2407,7 @@ def load_rlx_anim():
         with bpy.data.libraries.load(str(filepath), link=True) as (data_from, data_to):
             names = []
             for name in data_from.actions:
-                if "_rlx" in name.lower():
+                if "_rlx_no" in name.lower():
                     names.append(name)
             data_to.actions = names
         action = None  # type: bpy.types.Action # type: ignore
