@@ -1242,7 +1242,7 @@ class OT_ImportBOD(bpy.types.Operator):
         if zero_width_faces:
             self.report(
                 {"WARNING"},
-                f"{pgettext('Zero-width face count(deletion)')}: {zero_width_faces}",
+                f"{pgettext('Zero-width face count(deleted)')}: {zero_width_faces}",
             )
 
         return {"FINISHED"}
