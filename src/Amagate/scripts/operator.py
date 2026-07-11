@@ -37,6 +37,7 @@ from bpy.props import (
 )
 from mathutils import *  # type: ignore
 from bpy_extras.io_utils import ExportHelper
+from bpy_extras import anim_utils
 
 from . import data, entity_data
 from . import ag_utils
@@ -134,34 +135,98 @@ class OT_ExportAnim(bpy.types.Operator, ExportHelper):
             self.report({"ERROR"}, "Invalid filename")
             return {"FINISHED"}
 
+        if context.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+            # bpy.context.view_layer.update()
+
         armature_obj = context.active_object  # type: Object
         armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
         action = armature_obj.animation_data.action
         # has_slot = hasattr(action, "slots")
-        channelbag = self.channelbag
+        fcurves_all = self.fcurves_all
+
+        bones_name = []
+        if "Blade_Bones" in armature.collections:
+            bones_name = armature.collections["Blade_Bones"].bones.keys()
+        if not bones_name:
+            bones_name = armature.bones.keys()
+
+        # 帧长度
+        frame_len = max(
+            *(int(fc.range()[1]) for fc in fcurves_all if fc.group.name in bones_name),
+            1,
+        )
+
+        use_nla = armature_obj.animation_data.use_nla
+        armature_obj.animation_data.use_nla = False
+        # old_mode = armature_obj.mode
+        # if old_mode != "POSE":
+        #     bpy.ops.object.mode_set(mode="POSE")
+        # bpy.ops.pose.select_all(action="DESELECT")
+        # for bone_name in bones_name:
+        #     bone = armature_obj.pose.bones[bone_name]
+        #     bone.select = True
+        bake_options = anim_utils.BakeOptions(
+            only_selected=False,
+            do_pose=True,
+            do_object=False,
+            do_visual_keying=True,
+            do_constraint_clear=False,
+            do_parents_clear=False,
+            do_clean=False,
+            do_location=True,
+            do_rotation=True,
+            do_scale=False,
+            do_bbone=False,
+            do_custom_props=False,
+        )
+        baked_action = anim_utils.bake_action(
+            armature_obj,
+            action=None,
+            frames=range(1, frame_len + 1),
+            bake_options=bake_options,
+        )
+        # if old_mode != "POSE":
+        #     bpy.ops.object.mode_set(mode=old_mode)
+        armature_obj.animation_data.use_nla = use_nla
+
+        if not baked_action:
+            self.report({"ERROR"}, "Baking action failed")
+            return {"FINISHED"}
+        # 恢复动作分配
+        armature_obj.animation_data.action = action
+        fcurves_all = ag_utils.get_fcurves(baked_action)
+
         # 目标坐标系
         target_space_inv = Quaternion((1, 0, 0), -math.pi / 2).inverted()  # type: ignore
         buffer = BytesIO()
+        # 静态骨骼逆矩阵
+        static_bones_matrix_inv = {}
         # 内部名称
         inter_name = action_name.encode("utf-8")
         buffer.write(struct.pack("I", len(inter_name)))
         buffer.write(inter_name)
         # 骨骼数量
-        count = len(armature.bones)
+        count = len(bones_name)
         buffer.write(struct.pack("I", count))
-        # 帧长度
-        frame_len = max(*(int(fc.range()[1]) for fc in channelbag.fcurves), 1)
         # 所有骨骼的旋转姿态
-        for bone_idx in range(count):
-            bone = armature.bones[bone_idx]
-            bone_name = bone.name
+        for bone_idx, bone_name in enumerate(bones_name):
+            bone = armature.bones[bone_name]
             bone_quat = bone.matrix_local.to_quaternion()
-            parent_bone = bone.parent
+            static_bones_matrix_inv[bone_name] = bone_quat.inverted()
+            # 根骨骼的旋转数据是全局的
+            if bone_idx == 0:
+                parent_quat = target_space_inv
+            elif bone.parent:
+                # logger.debug(bone_name)
+                parent_quat = static_bones_matrix_inv[bone.parent.name]
+            else:
+                parent_quat = Quaternion()
             data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
             fcurves = [
                 item
                 for i in range(4)
-                if (item := channelbag.fcurves.find(data_path, index=i)) is not None
+                if (item := fcurves_all.find(data_path, index=i)) is not None
             ]
 
             #
@@ -171,27 +236,28 @@ class OT_ExportAnim(bpy.types.Operator, ExportHelper):
                 if fcurves_len != 4:
                     quat = Quaternion()
                 else:
-                    quat = Quaternion(fcurves[i].evaluate(frame) for i in range(4))
-                quat_glob = bone_quat @ quat
-                if parent_bone:
-                    parent_quat = armature.bones[parent_bone.name].matrix_local.to_quaternion().inverted()  # type: ignore
-                # 根骨骼的旋转数据是全局的
-                else:
-                    parent_quat = target_space_inv
+                    quat = Quaternion(fcurves[i].evaluate(frame) for i in range(4))  # type: ignore
+                quat_local = bone_quat @ quat
+                # if parent_bone:
+                #     parent_quat = armature.bones[parent_bone.name].matrix_local.to_quaternion().inverted()  # type: ignore
+                # else:
+                #     parent_quat = target_space_inv
+
                 # 相对于父旋转
-                quat_rel = (parent_quat @ quat_glob).normalized()
+                quat_rel = (parent_quat @ quat_local).normalized()
                 buffer.write(struct.pack("ffff", *quat_rel))
 
         # 根骨骼位置姿态
-        bone = armature.bones[0]
-        matrix = bone.matrix_local.copy()
-        location = bone.matrix_local.translation
+        bone = armature.bones[bones_name[0]]
+        # matrix = bone.matrix_local.copy()
+        quat = bone.matrix_local.to_quaternion()
+        # location = bone.matrix_local.translation
         data_path = f'pose.bones["{bone.name}"].location'
         fcurves = [
             item
             for i in range(3)
-            if (item := channelbag.fcurves.find(data_path, index=i)) is not None
-        ]
+            if (item := fcurves_all.find(data_path, index=i)) is not None
+        ]  # type: list[bpy.types.FCurve]
 
         #
         buffer.write(struct.pack("I", frame_len))
@@ -200,15 +266,18 @@ class OT_ExportAnim(bpy.types.Operator, ExportHelper):
             if fcurves_len != 3:
                 co = Vector()
             else:
-                co = Vector(fcurves[i].evaluate(frame) for i in range(3))
-            co_glob = matrix @ co
-            co_local = target_space_inv @ (co_glob - location)
+                co = Vector(fcurves[i].evaluate(frame) for i in range(3))  # type: ignore
+            # co_glob = matrix @ co
+            # co_local = target_space_inv @ (co_glob - location)
+            co_local = target_space_inv @ quat @ co
             co_local *= 1000
             buffer.write(struct.pack("ddd", *co_local))
         #
         with open(self.filepath, "wb") as f:
             f.write(buffer.getvalue())
         buffer.close()
+        # 清理
+        bpy.data.actions.remove(baked_action)
 
         self.report(
             {"INFO"},
@@ -234,7 +303,7 @@ class OT_ExportAnim(bpy.types.Operator, ExportHelper):
             )
             return {"CANCELLED"}
         action_name = action.name
-        channelbag = action  # type: bpy.types.Action
+        channelbag = action
         has_slot = hasattr(armature_obj.animation_data, "action_slot")
         if has_slot:
             slot = armature_obj.animation_data.action_slot
@@ -246,11 +315,11 @@ class OT_ExportAnim(bpy.types.Operator, ExportHelper):
                 return {"CANCELLED"}
             action_name = slot.name_display
             channelbag = next((c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot), None)  # type: ignore
-        if not channelbag or len(channelbag.fcurves) == 0:
+        if not channelbag or len(channelbag.fcurves) == 0:  # type: ignore
             self.report({"ERROR"}, "Animation data not found")
             return {"CANCELLED"}
 
-        self.channelbag = channelbag
+        self.fcurves_all = channelbag.fcurves  # type: ignore
 
         if not bpy.data.filepath or (not self.main and self.action == "0"):
             if not self.filepath:
@@ -335,15 +404,22 @@ class OT_ImportAnim(bpy.types.Operator):
         scene_data = context.scene.amagate_data
         armature_obj = context.active_object  # type: Object
         armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+
+        bones_name = []
+        if "Blade_Bones" in armature.collections:
+            bones_name = armature.collections["Blade_Bones"].bones.keys()
+        if not bones_name:
+            bones_name = armature.bones.keys()
+
         pose_bones = armature_obj.pose.bones
         data_bones = armature.bones
         ag_utils.select_active(context, armature_obj)
         bpy.ops.object.mode_set(mode="POSE")
         bpy.ops.pose.select_all(action="SELECT")
 
-        bone_count = len(pose_bones)
-        pose_bone_first = pose_bones[0]
-        bone_first = data_bones[0]
+        bone_count = len(bones_name)
+        pose_bone_first = pose_bones[bones_name[0]]  # type: bpy.types.PoseBone
+        bone_first = data_bones[bones_name[0]]  # type: bpy.types.Bone
 
         # 目标坐标系
         target_space_q = Quaternion((1, 0, 0), -math.pi / 2)  # type: ignore
@@ -399,9 +475,8 @@ class OT_ImportAnim(bpy.types.Operator):
                 # 清空姿态变换
                 bpy.ops.pose.transforms_clear()
                 # 创建通道并清除帧
-                for bone_idx in range(bone_count):
-                    bone = pose_bones[bone_idx]
-                    bone_name = bone.name
+                for bone_idx, bone_name in enumerate(bones_name):
+                    bone = pose_bones[bone_name]
                     bone.keyframe_insert(
                         "rotation_quaternion", frame=1, group=bone_name
                     )
@@ -412,12 +487,11 @@ class OT_ImportAnim(bpy.types.Operator):
                     fc.keyframe_points.clear()
 
                 # start_time = time.time()
-                for bone_idx in range(bone_count):
-                    bone = pose_bones[bone_idx]
+                for bone_idx, bone_name in enumerate(bones_name):
+                    bone = pose_bones[bone_name]
                     # bone_quat_base = bone.matrix.to_quaternion().normalized()
                     #
-                    parent_bone = bone.parent
-                    bone_name = bone.name
+                    parent_bone = None if bone_idx == 0 else bone.parent
                     # for i in range(4):
                     #     channelbag.fcurves.new(
                     #         rot_data_path, index=i, action_group=bone_name
@@ -462,7 +536,7 @@ class OT_ImportAnim(bpy.types.Operator):
                             "rotation_quaternion", frame=frame, group=bone_name
                         )
                 # 根骨骼位置姿态
-                bone = data_bones[0]
+                bone = bone_first
                 matrix = bone.matrix_local.inverted()  # type: Matrix
                 location = bone.matrix_local.translation
                 frame_len = unpack("I", f)[0]
@@ -540,7 +614,7 @@ class OT_MirrorAnim(bpy.types.Operator):
                 {"WARNING"}, "Please select the action to mirror in the Action Editor"
             )
             return {"CANCELLED"}
-        
+
         if action.library:
             action.make_local()
             bpy.ops.ed.undo_push(message="Make Local")

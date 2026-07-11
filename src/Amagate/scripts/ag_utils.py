@@ -32,6 +32,7 @@ import numpy as np
 import bpy
 import bmesh
 from mathutils import *  # type: ignore
+from bpy_extras import anim_utils
 
 #
 from . import data, L3D_data
@@ -1393,6 +1394,50 @@ def natural_sort_key(text):
     parts = re.split(r"(\d+)", text)
     # 将纯数字部分转为 int，非数字部分转为小写字符串（忽略大小写）
     return [int(part) if part.isdigit() else part.lower() for part in parts]
+
+
+def get_fcurves_from_object(obj):
+    """
+    兼容 Blender 5.0+ 和 5.0 之前版本的 F-Curve 获取方法。
+    传入一个带有动画数据的对象，返回 F-Curve 列表。
+    """
+    if not obj or not obj.animation_data or not obj.animation_data.action:
+        return None
+
+    action = obj.animation_data.action
+
+    # 1. 尝试 Blender 5.0+ 的新 API
+    try:
+        # 获取当前动作的通道包 (Channelbag)
+        channelbag = anim_utils.action_get_channelbag_for_slot(
+            action, obj.animation_data.action_slot
+        )
+        if channelbag:
+            return channelbag.fcurves
+    except (ImportError, AttributeError):
+        # 如果API不存在，说明是 5.0 之前的版本
+        pass
+
+    # 2. 回退到 Blender 4.x 及更早版本的旧 API
+    try:
+        return action.fcurves
+    except AttributeError:
+        return None
+
+
+def get_fcurves(action):
+    fcurves = None
+    try:
+        fcurves = action.layers[0].strips[0].channelbags[0].fcurves
+    except:
+        pass
+    # 回退到 Blender 4.x
+    try:
+        fcurves = action.fcurves
+    except:
+        pass
+
+    return fcurves
 
 
 ############################
