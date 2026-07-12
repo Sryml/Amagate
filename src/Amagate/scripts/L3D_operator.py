@@ -2453,7 +2453,6 @@ class OT_BakeWorld(bpy.types.Operator):
             obj = bpy.data.objects.new(name, mesh)
             coll = L3D_data.ensure_collection(L3D_data.AG_COLL, hide_select=True)
             data.link2coll(obj, coll)
-        obj.hide_set(True)
         mesh = obj.data  # type: bpy.types.Mesh # type: ignore
 
         ag_utils.select_active(context, obj)
@@ -2533,6 +2532,10 @@ class OT_BakeWorld(bpy.types.Operator):
         #
         bmesh.ops.remove_doubles(rigid_bm, verts=rigid_bm.verts, dist=0.001)  # type: ignore
         rigid_bm.to_mesh(mesh)
+
+        # obj.hide_set(True)
+        coll_name = L3D_data.ensure_collection(L3D_data.S_COLL).name
+        context.view_layer.layer_collection.children[coll_name].hide_viewport = True
 
         return {"FINISHED"}
 
