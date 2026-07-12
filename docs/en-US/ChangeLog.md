@@ -1,5 +1,19 @@
 # Amagate ChangeLog
 
+## 1.4.5
+
+- Added file overwrite prompt for export windows
+- .BMV animation exports will now automatically bake (ignoring NLA tracks)
+- Improved baking efficiency for mirrored animations
+- Added group-based deselection for sectors
+- Added group-based deselection in the entity editor
+- Added .BOD only export main bones (assign bones to the `Blade_Bones` collection to exclude IK helper bones, etc.)
+- Added .BOD export option - `Ignore duplicate suffixes`
+-
+- Fixed folded face issues in .BOD import/export
+- Fixed errors when importing .BMV files with duplicate library objects
+- Fixed issues with importing bw map file
+
 ## 1.4.3
 
 - Adapted for Blender 5
