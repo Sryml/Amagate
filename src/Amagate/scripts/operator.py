@@ -41,7 +41,7 @@ from bpy_extras import anim_utils
 
 from . import data, entity_data
 from . import ag_utils
-
+from .ag_utils import epsilon, epsilon2
 
 if TYPE_CHECKING:
     import bpy_stub as bpy
@@ -620,7 +620,7 @@ class OT_MirrorAnim(bpy.types.Operator):
             bpy.ops.ed.undo_push(message="Make Local")
 
         action_name = action.name
-        channelbag = action  # type: bpy.types.Action
+        channelbag = action
         has_slot = hasattr(armature_obj.animation_data, "action_slot")
         if has_slot:
             slot = armature_obj.animation_data.action_slot
@@ -632,7 +632,7 @@ class OT_MirrorAnim(bpy.types.Operator):
                 return {"CANCELLED"}
             action_name = slot.name_display
             channelbag = next((c for l in action.layers for s in l.strips for c in s.channelbags if c.slot == slot), None)  # type: ignore
-        if not channelbag or len(channelbag.fcurves) == 0:
+        if not channelbag or len(channelbag.fcurves) == 0:  # type: ignore
             self.report({"ERROR"}, "Animation data not found")
             return {"CANCELLED"}
         #
@@ -650,20 +650,23 @@ class OT_MirrorAnim(bpy.types.Operator):
         armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
         if context.mode != "OBJECT":
             bpy.ops.object.mode_set(mode="OBJECT")
-        ag_utils.select_active(context, armature_obj)
         # bpy.ops.object.mode_set(mode="POSE")
         # bpy.ops.pose.select_all(action="SELECT")
 
         action = armature_obj.animation_data.action
+        bones_name = armature.bones.keys()
         # has_slot = hasattr(armature_obj.animation_data, "action_slot")
         channelbag = self.channelbag
         # 帧长度
         frame_len = max(int(fc.range()[1]) for fc in channelbag.fcurves)
 
+        static_bones_rot = {}
+        glob_rot_lst = {}
         # 对称骨骼名称字典
         sym_names = {}
         for bone in armature.bones:
-            name = bone.name.lower()
+            bone_name = bone.name
+            name = bone_name.lower()
             if name.startswith("l_"):
                 find_name = f"r_{name[2:]}"
                 sym_name = next(
@@ -671,8 +674,19 @@ class OT_MirrorAnim(bpy.types.Operator):
                     None,
                 )
                 if sym_name:
-                    sym_names[bone.name] = sym_name
-                    sym_names[sym_name] = bone.name
+                    sym_names[bone_name] = sym_name
+                    sym_names[sym_name] = bone_name
+            #
+            q = bone.matrix_local.to_quaternion()
+            static_bones_rot[bone_name] = (q, q.inverted())
+            glob_rot_lst[bone_name] = q
+
+        # scene.frame_set(frame_len + 1)
+        ag_utils.select_active(context, armature_obj)
+        bpy.ops.object.mode_set(mode="POSE")
+        bpy.ops.pose.select_all(action="SELECT")
+        bpy.ops.pose.transforms_clear()
+        bpy.ops.object.mode_set(mode="OBJECT")
 
         cursor = scene.cursor
         # 复制骨架
@@ -683,29 +697,27 @@ class OT_MirrorAnim(bpy.types.Operator):
         armature_mirror = context.active_object
         armature_mirror.rename("armature_mirror")
         # 设置镜像骨架
-        scene.frame_set(frame_len + 1)
-        bpy.ops.object.mode_set(mode="POSE")
-        bpy.ops.pose.select_all(action="SELECT")
-        bpy.ops.pose.transforms_clear()
+        # scene.frame_set(frame_len + 1)
+        # bpy.ops.object.mode_set(mode="POSE")
+        # bpy.ops.pose.select_all(action="SELECT")
+        # bpy.ops.pose.transforms_clear()
         # bpy.ops.anim.keyframe_insert_by_name(type="BUILTIN_KSI_LocRot")
         prev_cursor = cursor.location.copy()
-        cursor.location = armature.bones[0].matrix_local.translation
-        bpy.ops.object.mode_set(mode="OBJECT")
-        prev_loc = armature_mirror.location.copy()
+        # prev_loc = armature_mirror.location.copy()
+        cursor.location = (
+            armature_obj.matrix_world @ armature.bones[0].matrix_local.translation
+        )
+        # bpy.ops.object.mode_set(mode="OBJECT")
         bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
         bpy.ops.transform.mirror(
             orient_type="GLOBAL", constraint_axis=(True, False, False)
         )
-        cursor.location = prev_loc
-        bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
+        # cursor.location = prev_loc
+        # bpy.ops.object.origin_set(type="ORIGIN_CURSOR")
         cursor.location = prev_cursor
-        # 设置镜像骨架的正常子骨架
+        # 设置子骨架
         bpy.data.actions.remove(armature_child.animation_data.action)  # type: ignore
-        # armature_child.animation_data.action = None
         ag_utils.select_active(context, armature_child)
-        bpy.ops.object.mode_set(mode="POSE")
-        bpy.ops.pose.select_all(action="SELECT")
-        bpy.ops.pose.transforms_clear()
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.armature.select_all(action="SELECT")
         bpy.ops.armature.parent_clear(type="CLEAR")
@@ -714,93 +726,157 @@ class OT_MirrorAnim(bpy.types.Operator):
         for bone in armature_child.pose.bones:
             constraint = bone.constraints.new(type="CHILD_OF")
             constraint.target = armature_mirror  # type: ignore
-            sym_name = sym_names.get(bone.name)
-            if not sym_name:
-                sym_name = bone.name
+            sym_name = sym_names.get(bone.name, bone.name)
             constraint.subtarget = sym_name  # type: ignore
             # bpy.ops.constraint.childof_set_inverse()
         bpy.ops.object.mode_set(mode="OBJECT")
 
         bones_num = len(armature.bones)
-        # 曲线字典
-        fcurves_dict = {}  # type: dict[str, list[bpy.types.FCurve]]
-        fcurves_loc = []  # type: list[bpy.types.FCurve]
+        # 设置约束
         for bone_idx in range(bones_num):
-            bone = armature.bones[bone_idx]
+            bone = armature_obj.pose.bones[bone_idx]
             bone_name = bone.name
-            fcurves = []
-            data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
-            for i in range(4):
-                fc = channelbag.fcurves.find(data_path, index=i)
-                if fc is None:
-                    fc = channelbag.fcurves.new(data_path, index=i)
-                else:
-                    fc.keyframe_points.clear()
-                fcurves.append(fc)
-            fcurves_dict[bone_name] = fcurves
-            #
+            con_rot = bone.constraints.new(type="COPY_ROTATION")
+            con_rot.target = armature_child
+            con_rot.subtarget = bone_name
+            con_rot.target_space = "WORLD"
+            con_rot.owner_space = "WORLD"
             if bone_idx == 0:
-                data_path = f'pose.bones["{bone_name}"].location'
-                for i in range(3):
-                    fc = channelbag.fcurves.find(data_path, index=i)
+                con_loc = bone.constraints.new(type="COPY_LOCATION")
+                con_loc.target = armature_child
+                con_loc.subtarget = bone_name
+                con_loc.target_space = "WORLD"
+                con_loc.owner_space = "WORLD"
+        # 烘焙
+        bake_options = anim_utils.BakeOptions(
+            only_selected=False,
+            do_pose=True,
+            do_object=False,
+            do_visual_keying=True,
+            do_constraint_clear=True,
+            do_parents_clear=False,
+            do_clean=False,
+            do_location=True,
+            do_rotation=True,
+            do_scale=False,
+            do_bbone=False,
+            do_custom_props=False,
+        )
+        baked_action = anim_utils.bake_action(
+            armature_obj,
+            action=None,
+            frames=range(1, frame_len + 1),
+            bake_options=bake_options,
+        )
+        baked_action.rename(f"{action.name}_mirror")
+        if hasattr(armature_obj.animation_data, "action_slot"):
+            armature_obj.animation_data.action_slot.name_display = baked_action.name
+
+        ag_utils.select_active(context, armature_obj)
+        # scene.frame_set(1)
+        # 清理
+        bpy.data.actions.remove(armature_mirror.animation_data.action)  # type: ignore
+        bpy.data.armatures.remove(armature_mirror.data)  # type: ignore
+        bpy.data.armatures.remove(armature_child.data)  # type: ignore
+
+        return
+
+        # 曲线字典
+        def get_fcurves(fcurves_all, clear=True):
+            fcurves_rot = {}  # type: dict[str, list[bpy.types.FCurve]]
+            fcurves_loc = []  # type: list[bpy.types.FCurve]
+            for bone_idx in range(bones_num):
+                bone = armature.bones[bone_idx]
+                bone_name = bone.name
+                fcurves = []
+                data_path = f'pose.bones["{bone_name}"].rotation_quaternion'
+                for i in range(4):
+                    fc = fcurves_all.find(data_path, index=i)
                     if fc is None:
-                        fc = channelbag.fcurves.new(data_path, index=i)
-                    else:
+                        fc = fcurves_all.new(data_path, index=i)
+                    elif clear:
                         fc.keyframe_points.clear()
-                    fcurves_loc.append(fc)
+                    fcurves.append(fc)
+                fcurves_rot[bone_name] = fcurves
+                #
+                if bone_idx == 0:
+                    data_path = f'pose.bones["{bone_name}"].location'
+                    for i in range(3):
+                        fc = fcurves_all.find(data_path, index=i)
+                        if fc is None:
+                            fc = fcurves_all.new(data_path, index=i)
+                        elif clear:
+                            fc.keyframe_points.clear()
+                        fcurves_loc.append(fc)
+
+            return fcurves_rot, fcurves_loc
 
         # 烘焙动作
-        ag_utils.select_active(context, armature_obj)
-        bpy.ops.object.mode_set(mode="POSE")
-        bpy.ops.pose.select_all(action="SELECT")
-        bpy.ops.pose.transforms_clear()
-        matrix_root = armature.bones[0].matrix_local.copy()
-        matrix_root_inv = matrix_root.inverted()
+        bake_options = anim_utils.BakeOptions(
+            only_selected=False,
+            do_pose=True,
+            do_object=False,
+            do_visual_keying=True,
+            do_constraint_clear=True,
+            do_parents_clear=False,
+            do_clean=False,
+            do_location=True,
+            do_rotation=True,
+            do_scale=False,
+            do_bbone=False,
+            do_custom_props=False,
+        )
+        baked_action = anim_utils.bake_action(
+            armature_child,
+            action=None,
+            frames=range(1, frame_len + 1),
+            bake_options=bake_options,
+        )
+        # 烘焙到主骨架
+        fcurves_rot, fcurves_loc = get_fcurves(channelbag.fcurves)
+        fcurves_rot_ref, fcurves_loc_ref = get_fcurves(
+            ag_utils.get_fcurves(baked_action), clear=False
+        )
         for frame in range(1, frame_len + 1):
-            scene.frame_set(frame)
-            glob_rot_lst = {
-                b.name: b.matrix.to_quaternion() for b in armature_obj.pose.bones
-            }
             for bone_idx in range(bones_num):
                 bone = armature_obj.pose.bones[bone_idx]
                 bone_name = bone.name
-                fcurves = fcurves_dict[bone_name]
-                # 参考骨骼
-                bone_ref = armature_child.pose.bones[bone_name]
+                fcurves = fcurves_rot[bone_name]
+                fcurves_ref = fcurves_rot_ref[bone_name]
+                #
                 quat_curr = glob_rot_lst[bone_name]
-                quat_curr_inv = quat_curr.inverted()
-                quat_pose = bone_ref.matrix.to_quaternion()
-                quat_glob = quat_pose @ quat_curr_inv
+                quat_target = Quaternion(fcurves_ref[i].evaluate(frame) for i in range(4))  # type: ignore
+                quat_target = (
+                    static_bones_rot[bone_name][0] @ quat_target
+                ).normalized()
+                if quat_target.dot(quat_curr) > epsilon2:
+                    quat = Quaternion()
+                    quat_local = Quaternion()
+                else:
+                    quat = quat_target @ quat_curr.inverted()
+                    quat_local = static_bones_rot[bone_name][1] @ quat
 
-                quat = quat_curr_inv @ quat_glob @ quat_curr  # 世界转局部
-                quat2 = (bone.rotation_quaternion @ quat).normalized()
+                # bone_ref = armature_child.pose.bones[bone_name]
+                # quat_curr_inv = quat_curr.inverted()
+                # quat_pose = bone_ref.matrix.to_quaternion()
+                # quat_glob = quat_pose @ quat_curr_inv
+
+                # quat = quat_curr_inv @ quat_glob @ quat_curr  # 世界转局部
+                # quat2 = (bone.rotation_quaternion @ quat).normalized()
 
                 for idx in range(4):
-                    fcurves[idx].keyframe_points.insert(frame, quat2[idx])
+                    fcurves[idx].keyframe_points.insert(frame, quat_local[idx])
                 if bone_idx == 0:
-                    loc_pose = bone_ref.matrix.to_translation()
-                    loc = matrix_root_inv @ loc_pose
+                    # loc_pose = bone_ref.matrix.to_translation()
+                    # loc = matrix_root_inv @ loc_pose
                     for idx in range(3):
-                        fcurves_loc[idx].keyframe_points.insert(frame, loc[idx])
+                        fcurves_loc[idx].keyframe_points.insert(
+                            frame, fcurves_loc_ref[idx].evaluate(frame)
+                        )
                 #
-                glob_rot_lst[bone_name] = quat_pose
+                # glob_rot_lst[bone_name] = (quat @ glob_rot_lst[bone_name]).normalized()
                 for b in bone.children_recursive:
-                    glob_rot_lst[b.name] = (
-                        quat_glob @ glob_rot_lst[b.name]
-                    ).normalized()
-
-                # loc, rot, scale = bone.matrix.decompose()
-                # rot = bone_ref.matrix.to_quaternion()
-                # bone.matrix = Matrix.LocRotScale(loc, rot, scale)
-                # bone.keyframe_insert(
-                #     "rotation_quaternion", frame=frame, group=bone_name
-                # )
-
-        # 清理
-        bpy.ops.object.mode_set(mode="OBJECT")
-        bpy.data.actions.remove(armature_mirror.animation_data.action)  # type: ignore
-        bpy.data.armatures.remove(armature_child.data)  # type: ignore
-        bpy.data.armatures.remove(armature_mirror.data)  # type: ignore
+                    glob_rot_lst[b.name] = (quat @ glob_rot_lst[b.name]).normalized()
 
 
 # 设置动画
