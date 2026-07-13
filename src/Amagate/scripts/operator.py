@@ -1918,6 +1918,7 @@ class OT_Test(bpy.types.Operator):
             scene.render.resolution_y = 512
         scene.render.image_settings.file_format = "JPEG"
         scene.render.image_settings.quality = 90
+        scene.render.film_transparent = True
 
         save_version = context.preferences.filepaths.save_version
         context.preferences.filepaths.save_version = 0
@@ -2399,7 +2400,7 @@ class OT_Test(bpy.types.Operator):
         # filepath = os.path.join(data.ADDON_PATH, "bin/nodes.dat")
         # nodes_data = pickle.load(open(filepath, "rb"))
         scalc_init = Vector((1, 1, 1))
-        for dir in ("3DObjs", "3DChars"):
+        for dir in ["3DObjs", "3DChars"]:
             root = models_path / dir
             for f_name in os.listdir(root):
                 if f_name.lower().endswith(".blend"):
@@ -2408,11 +2409,11 @@ class OT_Test(bpy.types.Operator):
                     changed = False
                     with contextlib.redirect_stdout(StringIO()):
                         bpy.ops.wm.open_mainfile(filepath=str(filepath))
-                    for obj in bpy.data.objects:
-                        if obj.name.lower().startswith("blade_anchor_"):
-                            if obj.scale != scalc_init:
-                                obj.scale = (1, 1, 1)
-                                changed = True
+                    # for obj in bpy.data.objects:
+                    #     if obj.name.lower().startswith("blade_anchor_"):
+                    #         if obj.scale != scalc_init:
+                    #             obj.scale = (1, 1, 1)
+                    #             changed = True
                     # ent_coll, entity, _, _ = OP_ENTITY.get_ent_data()
                     # if entity.get("AG.ambient_color") is not None:
                     #     continue
@@ -2426,15 +2427,29 @@ class OT_Test(bpy.types.Operator):
                     # mat.use_fake_user = False
                     # mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
                     # mat.use_backface_culling = True
+                    # 图像路径
                     # for img in bpy.data.images:
                     #     if img.name != "Render Result":
                     #         if not img.filepath.startswith("//textures"):
-                    #             name_lst.append(f"{dir}/{f_name}")
-                    #             break
+                    #             # name_lst.append(f"{dir}/{f_name}")
+                    #             # break
+                    #             img.filepath = f"//textures/{bpy.path.basename(img.filepath)}"
+                    #             changed = 1
+                    # 骨骼组
+                    armature = bpy.data.armatures.get("Blade_Skeleton")
+                    if armature:
+                        if "Blade_Bones" not in armature.collections:
+                            armature.collections.new("Blade_Bones")
+                            coll = armature.collections["Blade_Bones"]
+                            for bone in armature.bones:
+                                coll.assign(bone)
+                            changed = 1
+                    # 
+
                     if changed:
                         bpy.ops.wm.save_mainfile()
                         change_count += 1
-        print(count, change_count)
+        print(f"count: {count}", f"change_count: {change_count}")
 
     def test2(self, context: Context):
         from . import entity_operator as OP_ENTITY

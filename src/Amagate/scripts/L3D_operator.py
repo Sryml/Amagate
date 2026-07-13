@@ -1485,6 +1485,7 @@ class OT_EntityCreate(bpy.types.Operator):
             entity.id_properties_ui("AG.ambient_color").update(
                 subtype="COLOR", min=0.0, max=1.0, default=(1, 1, 1), step=0.1
             )
+            entity.update_tag()
 
             #
             ent_data = entity.amagate_data.get_entity_data()
