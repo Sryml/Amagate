@@ -1320,7 +1320,7 @@ def load_post(filepath=""):
             if lib.get("AG.Library"):
                 filepath = Path(bpy.path.abspath(lib.filepath))
                 new_filepath = models_path.joinpath(*filepath.parts[-2:])
-                if not filepath.samefile(new_filepath):
+                if filepath.resolve() != new_filepath:
                     lib.filepath = str(new_filepath)
                     lib.reload()
                     # logger.debug(f"lib.filepath: {filepath}, new_filepath: {new_filepath}")
@@ -1851,6 +1851,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
                 light_data.rename(name, mode="ALWAYS")
             light_data.volume_factor = 0.0  # 体积散射
             light_data.shadow_maximum_resolution = 0.03125  # type: ignore
+            light_data.angle = 0.0 # 减少角度以获得更硬的阴影 # type: ignore
             self.data = light_data
         if not self.obj:
             light_data = self.data

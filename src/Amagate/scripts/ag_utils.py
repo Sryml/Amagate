@@ -537,27 +537,27 @@ def get_project_normal(internal_v, external_v, tolerance=1e-5) -> Any:
 
 # 获取顶点组中的顶点索引
 def get_vertex_in_group(obj: Object, vg_name):
-    """返回指定顶点组中的所有顶点索引集合。
+    """返回指定顶点组中的所有顶点索引列表。
 
     Args:
         obj (bpy.types.Object): 目标物体（必须为网格）。
         vg_name (str): 顶点组名称。
 
     Returns:
-        set[int]: 顶点索引集合，若顶点组不存在则返回空集合。
+        list[int]: 顶点索引列表，若顶点组不存在则返回空列表。
     """
     if not obj or obj.type != "MESH" or vg_name not in obj.vertex_groups:
-        return set()
+        return []
 
     mesh = obj.data  # type: bpy.types.Mesh # type: ignore
     vg = obj.vertex_groups[vg_name]
     group_idx = vg.index
-    vertex_indices = set()
+    vertex_indices = []
 
     for v in mesh.vertices:
         for g in v.groups:
             if g.group == group_idx:
-                vertex_indices.add(v.index)
+                vertex_indices.append(v.index)
                 break
     return vertex_indices
 

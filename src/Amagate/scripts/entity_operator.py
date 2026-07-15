@@ -1080,6 +1080,7 @@ class OT_DeselectByGroup(bpy.types.Operator):
 
         return {"FINISHED"}
 
+
 # 按肢解组选择
 class OT_SelectByMutilateGroup(bpy.types.Operator):
     bl_idname = "amagate.select_by_mutilate_group"
@@ -1691,6 +1692,7 @@ class OT_ImportBOD(bpy.types.Operator):
 
             # 剩余数据种类
             data_num = unpack("I", f)[0]
+            # logger.debug(f"data_num: {data_num}")
             if data_num == 0:
                 return _final()
 
@@ -2036,6 +2038,8 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         ]
         bounds_length.sort(reverse=True)
         bound_max_length = bounds_length[0] * 1000
+        center_data = geom_center * 1000
+        center_data.yz = -center_data.z, center_data.y
         # matrix = entity.matrix_world.copy()
         # quat = matrix.to_quaternion()
         # uv_layer = ent_mesh.uv_layers.active.data
@@ -2077,6 +2081,46 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         # 全局逆变换矩阵，因为网格顶点只应用了缩放没有应用旋转和平移
         glob_rot_inv = Matrix.LocRotScale(origin, rot, None).inverted()  # type: Matrix
 
+        wm_data = context.window_manager.amagate_data
+        # 获取分块数据
+        def GetChunkData(bone_name):
+            if bone_name == "":
+                prefix = f"chunk_"
+            else:
+                prefix = f"chunk_{bone_name}_"
+            Chunks = []
+            chunk_start = bone_verts_start
+            bone_verts_end = bone_verts_start + bone_verts_num
+            for name in vertex_groups:
+                if not name.lower().startswith(prefix):
+                    continue
+                vertex_indices = ag_utils.get_vertex_in_group(entity, name)
+                if vertex_indices[0] == chunk_start:
+                    chunk_num = vertex_indices[1] - chunk_start + 1
+                    if (chunk_start + chunk_num) > bone_verts_end:
+                        chunk_num = bone_verts_end - chunk_start
+                    Chunks.append([chunk_start, chunk_num])
+                    chunk_start += chunk_num
+                    if chunk_start >= bone_verts_end:
+                        break
+            # 自动分块
+            if Chunks:
+                chunk_range = Chunks[-1]
+                chunk_start = chunk_range[0] + chunk_range[1]
+                unchunked_num = bone_verts_end - chunk_start
+            else:
+                unchunked_num = bone_verts_num
+                chunk_start = bone_verts_start
+            if unchunked_num:
+                chunk_num = wm_data.ent_chunk_size  # 最大512
+                for i in range((unchunked_num - 1) // chunk_num + 1):
+                    if (chunk_start + chunk_num) > bone_verts_end:
+                        chunk_num = bone_verts_end - chunk_start
+                    Chunks.append([chunk_start, chunk_num])
+                    chunk_start += chunk_num
+            # logger.debug(f"Chunks: {Chunks}")
+            return Chunks
+
         # 导出BOD
         buffer = BytesIO()
         bone_verts_map = {}
@@ -2114,7 +2158,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
                 # bone_matrix = bone.matrix.inverted()  # type: Matrix
                 vertex_indices = ag_utils.get_vertex_in_group(
                     entity, name
-                )  # type: set[int]
+                )  # type: list[int]
                 co_list = []
                 max_length = 0
                 bone_verts_map[name] = {}
@@ -2162,11 +2206,11 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
                     (bone_verts_num, bone_verts_start, bone_center, max_length)
                 )
                 bone_verts_start += bone_verts_num
-                if bone_verts_num > 512:
-                    self.report(
-                        {"ERROR"},
-                        pgettext("Bone [{}] has more than 512 vertices!").format(name),
-                    )
+                # if bone_verts_num > 512:
+                #     self.report(
+                #         {"ERROR"},
+                #         pgettext("Bone [{}] has more than 512 vertices!").format(name),
+                #     )
         else:
             bone_verts_map["Default"] = {}
             for vert in ent_mesh.vertices:
@@ -2190,11 +2234,11 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
                 buffer.write(struct.pack("ddd", *co))
                 buffer.write(struct.pack("ddd", *normal))
                 verts_num += 1
-            if verts_num > 512:
-                self.report(
-                    {"ERROR"},
-                    pgettext("Bone [{}] has more than 512 vertices!").format("Default"),
-                )
+            # if verts_num > 512:
+            #     self.report(
+            #         {"ERROR"},
+            #         pgettext("Bone [{}] has more than 512 vertices!").format("Default"),
+            #     )
         # 更新顶点数
         s_pos = buffer.tell()
         buffer.seek(s_pos_verts_num)
@@ -2243,6 +2287,8 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
             #
             buffer.write(struct.pack("f", 0))
 
+        vertex_groups = entity.vertex_groups.keys()
+        vertex_groups.sort(key=ag_utils.natural_sort_key)
         # 如果有骨架
         if armature is not None:
             # ag_utils.select_active(context, skeleton[0])
@@ -2281,31 +2327,46 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
                 buffer.write(struct.pack("I", bone_verts_num))
                 # 写入顶点起始位置
                 buffer.write(struct.pack("I", bone_verts_start))
-                #
-                buffer.write(struct.pack("I", 1))
-                buffer.write(struct.pack("ddd", *bone_center))
-                buffer.write(struct.pack("d", max_length))
-                buffer.write(struct.pack("I", bone_verts_start))
-                buffer.write(struct.pack("I", bone_verts_num))
+
+                Chunks = GetChunkData(bone_name)
+                num = len(Chunks)
+                buffer.write(struct.pack("I", num))
+                for i in range(num):
+                    chunk_range = Chunks[i]
+                    buffer.write(
+                        struct.pack("ddd", *bone_center)
+                    )  # 字块实体的中心，似乎无用，直接用骨骼顶点中心
+                    buffer.write(
+                        struct.pack("d", max_length)
+                    )  # 子块实体的最长边距，似乎无用，直接用骨骼顶点边距
+                    buffer.write(struct.pack("I", chunk_range[0]))
+                    buffer.write(struct.pack("I", chunk_range[1]))
         else:
             buffer.write(struct.pack("I", 1))  # 骨骼为1
             parent_idx = -1
             buffer.write(struct.pack("i", parent_idx))
             for row in armature_matrix:
                 buffer.write(struct.pack("dddd", *row))
-            buffer.write(struct.pack("I", verts_num))  # 顶点数量
-            buffer.write(struct.pack("I", 0))  # 顶点起始位置
             #
-            buffer.write(struct.pack("I", 1))
-            center = geom_center * 1000
-            center.yz = -center.z, center.y
-            buffer.write(struct.pack("dddd", *center, bound_max_length))
-            buffer.write(struct.pack("II", 0, verts_num))
+            bone_verts_num, bone_verts_start = verts_num, 0
+            buffer.write(struct.pack("I", bone_verts_num))  # 顶点数量
+            buffer.write(struct.pack("I", bone_verts_start))  # 顶点起始位置
+            #
+            Chunks = GetChunkData("")
+            num = len(Chunks)
+            buffer.write(struct.pack("I", num))
+            for i in range(num):
+                chunk_range = Chunks[i]
+                buffer.write(struct.pack("ddd", *center_data))
+                buffer.write(struct.pack("d", bound_max_length))
+                buffer.write(struct.pack("I", chunk_range[0]))
+                buffer.write(struct.pack("I", chunk_range[1]))
+            # buffer.write(struct.pack("I", 1))
+            # buffer.write(struct.pack("dddd", *center_data, bound_max_length))
+            # buffer.write(struct.pack("II", 0, verts_num))
 
         # 几何中心
-        center = geom_center * 1000
-        center.yz = -center.z, center.y
-        buffer.write(struct.pack("dddd", *center, bound_max_length))
+        buffer.write(struct.pack("dddd", *center_data, bound_max_length))
 
         obj: Object
         # 火焰

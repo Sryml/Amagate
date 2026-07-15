@@ -183,13 +183,19 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         layout.separator(type="LINE")
 
         # 选项
-        layout.prop(wm_data, "ignore_dup_suffix")
+        box = layout.box()
+        row = box.column(align=True)
+        row.prop(wm_data, "ignore_dup_suffix")
+        row.prop(wm_data, "ent_chunk_size")
+
+        box.separator(type="LINE")
+
         # 导出
-        row = layout.row(align=True)
+        row = box.row(align=True)
         row.operator(OP_ENTITY.OT_ExportBOD.bl_idname, icon="EXPORT").main = True  # type: ignore
         row.operator_menu_enum(OP_ENTITY.OT_ExportBOD.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
         # 导入
-        layout.operator(OP_ENTITY.OT_ImportBOD.bl_idname, icon="IMPORT")
+        box.operator(OP_ENTITY.OT_ImportBOD.bl_idname, icon="IMPORT")
 
         layout.separator(type="LINE")
 

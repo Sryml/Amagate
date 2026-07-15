@@ -320,6 +320,7 @@
     ("*", "Missing bone vertex group"): "缺少骨骼顶点组",
     ("*", "Armature already exists"): "骨架已经存在",
     ("*", "Ignore Duplicate Suffixes"): "忽略重复后缀",
+    ("*", "Chunk Size"): "分块大小",
     ("*", 'e.g. Ignore ".001" in "Blade_Anchor_Inv.001"'): '例如：忽略"Blade_Anchor_Inv.001"中的".001"',
     ("*", "Bone [{}] has more than 512 vertices!"): "骨骼 [{}] 超过 512 个顶点!",
 

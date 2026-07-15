@@ -757,6 +757,7 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         description='e.g. Ignore ".001" in "Blade_Anchor_Inv.001"',
         default=True,
     )  # type: ignore
+    ent_chunk_size: IntProperty(name="Chunk Size", default=256, min=1, max=512, step=16)  # type: ignore
     #
     ent_inter_name: StringProperty(default="", get=lambda self: self.get_ent_inter_name(), set=lambda self, value: None)  # type: ignore
     ent_enum: EnumProperty(
