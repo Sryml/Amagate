@@ -15,6 +15,7 @@ import shutil
 import threading
 import time
 import json
+import re
 from pprint import pprint
 from pathlib import Path
 from io import StringIO, BytesIO
@@ -96,6 +97,67 @@ class OT_InstallPyPackages(bpy.types.Operator):
 ############################
 ############################ 动画/摄像机
 ############################
+
+
+# 链接物体
+class OT_LinkObject(bpy.types.Operator):
+    bl_idname = "amagate.link_object"
+    bl_label = "Link"
+    bl_description = "Link Object"
+    bl_options = {"INTERNAL", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        scene_data = context.scene.amagate_data
+        prop = scene_data.LinkObjectData
+        return prop.obj and prop.obj_anchor and prop.to_anchor
+
+    def execute(self, context: Context):
+        scene_data = context.scene.amagate_data
+        prop = scene_data.LinkObjectData
+        obj = prop.obj  # type: Object
+        obj_anchor = prop.obj_anchor  # type: Object
+        to_anchor = prop.to_anchor  # type: Object
+        #
+        coll = obj.users_collection[0]
+        # 去掉开头的Blade_以及结尾的.xxx
+        name = re.sub(r"^Blade_|\.\d{1,}$", "", obj_anchor.name, flags=re.IGNORECASE)
+        name = f"{name}.Link"
+        #
+        con = obj.constraints.get(name)
+        if not con:
+            con = obj.constraints.new("CHILD_OF")
+            con.name = name
+        else:
+            con.target = None  # type: ignore
+            con.set_inverse_pending = True
+        for i in obj.constraints:
+            if i.type == "CHILD_OF":
+                i.enabled = False
+        con.enabled = True
+        #
+        link_anchor = coll.objects.get(name)
+        if not link_anchor:
+            link_anchor = obj_anchor.copy()
+            link_anchor.parent = None
+            coll.objects.link(link_anchor)
+            link_anchor.rename(name, mode="SAME_ROOT")
+
+        link_anchor_con = next(
+            (i for i in link_anchor.constraints if i.type == "COPY_TRANSFORMS"), None
+        )
+        if not link_anchor_con:
+            link_anchor_con = link_anchor.constraints.new("COPY_TRANSFORMS")
+        else:
+            link_anchor_con.target = None  # type: ignore
+        #
+        context.view_layer.update()
+        link_anchor.matrix_world = obj_anchor.matrix_world
+        con.target = link_anchor  # type: ignore
+        context.view_layer.update()
+        link_anchor_con.target = to_anchor  # type: ignore
+
+        return {"FINISHED"}
 
 
 # 导出动画
@@ -2444,7 +2506,7 @@ class OT_Test(bpy.types.Operator):
                             for bone in armature.bones:
                                 coll.assign(bone)
                             changed = 1
-                    # 
+                    #
 
                     if changed:
                         bpy.ops.wm.save_mainfile()

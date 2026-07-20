@@ -218,19 +218,44 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         scene_data = scene.amagate_data
         layout = self.layout
         # 动画
-        armature_obj = context.active_object
+        armature_obj = context.view_layer.objects.active
+        armature_obj = (
+            armature_obj
+            if armature_obj
+            and armature_obj.type == "ARMATURE"
+            and armature_obj.library is None
+            else None
+        )
         layout.label(text="Animation", icon="ANIM_DATA")
         box = layout.box()
         column = box.column()
         # column.prop(scene_data, "armature_obj", text="Armature")
         column.label(
-            text=f"{pgettext('Active Armature')}: {obj.name if (obj:=context.view_layer.objects.active) and obj.type == 'ARMATURE' and obj.library is None else pgettext('None')}"
+            text=f"{pgettext('Active Armature')}: {armature_obj.name if armature_obj else pgettext('None')}"
         )
         column.label(
-            text=f"{pgettext('Visible Armature')}: {armature_obj.name if armature_obj and armature_obj.visible_get() and armature_obj.type == 'ARMATURE' and armature_obj.library is None else pgettext('None')}"
+            text=f"{pgettext('Visible Armature')}: {armature_obj.name if armature_obj and armature_obj.visible_get() else pgettext('None')}"
         )
-        column.separator(type="LINE")
+        # column.separator(type="LINE")
+        # 链接物体
+        layout_head, layout_body = layout.panel("AMAGATE_PT Link Object")
+        layout_head.label(text="Link Object")
+        # 如果展开
+        if layout_body:
+            layout_body.enabled = True if armature_obj else False
+            prop = scene_data.LinkObjectData
+            row = layout_body.row(align=True)
+            row.prop(prop, "obj", text="")
+            row.prop(prop, "obj_anchor", text="", placeholder="Anchor")
+            row = layout_body.row(align=True)
+            row.prop(prop, "to_anchor", text="", placeholder="To Anchor")
+            row.operator(OP.OT_LinkObject.bl_idname, icon="LINKED")
 
+        layout.separator(type="SPACE")
+
+        #
+        box = layout.box()
+        column = box.column()
         # 导出
         row = column.row(align=True)
         row.operator(

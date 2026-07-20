@@ -732,6 +732,36 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
         region_redraw("UI")
 
 
+# 链接物体
+class LinkObjectProperty(bpy.types.PropertyGroup):
+    obj: PointerProperty(name="Object", type=bpy.types.Object, poll=lambda self, obj: self.obj_poll(obj))  # type: ignore
+    obj_anchor: PointerProperty(name="Anchor", type=bpy.types.Object, poll=lambda self, obj: self.obj and obj.type == "EMPTY" and obj.parent == self.obj)  # type: ignore
+    to_anchor: PointerProperty(name="To Anchor", type=bpy.types.Object, poll=lambda self, obj: self.to_anchor_poll(obj))  # type: ignore
+
+    def obj_poll(self, obj):
+        prefixes = (
+            "blade_edge_",
+            "blade_spike_",
+            "blade_trail_",
+            "b_fire_fuego_",
+        )
+        to_anchor_parent = self.to_anchor.parent if self.to_anchor else None
+        return (
+            obj != to_anchor_parent
+            and obj.type == "MESH"
+            and (not obj.name.lower().startswith(prefixes))
+        )
+
+    def to_anchor_poll(self, obj):
+        active_object = bpy.context.view_layer.objects.active
+        return (
+            active_object
+            and active_object != self.obj
+            and obj.type == "EMPTY"
+            and obj.parent == active_object
+        )
+
+
 ############################
 from . import entity_data, sector_data, L3D_data
 
@@ -870,6 +900,9 @@ class SceneProperty(L3D_data.SceneProperty):
     version_date: IntProperty()  # type: ignore
 
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
+    # 链接物体
+    LinkObjectData: PointerProperty(type=LinkObjectProperty)  # type: ignore
+    # 场景对象
     # 骨架
     # armature_obj: PointerProperty(type=bpy.types.Object, poll=lambda self, obj: obj.type == "ARMATURE" and obj.library is None)  # type: ignore
     # 摄像机
