@@ -1308,6 +1308,12 @@ def load_post(filepath=""):
                 ent = bpy.data.objects.get("Player1")  # type: Object # type: ignore
                 if ent and ent.amagate_data.is_entity:
                     ent.location = location
+            # 1.4.5及之前版本
+            if scene_data.version_date <= 20260714:
+                for img in bpy.data.images:
+                    img_data = img.amagate_data
+                    if img_data.id:
+                        img_data.set_hash()
             #
             scene_data.version = data.VERSION
             scene_data.version_date = data.VERSION_DATE
@@ -1315,7 +1321,7 @@ def load_post(filepath=""):
 
         # 更新插件资产路径
         models_path = Path.joinpath(Path(data.ADDON_PATH), "Models")
-        scene_data.sky_tex_enum = scene_data.sky_tex_enum # 重新赋值触发set函数
+        scene_data.sky_tex_enum = scene_data.sky_tex_enum  # 重新赋值触发set函数
         for lib in bpy.data.libraries:
             if lib.get("AG.Library"):
                 filepath = Path(bpy.path.abspath(lib.filepath))
@@ -1851,7 +1857,7 @@ class ExternalLightProperty(bpy.types.PropertyGroup):
                 light_data.rename(name, mode="ALWAYS")
             light_data.volume_factor = 0.0  # 体积散射
             light_data.shadow_maximum_resolution = 0.03125  # type: ignore
-            light_data.angle = 0.0 # 减少角度以获得更硬的阴影 # type: ignore
+            light_data.angle = 0.0  # 减少角度以获得更硬的阴影 # type: ignore
             self.data = light_data
         if not self.obj:
             light_data = self.data

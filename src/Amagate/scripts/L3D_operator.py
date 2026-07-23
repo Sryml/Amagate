@@ -505,6 +505,7 @@ class OT_Texture_Add(bpy.types.Operator):
 
         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
         img_data.id = data.get_id(used_ids)
+        img_data.set_hash()
         L3D_data.ensure_material(img)
         if not img.use_fake_user:
             img.use_fake_user = True
@@ -553,12 +554,14 @@ class OT_Texture_Add(bpy.types.Operator):
                 if self.override:
                     img.filepath = filepath
                     img.reload()
-                    if not img.amagate_data.id:  # type: ignore
+                    img_data = img.amagate_data
+                    if not img_data.id:  # type: ignore
                         used_ids = tuple(i.amagate_data.id for i in bpy.data.images)  # type: ignore
-                        img.amagate_data.id = data.get_id(used_ids)  # type: ignore
+                        img_data.id = data.get_id(used_ids)  # type: ignore
                         L3D_data.ensure_material(img)
                         if not img.use_fake_user:
                             img.use_fake_user = True
+                    img_data.set_hash()
             else:
                 self.load_image(filepath, name)
         return {"FINISHED"}
@@ -711,6 +714,7 @@ class OT_Texture_Reload(bpy.types.Operator):
                 img.reload()
                 img.preview_ensure()
                 img.preview.reload()
+                img.amagate_data.set_hash()
 
     def execute(self, context: Context):
         scene_data = context.scene.amagate_data
@@ -721,6 +725,7 @@ class OT_Texture_Reload(bpy.types.Operator):
         img: Image = bpy.data.images[idx]
         if img and img.amagate_data.id:
             img.reload()
+            img.amagate_data.set_hash()
         return {"FINISHED"}
 
     def invoke(self, context: Context, event):

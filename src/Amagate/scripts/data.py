@@ -15,6 +15,7 @@ import threading
 import contextlib
 import json
 import logging
+import binascii
 
 from pathlib import Path
 from io import StringIO, BytesIO
@@ -776,7 +777,13 @@ class ImageProperty(bpy.types.PropertyGroup):
     mat_obj: PointerProperty(type=bpy.types.Material)  # type: ignore
     # Amagate内置纹理标识
     builtin: BoolProperty(name="Builtin", default=False)  # type: ignore
+    hash: StringProperty(name="Hash", default="")  # type: ignore
 
+    def set_hash(self):
+        img = self.id_data # type: ...
+        filepath = Path(bpy.path.abspath(img.filepath))
+        if filepath.is_file():
+            self.hash = format(binascii.crc32(open(filepath, "rb").read()) & 0xFFFFFFFF, "x")
 
 #
 class WindowManagerProperty(bpy.types.PropertyGroup):
