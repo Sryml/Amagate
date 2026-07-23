@@ -68,6 +68,170 @@ unpack = ag_utils.unpack
 ############################
 
 
+# 切换到IK
+class OT_SwitchToIK(bpy.types.Operator):
+    bl_idname = "amagate.switch_to_ik"
+    bl_label = "Switch to IK"
+    bl_description = "Switch to IK"
+    bl_options = {"INTERNAL", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        armature_obj = context.active_object
+        return (
+            armature_obj
+            and armature_obj.visible_get()
+            and armature_obj.type == "ARMATURE"
+            and armature_obj.library is None
+        )
+
+    def execute(self, context: Context):
+        armature_obj = context.active_object
+        armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+        try:
+            if armature_obj.animation_data.action.library:
+                armature_obj.animation_data.action.make_local()
+        except:
+            pass
+        if armature_obj.mode != "OBJECT":
+            bpy.ops.object.mode_set(mode="OBJECT")
+        IK_BONES = {
+            "R_Forearm_IKC": armature_obj.pose.bones.get("R_Forearm_IKC"),
+            "L_Forearm_IKC": armature_obj.pose.bones.get("L_Forearm_IKC"),
+            "R_Boot_IKC": armature_obj.pose.bones.get("R_Boot_IKC"),
+            "L_Boot_IKC": armature_obj.pose.bones.get("L_Boot_IKC"),
+            "R_Forearm_IKT": armature_obj.pose.bones.get("R_Forearm_IKT"),
+            "L_Forearm_IKT": armature_obj.pose.bones.get("L_Forearm_IKT"),
+            "R_Boot_IKT": armature_obj.pose.bones.get("R_Boot_IKT"),
+            "L_Boot_IKT": armature_obj.pose.bones.get("L_Boot_IKT"),
+        }  # type: dict[str, bpy.types.PoseBone] # type: ignore
+        update_key = []
+        ik_bones_coll = armature.collections.get("IK_Bones")
+        if not ik_bones_coll:
+            ik_bones_coll = armature.collections.new("IK_Bones")
+        ik_bones_coll.is_visible = True
+        # 确保IK骨骼存在
+        bpy.ops.object.mode_set(mode="EDIT")
+        if not all(IK_BONES.values()):
+            #
+            for k, v in IK_BONES.items():
+                if not v:
+                    update_key.append(k)
+                    bone = armature.edit_bones.new(k)
+                    bone.length = 0.3
+                    ik_bones_coll.assign(bone)
+        bpy.ops.armature.select_all(action="DESELECT")
+        for k in IK_BONES.keys():
+            bone = armature.edit_bones.get(k)  # type: bpy.types.EditBone # type: ignore
+            bone.select = True
+
+        bpy.ops.object.mode_set(mode="POSE")
+        for k in update_key:
+            IK_BONES[k] = armature_obj.pose.bones.get(k)  # type: ignore
+            IK_BONES[k].color.palette = "THEME14"
+        # root_bone = armature_obj.pose.bones[0]
+        # 调整IK骨骼位置
+        for bone_name in [k for k in IK_BONES.keys() if k.endswith("IKC")]:
+            con_bone = armature_obj.pose.bones.get(
+                bone_name[:-4]
+            )  # type: bpy.types.PoseBone # type: ignore
+            if not con_bone:
+                continue
+            bone_ikc = IK_BONES[bone_name]
+            bone_ikt = IK_BONES[bone_name[:-3] + "IKT"]
+            ik_con = next((i for i in con_bone.constraints if i.type == "IK"), None)
+            if not ik_con:
+                ik_con = con_bone.constraints.new("IK")
+            #
+            ik_con.enabled = False
+            context.view_layer.update()
+            ik_con.chain_count = 3  # type: ignore
+            con_bone_parent = con_bone
+            for i in range(ik_con.chain_count - 1):  # type: ignore
+                con_bone_parent = con_bone_parent.parent
+
+            loc = con_bone.tail
+            rot = Quaternion((1, 0, 0), math.pi * 0.5)
+            matrix = Matrix.LocRotScale(loc, rot, Vector((1, 1, 1)))  # type: ignore
+            # armature.bones[bone_ikc.name].matrix_local = matrix
+            bone_ikc.matrix = matrix
+
+            src_vec = Vector((0, 1, 0))
+            des_vec = con_bone_parent.matrix.col[0].xyz  # type: ignore
+            rot = Quaternion(src_vec.cross(des_vec).normalized(), math.acos(src_vec.dot(des_vec)))  # type: ignore
+            loc = con_bone_parent.matrix.to_translation()
+            loc += des_vec * 1.2  # type: ignore
+            ikt_matrix = Matrix.LocRotScale(loc, Quaternion(), Vector((1, 1, 1)))  # type: ignore
+            # # armature.bones[bone_ikt.name].matrix_local = matrix
+            bone_ikt.matrix = ikt_matrix
+            #
+            ik_con.target = armature_obj  # type: ignore
+            ik_con.subtarget = bone_ikc.name  # type: ignore
+            ik_con.pole_target = armature_obj  # type: ignore
+            ik_con.pole_subtarget = bone_ikt.name  # type: ignore
+            ik_con.pole_angle = 0  # type: ignore
+            ik_con.enabled = True
+            #
+            ik_con.keyframe_insert("enabled")
+
+        # bpy.ops.pose.armature_apply(selected=True)
+        # logger.debug(self.bl_label)
+        return {"FINISHED"}
+
+
+# 切换到FK
+class OT_SwitchToFK(bpy.types.Operator):
+    bl_idname = "amagate.switch_to_fk"
+    bl_label = "Switch to FK"
+    bl_description = "Switch to FK"
+    bl_options = {"INTERNAL", "UNDO"}
+
+    @classmethod
+    def poll(cls, context: Context):
+        armature_obj = context.active_object
+        return (
+            armature_obj
+            and armature_obj.visible_get()
+            and armature_obj.type == "ARMATURE"
+            and armature_obj.library is None
+        )
+
+    def execute(self, context: Context):
+        armature_obj = context.active_object
+        armature = armature_obj.data  # type: bpy.types.Armature # type: ignore
+        try:
+            if armature_obj.animation_data.action.library:
+                armature_obj.animation_data.action.make_local()
+        except:
+            pass
+        IK_BONES = {
+            "R_Forearm_IKC": armature_obj.pose.bones.get("R_Forearm_IKC"),
+            "L_Forearm_IKC": armature_obj.pose.bones.get("L_Forearm_IKC"),
+            "R_Boot_IKC": armature_obj.pose.bones.get("R_Boot_IKC"),
+            "L_Boot_IKC": armature_obj.pose.bones.get("L_Boot_IKC"),
+            "R_Forearm_IKT": armature_obj.pose.bones.get("R_Forearm_IKT"),
+            "L_Forearm_IKT": armature_obj.pose.bones.get("L_Forearm_IKT"),
+            "R_Boot_IKT": armature_obj.pose.bones.get("R_Boot_IKT"),
+            "L_Boot_IKT": armature_obj.pose.bones.get("L_Boot_IKT"),
+        }  # type: dict[str, bpy.types.PoseBone] # type: ignore
+        for bone_name in [k for k in IK_BONES.keys() if k.endswith("IKC")]:
+            con_bone = armature_obj.pose.bones.get(
+                bone_name[:-4]
+            )  # type: bpy.types.PoseBone # type: ignore
+            if not con_bone:
+                continue
+            ik_con = next((i for i in con_bone.constraints if i.type == "IK"), None)
+            if ik_con:
+                ik_con.enabled = False
+                ik_con.keyframe_insert("enabled")
+
+        ik_bones_coll = armature.collections.get("IK_Bones")
+        if ik_bones_coll:
+            ik_bones_coll.is_visible = False
+
+        return {"FINISHED"}
+
+
 # 链接物体
 class OT_LinkObject(bpy.types.Operator):
     bl_idname = "amagate.link_object"

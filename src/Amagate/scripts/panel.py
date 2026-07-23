@@ -274,6 +274,11 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         )
         # 设置动画
         column.operator(OP_ANIM.OT_SetAnim.bl_idname, icon="VIEWZOOM")
+        #
+        column = box.column()
+        row = column.row(align=False)
+        row.operator(OP_ANIM.OT_SwitchToIK.bl_idname)
+        row.operator(OP_ANIM.OT_SwitchToFK.bl_idname)
 
         # 摄像机
         layout.label(text="Camera", icon="CAMERA_DATA")

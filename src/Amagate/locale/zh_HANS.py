@@ -345,6 +345,8 @@
     ("Operator", "Import Animation"): "导入动画",
     ("Operator", "Mirror Animation"): "镜像动画",
     ("Operator", "Set Animation"): "设置动画",
+    ("Operator", "Switch to IK"): "切换到IK",
+    ("Operator", "Switch to FK"): "切换到FK",
     ("*", "Please select armature object first"): "请先选择骨架对象",
     ("*", "Armature object is not visible"): "骨架对象不可见",
     ("*", "Please select the action to export in the Action Editor"): "请在动作编辑器中选择要导出的动作",
