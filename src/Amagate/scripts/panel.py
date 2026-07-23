@@ -15,6 +15,7 @@ from bpy.app.translations import pgettext
 from . import data
 from . import operator as OP
 from . import entity_operator as OP_ENTITY
+from . import anim_operator as OP_ANIM
 from . import ag_utils
 
 if TYPE_CHECKING:
@@ -249,7 +250,7 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
             row.prop(prop, "obj_anchor", text="", placeholder="Anchor")
             row = layout_body.row(align=True)
             row.prop(prop, "to_anchor", text="", placeholder="To Anchor")
-            row.operator(OP.OT_LinkObject.bl_idname, icon="LINKED")
+            row.operator(OP_ANIM.OT_LinkObject.bl_idname, icon="LINKED")
 
         layout.separator(type="SPACE")
 
@@ -259,20 +260,20 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         # 导出
         row = column.row(align=True)
         row.operator(
-            OP.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
+            OP_ANIM.OT_ExportAnim.bl_idname, text="Export Animation", icon="EXPORT"
         ).main = True  # type: ignore
-        row.operator_menu_enum(OP.OT_ExportAnim.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        row.operator_menu_enum(OP_ANIM.OT_ExportAnim.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
         # 导入
         column.operator(
-            OP.OT_ImportAnim.bl_idname, text="Import Animation", icon="IMPORT"
+            OP_ANIM.OT_ImportAnim.bl_idname, text="Import Animation", icon="IMPORT"
         )
         column.separator(type="LINE")
         # 镜像
         column.operator(
-            OP.OT_MirrorAnim.bl_idname, text="Mirror Animation", icon="MOD_MIRROR"
+            OP_ANIM.OT_MirrorAnim.bl_idname, text="Mirror Animation", icon="MOD_MIRROR"
         )
         # 设置动画
-        column.operator(OP.OT_SetAnim.bl_idname, icon="VIEWZOOM")
+        column.operator(OP_ANIM.OT_SetAnim.bl_idname, icon="VIEWZOOM")
 
         # 摄像机
         layout.label(text="Camera", icon="CAMERA_DATA")
@@ -286,18 +287,18 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         column.separator(type="SPACE")
         # 重置横滚角
         column.operator(
-            OP.OT_ResetRoll.bl_idname, text="Reset Roll", icon="FILE_REFRESH"
+            OP_ANIM.OT_ResetRoll.bl_idname, text="Reset Roll", icon="FILE_REFRESH"
         )
         column.separator(type="LINE")
         # 导出
         row = column.row(align=True)
         row.operator(
-            OP.OT_ExportCamera.bl_idname, text="Export Camera", icon="EXPORT"
+            OP_ANIM.OT_ExportCamera.bl_idname, text="Export Camera", icon="EXPORT"
         ).main = True  # type: ignore
-        row.operator_menu_enum(OP.OT_ExportCamera.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
+        row.operator_menu_enum(OP_ANIM.OT_ExportCamera.bl_idname, "action", text="", icon="DOWNARROW_HLT").main = False  # type: ignore
         # 导入
         column.operator(
-            OP.OT_ImportCamera.bl_idname, text="Import Camera", icon="IMPORT"
+            OP_ANIM.OT_ImportCamera.bl_idname, text="Import Camera", icon="IMPORT"
         )
 
 
