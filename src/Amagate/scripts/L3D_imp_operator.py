@@ -226,13 +226,16 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
     #
     tex_vx_len = tex_vx.length
     tex_vy_len = tex_vy.length
+    isnan = False
     if math.isnan(tex_vx_len):
         tex_vx_len = 0.05
         tex_vx = Vector((0, 0, 0))
+        isnan = True
         # logger.debug(f"isnan: {f.tell()}")
     if math.isnan(tex_vy_len):
         tex_vy_len = 0.05
         tex_vy = Vector((0, 0, 0))
+        isnan = True
         # logger.debug(f"isnan: {f.tell()}")
 
     dot = normal.dot(z_axis)
@@ -331,7 +334,7 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         if custom:
             tex_type = "Custom"
     ############################
-    return (
+    ret = (
         tex_type,
         slot_index,
         tex_id,
@@ -341,6 +344,10 @@ def unpack_texture(sec_mesh, sec_data, normal, f, global_texture_map):
         tex_xzoom,
         tex_yzoom,
     )
+    # if isnan:
+    #     logger.debug(f"Texture Anomaly:{ret}")
+
+    return ret
 
 
 # 顶点匹配连接

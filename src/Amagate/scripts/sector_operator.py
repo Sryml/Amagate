@@ -1982,7 +1982,6 @@ class OT_Bulb_Add(bpy.types.Operator):
         # light_data.energy = 2  # type: ignore
         light_data.color = (0.784, 0.784, 0.392)
         light_data.shadow_maximum_resolution = 0.03125  # type: ignore
-        light_data.angle = 0.0 # 减少角度以获得更硬的阴影 # type: ignore
         light_data.volume_factor = 0
 
         light = bpy.data.objects.new("", light_data)

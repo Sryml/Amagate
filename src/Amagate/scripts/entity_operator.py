@@ -1474,7 +1474,7 @@ class OT_ImportBOD(bpy.types.Operator):
                         dir = (parent_bone.tail - parent_bone.head).normalized()
                         dot = dir.dot(matrix.translation - parent_bone.head)
                         if dot > 0:
-                            parent_bone.length = max(0.001, dot)
+                            parent_bone.length = max(0.01, dot)
                     # elif transform_space:
                     #     matrix = local_space @ matrix
                     bone_matrix[name] = matrix
