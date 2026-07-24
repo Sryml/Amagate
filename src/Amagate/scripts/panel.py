@@ -239,8 +239,8 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         )
         # column.separator(type="LINE")
         # 链接物体
-        layout_head, layout_body = layout.panel("AMAGATE_PT Link Object")
-        layout_head.label(text="Link Object")
+        layout_head, layout_body = layout.panel("AMAGATE_PT Object Link")
+        layout_head.label(text="Object Link")
         # 如果展开
         if layout_body:
             layout_body.enabled = True if armature_obj else False
@@ -279,6 +279,7 @@ class AMAGATE_PT_AnimCam(AG_Panel, bpy.types.Panel):
         row = column.row(align=False)
         row.operator(OP_ANIM.OT_SwitchToIK.bl_idname)
         row.operator(OP_ANIM.OT_SwitchToFK.bl_idname)
+        column.operator(OP_ANIM.OT_BakeIK.bl_idname)
 
         # 摄像机
         layout.label(text="Camera", icon="CAMERA_DATA")
