@@ -1939,6 +1939,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         ent_dict = self.ent_dict
         lack_texture = False
 
+        EntityEditorData = context.scene.amagate_data.EntityEditorData
         active_object = context.active_object
         selected_objects = [
             i for i in context.view_layer.objects if i.select_get()
@@ -2082,6 +2083,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         glob_rot_inv = Matrix.LocRotScale(origin, rot, None).inverted()  # type: Matrix
 
         wm_data = context.window_manager.amagate_data
+
         # 获取分块数据
         def GetChunkData(bone_name):
             if bone_name == "":
@@ -2112,7 +2114,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
                 unchunked_num = bone_verts_num
                 chunk_start = bone_verts_start
             if unchunked_num:
-                chunk_num = wm_data.ent_chunk_size  # 最大512
+                chunk_num = EntityEditorData.ent_chunk_size  # 最大512
                 for i in range((unchunked_num - 1) // chunk_num + 1):
                     if (chunk_start + chunk_num) > bone_verts_end:
                         chunk_num = bone_verts_end - chunk_start
@@ -2712,6 +2714,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         # return {"CANCELLED"}
         # 找到实体对象
         self.ent_dict = ent_dict
+        EntityEditorData = context.scene.amagate_data.EntityEditorData
 
         for k in ("anchors", "edges", "spikes", "trails", "fires", "lights"):
             ent_dict[k].sort(key=lambda x: ag_utils.natural_sort_key(x.name))
@@ -2723,7 +2726,12 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
         else:
-            self.filepath = f"{os.path.splitext(bpy.data.filepath)[0]}.bod"
+            if EntityEditorData.use_internal_name:
+                self.filepath = (
+                    f"{os.path.dirname(bpy.data.filepath)}\\{ent_dict['kind']}.bod"
+                )
+            else:
+                self.filepath = f"{os.path.splitext(bpy.data.filepath)[0]}.bod"
             return self.execute(context)
 
 

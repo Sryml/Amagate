@@ -780,10 +780,13 @@ class ImageProperty(bpy.types.PropertyGroup):
     hash: StringProperty(name="Hash", default="")  # type: ignore
 
     def set_hash(self):
-        img = self.id_data # type: ...
+        img = self.id_data  # type: ...
         filepath = Path(bpy.path.abspath(img.filepath))
         if filepath.is_file():
-            self.hash = format(binascii.crc32(open(filepath, "rb").read()) & 0xFFFFFFFF, "x")
+            self.hash = format(
+                binascii.crc32(open(filepath, "rb").read()) & 0xFFFFFFFF, "x"
+            )
+
 
 #
 class WindowManagerProperty(bpy.types.PropertyGroup):
@@ -794,7 +797,6 @@ class WindowManagerProperty(bpy.types.PropertyGroup):
         description='e.g. Ignore ".001" in "Blade_Anchor_Inv.001"',
         default=True,
     )  # type: ignore
-    ent_chunk_size: IntProperty(name="Chunk Size", default=256, min=1, max=512, step=16)  # type: ignore
     #
     ent_inter_name: StringProperty(default="", get=lambda self: self.get_ent_inter_name(), set=lambda self, value: None)  # type: ignore
     ent_enum: EnumProperty(
@@ -907,6 +909,7 @@ class SceneProperty(L3D_data.SceneProperty):
     version_date: IntProperty()  # type: ignore
 
     EntityData: PointerProperty(type=entity_data.EntityProperty)  # type: ignore
+    EntityEditorData: PointerProperty(type=entity_data.EntityEditorProperty)  # type: ignore
     # 链接物体
     LinkObjectData: PointerProperty(type=LinkObjectProperty)  # type: ignore
     # 场景对象

@@ -323,6 +323,7 @@
     ("*", "Armature already exists"): "骨架已经存在",
     ("*", "Ignore Duplicate Suffixes"): "忽略重复后缀",
     ("*", "Chunk Size"): "分块大小",
+    ("*", "Internal name as filename"): "内部名作为文件名",
     ("*", 'e.g. Ignore ".001" in "Blade_Anchor_Inv.001"'): '例如：忽略"Blade_Anchor_Inv.001"中的".001"',
     ("*", "Bone [{}] has more than 512 vertices!"): "骨骼 [{}] 超过 512 个顶点!",
 

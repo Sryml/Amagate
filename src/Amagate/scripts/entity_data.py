@@ -1065,6 +1065,7 @@ class EntityProperty(bpy.types.PropertyGroup):
     # 设置动画
     def set_animation(self):
         from . import anim_operator as OP_ANIM
+
         action_name, filename = DEFAULT_ANIM.get(self.Kind, ("", ""))
         if not filename:
             return
@@ -1078,7 +1079,9 @@ class EntityProperty(bpy.types.PropertyGroup):
         if not armature:
             return
         # 分配动作
-        OP_ANIM.OT_SetAnim.execute_static(None, bpy.context, armature, action_name, f"{filename}.blend")
+        OP_ANIM.OT_SetAnim.execute_static(
+            None, bpy.context, armature, action_name, f"{filename}.blend"
+        )
         # has_slot = hasattr(action, "slots")
         # if not armature.animation_data:
         #     armature.animation_data_create()
@@ -1307,6 +1310,11 @@ class EntityProperty(bpy.types.PropertyGroup):
                 if not value:
                     self.clear_contained()
 
+
+# 实体编辑器属性
+class EntityEditorProperty(bpy.types.PropertyGroup):
+    ent_chunk_size: IntProperty(name="Chunk Size", default=256, min=1, max=512, step=16)  # type: ignore
+    use_internal_name: BoolProperty(name="Internal name as filename", default=True)  # type: ignore
 
 ############################
 ############################

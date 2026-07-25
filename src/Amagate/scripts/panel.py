@@ -79,6 +79,7 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
     def draw(self, context: Context):
         layout = self.layout
         wm_data = context.window_manager.amagate_data
+        EntityEditorData = context.scene.amagate_data.EntityEditorData
 
         # 组
         box = layout.box()
@@ -187,7 +188,8 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         box = layout.box()
         row = box.column(align=True)
         row.prop(wm_data, "ignore_dup_suffix")
-        row.prop(wm_data, "ent_chunk_size")
+        row.prop(EntityEditorData, "use_internal_name")
+        row.prop(EntityEditorData, "ent_chunk_size")
 
         box.separator(type="LINE")
 
