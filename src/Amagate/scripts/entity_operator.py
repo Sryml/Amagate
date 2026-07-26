@@ -943,13 +943,33 @@ class OT_AddAnchor(bpy.types.Operator):
     )  # type: ignore
 
     def execute(self, context: Context):
+        # fmt: off
+        transforms = {
+            "1H_R": [(0, 0, 0.3), Quaternion((1, 0, 0), math.pi)],
+            "1H_L": [(0, 0, 0.3), Quaternion((0, -0.707, -0.707, 0))],
+            "2H": [(0, 0, 0.3), Quaternion((-0.5, -0.5, -0.5, 0.5))],
+            "Inv": [(0, 0, -0.2), Quaternion((0.231, 0.252, -0.635, 0.693))],
+            "Back": [(0, 0, -0.2), Quaternion((0.2126, -0.3265, 0.6744, 0.6272))],
+            "Shield": [None, Euler((-1.5708, 1.5708, 0.0), 'XYZ')],
+            "Crush": [None, None],
+            "R_Hand": [Vector((-0.22241288423538208, -0.052166447043418884, 0.0016130040166899562)), Quaternion((0.7071071267127991, 2.9979872806507046e-07, 1.0584059850771155e-07, -0.7071064114570618))],
+            "L_Hand": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
+            "2O": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
+            "ViewPoint": [Vector((-0.0176815427839756, 0.7926430106163025, 0.1119941920042038)), Quaternion((1.9054816391417262e-08, 0.70710688829422, -4.0128234957137465e-08, 0.7071066498756409))],
+        }
+        # fmt: on
         # print(f"action: {self.action}")
+        name = bpy.types.UILayout.enum_item_name(self, "action", self.action)
         key = bpy.types.UILayout.enum_item_description(self, "action", self.action)
         anchor = bpy.data.objects.new(key, None)
         anchor.empty_display_size = 0.1
         anchor.empty_display_type = "ARROWS"
         anchor.show_in_front = True
+        #
+        loc, rot = transforms[name]
+        anchor.matrix_world = Matrix.LocRotScale(loc, rot, None)
         data.link2coll(anchor, context.collection)
+
         bpy.ops.ed.undo_push(message="Add Anchor")
         return {"FINISHED"}
 
@@ -1171,6 +1191,9 @@ class OT_EntityNote(bpy.types.Operator):
         text = (
             pgettext(
                 "The translation and rotation of the model will only take effect in the export after being applied"
+            ),
+            pgettext(
+                "The default orientation of the anchors is based on a weapon with the tip facing -Z and the blade facing X"
             ),
             pgettext(
                 "Adding character bones to the bone collection `Blade_Bones` allows excluding IK helper bones during export"
