@@ -735,7 +735,7 @@ class ProgressBarProperty(bpy.types.PropertyGroup):
 
 # 链接物体
 class LinkObjectProperty(bpy.types.PropertyGroup):
-    obj: PointerProperty(name="Object", type=bpy.types.Object, poll=lambda self, obj: self.obj_poll(obj))  # type: ignore
+    obj: PointerProperty(name="Object", type=bpy.types.Object, poll=lambda self, obj: self.obj_poll(obj), update=lambda self, context: setattr(self, "obj_anchor", None))  # type: ignore
     obj_anchor: PointerProperty(name="Anchor", type=bpy.types.Object, poll=lambda self, obj: self.obj and obj.type == "EMPTY" and obj.parent == self.obj)  # type: ignore
     to_anchor: PointerProperty(name="To Anchor", type=bpy.types.Object, poll=lambda self, obj: self.to_anchor_poll(obj))  # type: ignore
 

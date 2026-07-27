@@ -472,7 +472,10 @@ class OT_LinkObject(bpy.types.Operator):
         #
         coll = obj.users_collection[0]
         # 去掉开头的Blade_以及结尾的.xxx
-        name = re.sub(r"^Blade_|\.\d{1,}$", "", obj_anchor.name, flags=re.IGNORECASE)
+        pattern = re.compile(r"^Blade_|\.\d{1,}$", flags=re.IGNORECASE)
+        pattern.sub("", obj_anchor.name)
+
+        name = pattern.sub("", obj_anchor.name)
         name = f"{name}.Link"
         #
         con = obj.constraints.get(name)
@@ -487,7 +490,9 @@ class OT_LinkObject(bpy.types.Operator):
                 i.enabled = False
         con.enabled = True
         #
-        link_anchor = coll.objects.get(name)
+        link_anchor = next(
+            (i for i in coll.objects if pattern.sub("", i.name) == name), None
+        )
         if not link_anchor:
             link_anchor = obj_anchor.copy()
             link_anchor.parent = None
