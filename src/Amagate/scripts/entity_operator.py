@@ -922,12 +922,29 @@ class OT_AddAnchor(bpy.types.Operator):
     bl_label = "Add Anchor"
     bl_options = {"INTERNAL"}
 
+    # fmt: off
+    anchor_transforms = {
+        "1H_R": [(0, 0, 0.3), Quaternion((1, 0, 0), math.pi)],
+        "1H_L": [(0, 0, 0.3), Quaternion((0, -0.707, -0.707, 0))],
+        "2H": [(0, 0, 0.3), Quaternion((-0.5, -0.5, -0.5, 0.5))],
+        "Inv": [(0, 0, -0.2), Quaternion((0.2126, -0.3265, 0.6744, 0.6272))],
+        "Back": [(0, 0, -0.2), Quaternion((0.231, 0.252, -0.635, 0.693))],
+        "Shield": [None, Euler((-1.5708, 1.5708, 0.0), 'XYZ')],
+        "Crush": [None, None],
+        "R_Hand": [Vector((-0.22241288423538208, -0.052166447043418884, 0.0016130040166899562)), Quaternion((0.7071071267127991, 2.9979872806507046e-07, 1.0584059850771155e-07, -0.7071064114570618))],
+        "L_Hand": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
+        "2O": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
+        "ViewPoint": [Vector((-0.0176815427839756, 0.7926430106163025, 0.1119941920042038)), Quaternion((1.9054816391417262e-08, 0.70710688829422, -4.0128234957137465e-08, 0.7071066498756409))],
+    }
+    # fmt: on
+
     action: EnumProperty(
         name="",
         description="",
         translation_context="EntAnchor",
         items=[
             ("", "Object", ""),
+            ("0", "Auto (For Weapon)", "Auto Anchor"),
             ("1", "1H_R", "Blade_Anchor_1H_R"),
             ("2", "1H_L", "Blade_Anchor_1H_L"),
             ("3", "2H", "Blade_Anchor_2H"),
@@ -944,35 +961,114 @@ class OT_AddAnchor(bpy.types.Operator):
     )  # type: ignore
 
     def execute(self, context: Context):
-        # fmt: off
-        transforms = {
-            "1H_R": [(0, 0, 0.3), Quaternion((1, 0, 0), math.pi)],
-            "1H_L": [(0, 0, 0.3), Quaternion((0, -0.707, -0.707, 0))],
-            "2H": [(0, 0, 0.3), Quaternion((-0.5, -0.5, -0.5, 0.5))],
-            "Inv": [(0, 0, -0.2), Quaternion((0.231, 0.252, -0.635, 0.693))],
-            "Back": [(0, 0, -0.2), Quaternion((0.2126, -0.3265, 0.6744, 0.6272))],
-            "Shield": [None, Euler((-1.5708, 1.5708, 0.0), 'XYZ')],
-            "Crush": [None, None],
-            "R_Hand": [Vector((-0.22241288423538208, -0.052166447043418884, 0.0016130040166899562)), Quaternion((0.7071071267127991, 2.9979872806507046e-07, 1.0584059850771155e-07, -0.7071064114570618))],
-            "L_Hand": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
-            "2O": [Vector((0.18931496143341064, -0.0521666556596756, 0.0016133385943248868)), Quaternion((4.257137220520235e-07, 3.2881766287573555e-07, 4.660236641029769e-08, 1.0))],
-            "ViewPoint": [Vector((-0.0176815427839756, 0.7926430106163025, 0.1119941920042038)), Quaternion((1.9054816391417262e-08, 0.70710688829422, -4.0128234957137465e-08, 0.7071066498756409))],
-        }
-        # fmt: on
-        # print(f"action: {self.action}")
         name = bpy.types.UILayout.enum_item_name(self, "action", self.action)
         key = bpy.types.UILayout.enum_item_description(self, "action", self.action)
-        anchor = bpy.data.objects.new(key, None)
-        anchor.empty_display_size = 0.1
-        anchor.empty_display_type = "ARROWS"
-        anchor.show_in_front = True
-        #
-        loc, rot = transforms[name]
-        anchor.matrix_world = Matrix.LocRotScale(loc, rot, None)
-        data.link2coll(anchor, context.collection)
+        if key == "Auto Anchor":
+            msg = self.auto_anchor(context)
+            if msg:
+                self.report({"INFO"}, msg)
+        else:
+
+            # print(f"action: {self.action}")
+            anchor = bpy.data.objects.new(key, None)
+            anchor.empty_display_size = 0.1
+            anchor.empty_display_type = "ARROWS"
+            anchor.show_in_front = True
+            #
+            loc, rot = self.anchor_transforms[name]
+            anchor.matrix_world = Matrix.LocRotScale(loc, rot, None)
+            data.link2coll(anchor, context.collection)
+            ag_utils.select_active(context, anchor)  # type: ignore
 
         bpy.ops.ed.undo_push(message="Add Anchor")
         return {"FINISHED"}
+
+    @staticmethod
+    def auto_anchor(context: Context, active_object: Object | None = None):
+        if active_object is None:
+            active_object = context.active_object
+        if not active_object:
+            return "No active object"
+        Anchor_1H_R = next(
+            (
+                i
+                for i in active_object.children
+                if i.type == "EMPTY" and i.name.startswith("Blade_Anchor_1H_R")
+            ),
+            None,
+        )
+        if not Anchor_1H_R:
+            return "No Blade_Anchor_1H_R"
+        #
+        object_matrix = active_object.matrix_world
+        anchor_matrix = Anchor_1H_R.matrix_world
+        anchor_x = anchor_matrix.col[0].xyz.normalized()  # type: Vector # type: ignore
+        anchor_y = anchor_matrix.col[1].xyz.normalized()  # type: Vector # type: ignore
+        anchor_z = anchor_matrix.col[2].xyz.normalized()  # type: Vector # type: ignore
+
+        bm = bmesh.new()
+        bm.from_mesh(active_object.data)  # type: ignore
+        # 旋转对齐
+        src_rot = anchor_matrix.to_quaternion()
+        tar_rot = Quaternion((1, 0, 0), math.pi)
+        rotation = tar_rot @ src_rot.inverted()
+        bm.transform(object_matrix)
+        bm.transform(Matrix.LocRotScale(None, rotation, None))
+        # 边界框
+        min_x = float("inf")
+        max_x = float("-inf")
+        min_y = float("inf")
+        max_y = float("-inf")
+        min_z = float("inf")
+        max_z = float("-inf")
+
+        for vert in bm.verts:
+            co = vert.co
+            if co.x < min_x:
+                min_x = co.x
+            elif co.x > max_x:
+                max_x = co.x
+            if co.y < min_y:
+                min_y = co.y
+            elif co.y > max_y:
+                max_y = co.y
+            if co.z < min_z:
+                min_z = co.z
+            elif co.z > max_z:
+                max_z = co.z
+
+        bm.free()
+        rotation = rotation.inverted()
+        min_co = rotation @ Vector((min_x, min_y, min_z))
+        max_co = rotation @ Vector((max_x, max_y, max_z))
+        center = (min_co + max_co) / 2
+        #
+        ent_coll = active_object.users_collection[0]
+        rotation = src_rot @ Quaternion((1, 0, 0), math.pi).inverted()
+
+        for name in (
+            "Blade_Anchor_1H_L",
+            "Blade_Anchor_2H",
+            "Blade_Anchor_Inv",
+            "Blade_Anchor_Back",
+        ):
+            anchor = bpy.data.objects.new(name, None)
+            anchor.empty_display_size = 0.1
+            anchor.empty_display_type = "ARROWS"
+            anchor.show_in_front = True
+            #
+            _, rot = OT_AddAnchor.anchor_transforms[name[13:]]
+            loc = anchor_matrix.to_translation()
+            if name.endswith("Inv"):
+                loc += anchor_z * (center - loc).dot(anchor_z)
+            elif name.endswith("Back"):
+                loc += anchor_z * 0.4
+            anchor.matrix_world = Matrix.LocRotScale(loc, rotation @ rot, None)  # type: ignore
+            data.link2coll(anchor, ent_coll)
+            anchor.parent = active_object
+            anchor.matrix_parent_inverse = object_matrix.inverted()
+
+        return ""
 
 
 # 添加组件
@@ -1031,6 +1127,7 @@ class OT_AddComponent(bpy.types.Operator):
             obj_data.ent_comp_type = int(self.action)
             obj.show_in_front = True
             data.link2coll(obj, context.collection)
+            ag_utils.select_active(context, obj)  # type: ignore
 
         bpy.ops.ed.undo_push(message="Add Component")
         return {"FINISHED"}
@@ -1161,6 +1258,7 @@ class OT_AddComponent(bpy.types.Operator):
             obj.location = location
             bm.to_mesh(mesh)
             obj.parent = active_object
+            obj.matrix_parent_inverse = object_matrix.inverted()
 
         bm.free()
 
@@ -1181,6 +1279,7 @@ class OT_AddComponent(bpy.types.Operator):
         obj.location = edge_center
         bm.to_mesh(mesh)
         obj.parent = active_object
+        obj.matrix_parent_inverse = object_matrix.inverted()
 
         bm.free()
         # 尖刺
@@ -1209,6 +1308,7 @@ class OT_AddComponent(bpy.types.Operator):
             obj.location = pt1
             bm.to_mesh(mesh)
             obj.parent = active_object
+            obj.matrix_parent_inverse = object_matrix.inverted()
 
             bm.free()
 
