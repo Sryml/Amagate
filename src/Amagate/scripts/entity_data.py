@@ -1315,6 +1315,7 @@ class EntityProperty(bpy.types.PropertyGroup):
 class EntityEditorProperty(bpy.types.PropertyGroup):
     ent_chunk_size: IntProperty(name="Chunk Size", default=256, min=1, max=512, step=16)  # type: ignore
     use_internal_name: BoolProperty(name="Internal name as filename", default=True)  # type: ignore
+    output_path: StringProperty(name="Output", subtype="DIR_PATH", default="/tmp\\")  # type: ignore
 
 ############################
 ############################

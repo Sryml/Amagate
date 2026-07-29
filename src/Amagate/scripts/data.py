@@ -59,7 +59,7 @@ if TYPE_CHECKING:
     Collection = bpy.__Collection
 
 ############################ 全局变量
-Copyright = "(C) 2024-2025 Sryml"
+Copyright = "(C) 2024-2026 Sryml"
 
 # 获取插件包名
 PACKAGE = ".".join(__package__.split(".")[:-1])

@@ -1425,6 +1425,16 @@ def get_channelbag(action) -> bpy.types.ActionChannelbag | None:
     return channelbag
 
 
+def find_layer_collection_by_collection(layer_collection, target_collection):
+    """通过 bpy.data.collections 中的 Collection 对象找到对应的 LayerCollection"""
+    if layer_collection.collection == target_collection:
+        return layer_collection
+    for child in layer_collection.children:
+        result = find_layer_collection_by_collection(child, target_collection)
+        if result:
+            return result
+    return None
+
 ############################
 
 

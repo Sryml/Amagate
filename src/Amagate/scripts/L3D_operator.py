@@ -523,10 +523,8 @@ class OT_Texture_Add(bpy.types.Operator):
             f.name
             for f in self.files
             if f.name
-            and os.path.exists(
-                os.path.join(self.directory, f.name)
-                and f.name.lower().endswith(data.IMAGE_FILTER)
-            )
+            and os.path.exists(os.path.join(self.directory, f.name))
+            and f.name.lower().endswith(data.IMAGE_FILTER)
         ]
         if not files:
             files = [

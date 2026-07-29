@@ -200,6 +200,13 @@ class AMAGATE_PT_EntityEdit(AG_Panel, bpy.types.Panel):
         # 导入
         box.operator(OP_ENTITY.OT_ImportBOD.bl_idname, icon="IMPORT")
 
+        layout_head, layout_body = layout.panel("AMAGATE_PT Rebuild Components", default_closed=True)
+        layout_head.label(text="Rebuild Components")
+        # 如果展开
+        if layout_body:
+            layout_body.prop(EntityEditorData, "output_path")
+            layout_body.operator(OP_ENTITY.OT_RebuildComponents.bl_idname, text="Select and Rebuild")
+
         layout.separator(type="LINE")
 
         # 实体说明
@@ -449,6 +456,15 @@ class AMAGATE_PT_About(AG_Panel, bpy.types.Panel):
         col.label(text="Version:", icon="INFO")
         col.label(text=f"{data.VERSION}")
         col.label(text=f"Amagate {data.Copyright}")
+        col.separator(type="LINE")
+
+        layout_head, layout_body = col.panel("AMAGATE_PT Contributors")
+        layout_head.label(text="Contributors")
+        # 如果展开
+        if layout_body:
+            layout_body.label(text="")
+
+        col.separator(type="LINE")
         col.operator("wm.url_open", text="Amagate on Github", icon="URL").url = "https://github.com/Sryml/Amagate"  # type: ignore
 
 

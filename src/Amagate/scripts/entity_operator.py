@@ -37,7 +37,7 @@ from bpy.props import (
     StringProperty,
 )
 from mathutils import *  # type: ignore
-from bpy_extras.io_utils import ExportHelper
+from bpy_extras.io_utils import ExportHelper, ImportHelper
 
 from . import data, entity_data
 from . import ag_utils
@@ -1154,6 +1154,7 @@ class OT_AddComponent(bpy.types.Operator):
         anchor_x = anchor_matrix.col[0].xyz.normalized()  # type: Vector # type: ignore
         anchor_y = anchor_matrix.col[1].xyz.normalized()  # type: Vector # type: ignore
         anchor_z = anchor_matrix.col[2].xyz.normalized()  # type: Vector # type: ignore
+        anchor_loc = anchor_matrix.translation
         has_crush = next(
             (
                 1
@@ -1199,11 +1200,13 @@ class OT_AddComponent(bpy.types.Operator):
         min_co = rotation @ Vector((min_x, min_y, min_z))
         max_co = rotation @ Vector((max_x, max_y, max_z))
         center = (min_co + max_co) / 2
+        max_length = abs((max_co - min_co).dot(anchor_z))
+        anchor_center = anchor_loc + (center - anchor_loc).dot(anchor_z) * anchor_z
 
         #
         def test():
             bm = bmesh.new()
-            bm.verts.new(anchor_matrix.translation)  # type: ignore
+            bm.verts.new(anchor_loc)  # type: ignore
             bm.verts.new(min_co)  # type: ignore
             bm.verts.new(max_co)  # type: ignore
             mesh = bpy.data.meshes.new("tmp_obj")
@@ -1219,11 +1222,8 @@ class OT_AddComponent(bpy.types.Operator):
         mesh_dict = pickle.load(open(filepath, "rb"))
 
         # 边缘
-        length = abs((min_co - anchor_matrix.translation).dot(anchor_z))  # type: ignore
-        if length <= 0.19:
-            length = 0.19
-        else:
-            length -= 0.19
+        length = abs((min_co - anchor_loc).dot(anchor_z))  # type: ignore
+        length = max(0.05, length - 0.19)
 
         mesh_data = mesh_dict["Blade_Edge_1"]
         bm = bmesh.new()
@@ -1234,7 +1234,7 @@ class OT_AddComponent(bpy.types.Operator):
             bm.edges.new([verts[i] for i in idx])
         scale = (1, 1, length / 0.8)
         bmesh.ops.scale(bm, vec=scale, verts=bm.verts)  # type: ignore
-        move_x = max(abs(max_co.x - min_co.x) * 0.5 - 0.1, 0.06) - 0.06
+        move_x = max(abs(max_co.x - min_co.x) * 0.5 - 0.07, 0.06) - 0.06
         bmesh.ops.translate(bm, vec=(move_x, 0, 0), verts=[verts[i] for i in range(2, 8)])  # type: ignore
         bm_matrix = Matrix((anchor_x, anchor_y, anchor_z)).transposed()  # type: ignore
         bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=bm_matrix, verts=bm.verts)  # type: ignore
@@ -1264,7 +1264,7 @@ class OT_AddComponent(bpy.types.Operator):
 
         # 轨迹
         bm = bmesh.new()
-        half = anchor_z * length * 0.5
+        half = anchor_z * max_length * 0.5
         bm.verts.new(-half)
         bm.verts.new(half)
         bm.edges.new(bm.verts)
@@ -1276,7 +1276,7 @@ class OT_AddComponent(bpy.types.Operator):
         obj.amagate_data.ent_comp_type = 3
         data.link2coll(obj, ent_coll)
         # bmesh.ops.rotate(bm, cent=edge_center, matrix=Matrix.Rotation(-0.24, 4, anchor_y), verts=bm.verts)  # type: ignore
-        obj.location = edge_center
+        obj.location = anchor_center
         bm.to_mesh(mesh)
         obj.parent = active_object
         obj.matrix_parent_inverse = object_matrix.inverted()
@@ -1285,15 +1285,16 @@ class OT_AddComponent(bpy.types.Operator):
         # 尖刺
         if not has_crush:
             mesh_data = mesh_dict["Blade_Spike_1"]
+            spike_vector = anchor_z * length * 0.25
             bm = bmesh.new()
             verts = []
             for co in mesh_data["vertices"]:
                 verts.append(bm.verts.new(co))
             for idx in mesh_data["edges"]:
                 bm.edges.new([verts[i] for i in idx])
-            pt1 = edge_center + half * 0.5
+            pt1 = edge_center + spike_vector
             # 调整大小
-            move_z = (half * 0.5).length - 0.1
+            move_z = (spike_vector).length - 0.1
             bmesh.ops.translate(bm, vec=(0, 0, move_z), verts=[verts[i] for i in range(1, 6)])  # type: ignore
             # 调整朝向
             quat = anchor_z.to_track_quat("Z", "Y")
@@ -1313,6 +1314,105 @@ class OT_AddComponent(bpy.types.Operator):
             bm.free()
 
         return ""
+
+
+# 批量重建组件
+class OT_RebuildComponents(bpy.types.Operator):
+    bl_idname = "amagate.ent_rebuild_components"
+    bl_label = "Rebuild Components"
+    bl_description = "Rebuild Components"
+    bl_options = {"INTERNAL"}
+
+    filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
+
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    directory: StringProperty(subtype="DIR_PATH")  # type: ignore
+    files: CollectionProperty(type=bpy.types.OperatorFileListElement)  # type: ignore
+
+    def execute(self, context: Context):
+        EntityEditorData = context.scene.amagate_data.EntityEditorData
+        output_path = Path(bpy.path.abspath(EntityEditorData.output_path))
+        output_path.mkdir(parents=True, exist_ok=True)
+        directory = Path(self.directory)
+        files = [
+            p
+            for f in self.files
+            if (name := f.name)
+            and (p := directory / name).exists()
+            and p.suffix.lower() == ".bod"
+        ]
+        if not files:
+            files = directory.glob("*.bod")
+        # logger.debug(f"files: {[i.name for i in files]}")
+        ignore_count = 0
+        count = 0
+        for filepath in files:
+            # 导入
+            (
+                entity,
+                lack_texture,
+                folded_faces,
+                multiple_folded_face,
+                zero_width_faces,
+            ) = OT_ImportBOD.import_bod(context, filepath)
+            coll = entity.users_collection[0]
+            Anchor_1H_R = next(
+                (
+                    i
+                    for i in coll.all_objects
+                    if i.type == "EMPTY" and i.name.startswith("Blade_Anchor_1H_R")
+                ),
+                None,
+            )
+            if not Anchor_1H_R:
+                for obj in coll.all_objects[:]:
+                    bpy.data.objects.remove(obj)
+                bpy.data.collections.remove(coll)
+                logger.info(f"{filepath} has no Blade_Anchor_1H_R")
+                ignore_count += 1
+                continue
+
+            # 重建组件
+            has_crush = next(
+                (
+                    1
+                    for i in coll.all_objects
+                    if i.type == "EMPTY" and i.name.startswith("Blade_Anchor_Crush")
+                ),
+                0,
+            )
+            edges = [i for i in coll.all_objects if i.amagate_data.ent_comp_type == 1]
+            spikes = [i for i in coll.all_objects if i.amagate_data.ent_comp_type == 2]
+            trails = [i for i in coll.all_objects if i.amagate_data.ent_comp_type == 3]
+            if edges == spikes == []:
+                # 跳过钝器
+                ignore_count += 1
+                continue
+                # 显式定义为钝器
+                # anchor = bpy.data.objects.new("Blade_Anchor_Crush", None)
+                # anchor.empty_display_size = 0.1
+                # anchor.empty_display_type = "ARROWS"
+                # anchor.show_in_front = True
+                # coll.objects.link(anchor)
+                # anchor.parent = entity
+
+            for obj in edges + spikes + trails:
+                bpy.data.objects.remove(obj)
+            OT_AddComponent.auto_component(context, entity)
+            # 导出
+            out_filepath = output_path / filepath.name
+            bpy.ops.amagate.export_bod("INVOKE_DEFAULT", filepath=str(out_filepath), auto=1)  # type: ignore
+            context.view_layer.active_layer_collection.hide_viewport = True
+            count += 1
+        #
+        logger.info(f"Ignored {ignore_count} files")
+        logger.info(f"Rebuilt {count} files")
+
+        return {"FINISHED"}
+
+    def invoke(self, context, event):
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
 
 
 # 预设
@@ -1572,9 +1672,14 @@ class OT_ImportBOD(bpy.types.Operator):
                     )
 
             bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
-            bpy.ops.object.select_all(action="DESELECT")
+            ag_utils.select_active(context, entity)  # type: ignore
             #
             bpy.ops.view3d.view_all(center=True)
+            layer_collection = ag_utils.find_layer_collection_by_collection(
+                context.view_layer.layer_collection, ent_coll
+            )
+            if layer_collection:
+                context.view_layer.active_layer_collection = layer_collection
             return (
                 entity,
                 lack_texture,
@@ -2235,6 +2340,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         ],
         options={"HIDDEN"},
     )  # type: ignore
+    auto: BoolProperty(default=False, options={"HIDDEN"})  # type: ignore
     filter_glob: StringProperty(default="*.bod", options={"HIDDEN"})  # type: ignore
     # directory: StringProperty(subtype="DIR_PATH")  # type: ignore
     # filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
@@ -2918,41 +3024,58 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
 
     def invoke(self, context: Context, event):
         ent_coll = None
-        for n in [
-            context.collection.name
-        ] + context.view_layer.layer_collection.children.keys():
-            layer_coll = context.view_layer.layer_collection.children.get(n)
-            if (
-                layer_coll
-                and layer_coll.is_visible
-                and layer_coll.name.lower().startswith("blade_object_")
-            ):
-                coll = bpy.data.collections[layer_coll.name]
-                if len(coll.objects) != 0:
-                    ent_coll = coll
-                    break
-        """
-        for coll in bpy.data.collections:
-            if len(coll.name) < 14:
-                continue
-            # 判断名称前缀
-            if not coll.name.lower().startswith("blade_object_"):
-                continue
-            # 判断是否有引用
-            if coll.users - coll.use_fake_user == 0:
-                continue
-            # 判断是否有物体
-            if len(coll.objects) == 0:
-                continue
-
+        prefixes = (
+            "blade_edge_",
+            "blade_spike_",
+            "blade_trail_",
+            "b_fire_fuego_",
+        )
+        # for n in [
+        #     context.collection.name
+        # ] + context.view_layer.layer_collection.children.keys():
+        #     layer_coll = context.view_layer.layer_collection.children.get(n)
+        #     if (
+        #         layer_coll
+        #         and layer_coll.is_visible
+        #         and layer_coll.name.lower().startswith("blade_object_")
+        #     ):
+        #         coll = bpy.data.collections[layer_coll.name]
+        #         if len(coll.objects) != 0:
+        #             ent_coll = coll
+        #             break
+        active_coll_name = context.view_layer.active_layer_collection.name
+        collections_name = [
+            coll.name
+            for coll in bpy.data.collections
+            if (not coll.library)
+            and (coll.users - coll.use_fake_user > 0)
+            and coll.name.lower().startswith("blade_object_")
+        ]
+        if active_coll_name in collections_name:
+            collections_name.remove(active_coll_name)
+            collections_name.insert(0, active_coll_name)
+        for coll_name in collections_name:
+            coll = bpy.data.collections[coll_name]
+            # 判断是否有可见物体
+            has_mesh = next(
+                (
+                    1
+                    for obj in coll.all_objects
+                    if obj.visible_get()
+                    and obj.type == "MESH"
+                    and (not obj.name.lower().startswith(prefixes))
+                ),
+                0,
+            )
+            if has_mesh:
+                ent_coll = coll
+                break
             # if not self.main:
             #     # 仅可见
             #     if self.action == "2":
             #         if not coll.objects[0].visible_get():
             #             continue
-            ent_coll = coll
-            break
-        """
+
         if ent_coll is None:
             self.report(
                 {"ERROR"}, "No collection with the prefix `Blade_Object_` was found"
@@ -3023,14 +3146,15 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         # print([i.name for i in ent_dict["objects"]])
         # return {"CANCELLED"}
         # 找到实体对象
-        self.ent_dict = ent_dict
-        EntityEditorData = context.scene.amagate_data.EntityEditorData
-
         for k in ("anchors", "edges", "spikes", "trails", "fires", "lights"):
             ent_dict[k].sort(key=lambda x: ag_utils.natural_sort_key(x.name))
             # logger.debug(f"ent_dict[{k}] = {ent_dict[k]}")
+        self.ent_dict = ent_dict
 
-        if not bpy.data.filepath or (not self.main and self.action == "2"):
+        EntityEditorData = context.scene.amagate_data.EntityEditorData
+        if self.auto:
+            return self.execute(context)
+        elif not bpy.data.filepath or (not self.main and self.action == "2"):
             if not self.filepath:
                 self.filepath = f"{ent_dict['kind']}.bod"
             context.window_manager.fileselect_add(self)
