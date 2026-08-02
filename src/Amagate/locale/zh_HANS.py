@@ -333,6 +333,7 @@
     ("*", "Bone [{}] has more than 512 vertices!"): "骨骼 [{}] 超过 512 个顶点!",
 
     ("*", "The translation and rotation of the model will only take effect in the export after being applied"): "模型的平移和旋转需应用后才会在导出时生效",
+    ("*", "In the game, Trail will move towards vertex 0"): "游戏中，尾迹将朝向顶点0移动",
     ("*", "The default orientation of the anchors is based on a weapon with the tip facing -Z and the blade facing X"): "锚点默认方向基于尖端朝-Z，刀刃朝X的武器",
     ("*", "Adding character bones to the bone collection `Blade_Bones` allows excluding IK helper bones during export"): "将角色骨骼添加到骨骼集合`Blade_Bones`中，可在导出时排除IK辅助骨骼等",
     ("*", "For the character"): "对于角色",

@@ -1094,18 +1094,20 @@ class OT_AddComponent(bpy.types.Operator):
     def execute(self, context: Context):
         # print(f"action: {self.action}")
         key = bpy.types.UILayout.enum_item_description(self, "action", self.action)
-        obj_name = data.get_object_name(key[:-1])
         if key == "Auto Component":
             msg = self.auto_component(context)
             if msg:
                 self.report({"INFO"}, msg)
         elif key == "Blade_Light_1":
+            obj_name = data.get_object_name(key[:-1])
             obj = bpy.data.objects.new(obj_name, None)  # type: Object # type: ignore
             obj.empty_display_size = 0.1
             obj.empty_display_type = "ARROWS"
             obj.show_in_front = True
             data.link2coll(obj, context.collection)
+            ag_utils.select_active(context, obj)  # type: ignore
         else:
+            obj_name = data.get_object_name(key[:-1])
             filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
             mesh_dict = pickle.load(open(filepath, "rb"))
             mesh_data = mesh_dict[key]
@@ -1133,7 +1135,9 @@ class OT_AddComponent(bpy.types.Operator):
         return {"FINISHED"}
 
     @staticmethod
-    def auto_component(context: Context, active_object: Object | None = None):
+    def auto_component(
+        context: Context, active_object: Object | None = None, options=set()
+    ):
         if active_object is None:
             active_object = context.active_object
         if not active_object:
@@ -1159,7 +1163,9 @@ class OT_AddComponent(bpy.types.Operator):
             (
                 1
                 for i in active_object.children
-                if i.type == "EMPTY" and i.name.startswith("Blade_Anchor_Crush")
+                if i.type == "EMPTY"
+                and i.name.startswith("Blade_Anchor_Crush")
+                and i.visible_get()
             ),
             0,
         )
@@ -1172,6 +1178,8 @@ class OT_AddComponent(bpy.types.Operator):
         rotation = tar_rot @ src_rot.inverted()
         bm.transform(object_matrix)
         bm.transform(Matrix.LocRotScale(None, rotation, None))
+        ref_loc = rotation @ anchor_loc
+        start_z = ref_loc.z - 0.3  # 距1H_R 30cm的位置计算X边界
         # 边界框
         min_x = float("inf")
         max_x = float("-inf")
@@ -1182,9 +1190,9 @@ class OT_AddComponent(bpy.types.Operator):
 
         for vert in bm.verts:
             co = vert.co
-            if co.x < min_x:
+            if co.x < min_x and co.z < start_z:
                 min_x = co.x
-            elif co.x > max_x:
+            elif co.x > max_x and co.z < start_z:
                 max_x = co.x
             if co.y < min_y:
                 min_y = co.y
@@ -1194,6 +1202,8 @@ class OT_AddComponent(bpy.types.Operator):
                 min_z = co.z
             elif co.z > max_z:
                 max_z = co.z
+        min_x = min_x if math.isfinite(min_x) else 0
+        max_x = max_x if math.isfinite(max_x) else 0
 
         bm.free()
         rotation = rotation.inverted()
@@ -1202,6 +1212,7 @@ class OT_AddComponent(bpy.types.Operator):
         center = (min_co + max_co) / 2
         max_length = abs((max_co - min_co).dot(anchor_z))
         anchor_center = anchor_loc + (center - anchor_loc).dot(anchor_z) * anchor_z
+        anchor2end = abs((min_co - anchor_loc).dot(anchor_z))  # type: ignore
 
         #
         def test():
@@ -1220,97 +1231,148 @@ class OT_AddComponent(bpy.types.Operator):
         ent_coll = active_object.users_collection[0]
         filepath = os.path.join(data.ADDON_PATH, "bin/ent_component.dat")
         mesh_dict = pickle.load(open(filepath, "rb"))
+        only_trail = "only_trail" in options
 
         # 边缘
-        length = abs((min_co - anchor_loc).dot(anchor_z))  # type: ignore
-        length = max(0.05, length - 0.19)
+        edge_length = max(0.05, anchor2end - 0.1)
+        edge_width = max(abs(max_x - min_x) * 0.5, 0.06)
 
-        mesh_data = mesh_dict["Blade_Edge_1"]
-        bm = bmesh.new()
-        verts = []
-        for co in mesh_data["vertices"]:
-            verts.append(bm.verts.new(co))
-        for idx in mesh_data["edges"]:
-            bm.edges.new([verts[i] for i in idx])
-        scale = (1, 1, length / 0.8)
-        bmesh.ops.scale(bm, vec=scale, verts=bm.verts)  # type: ignore
-        move_x = max(abs(max_co.x - min_co.x) * 0.5 - 0.07, 0.06) - 0.06
-        bmesh.ops.translate(bm, vec=(move_x, 0, 0), verts=[verts[i] for i in range(2, 8)])  # type: ignore
-        bm_matrix = Matrix((anchor_x, anchor_y, anchor_z)).transposed()  # type: ignore
-        bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=bm_matrix, verts=bm.verts)  # type: ignore
-        #
-        offset_z = (min_co - center).dot(anchor_z) - length * 0.5
-        offset_z = anchor_z * offset_z
-        offset_x = anchor_x * 0.005
-        edge_center = center + offset_z
-        for i in range(2):
-            obj_name = data.get_object_name("Blade_Edge_")
-            mesh = bpy.data.meshes.new(obj_name)
-            obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
-            obj.show_in_front = True
-            obj.amagate_data.ent_comp_type = 1
-            data.link2coll(obj, ent_coll)
-
-            if i == 1:
-                offset_x = -offset_x
-                bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=Matrix.Rotation(math.pi, 4, anchor_z), verts=bm.verts)  # type: ignore
-            location = edge_center + offset_x
-            obj.location = location
-            bm.to_mesh(mesh)
-            obj.parent = active_object
-            obj.matrix_parent_inverse = object_matrix.inverted()
-
-        bm.free()
-
-        # 轨迹
-        bm = bmesh.new()
-        half = anchor_z * max_length * 0.5
-        bm.verts.new(-half)
-        bm.verts.new(half)
-        bm.edges.new(bm.verts)
-
-        obj_name = data.get_object_name("Blade_Trail_")
-        mesh = bpy.data.meshes.new(obj_name)
-        obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
-        obj.show_in_front = True
-        obj.amagate_data.ent_comp_type = 3
-        data.link2coll(obj, ent_coll)
-        # bmesh.ops.rotate(bm, cent=edge_center, matrix=Matrix.Rotation(-0.24, 4, anchor_y), verts=bm.verts)  # type: ignore
-        obj.location = anchor_center
-        bm.to_mesh(mesh)
-        obj.parent = active_object
-        obj.matrix_parent_inverse = object_matrix.inverted()
-
-        bm.free()
-        # 尖刺
-        if not has_crush:
-            mesh_data = mesh_dict["Blade_Spike_1"]
-            spike_vector = anchor_z * length * 0.25
+        if not only_trail:
+            mesh_data = mesh_dict["Blade_Edge_1"]
             bm = bmesh.new()
             verts = []
             for co in mesh_data["vertices"]:
                 verts.append(bm.verts.new(co))
             for idx in mesh_data["edges"]:
                 bm.edges.new([verts[i] for i in idx])
-            pt1 = edge_center + spike_vector
+            scale = (1, 1, edge_length / 0.8)
+            bmesh.ops.scale(bm, vec=scale, verts=bm.verts)  # type: ignore
+            move_x = edge_width - 0.06
+            bmesh.ops.translate(bm, vec=(move_x, 0, 0), verts=[verts[i] for i in range(2, 8)])  # type: ignore
+            bm_matrix = Matrix((anchor_x, -anchor_y, -anchor_z)).transposed()  # type: ignore
+            bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=bm_matrix, verts=bm.verts)  # type: ignore
+            #
+            offset_z = max_length / 2 - edge_length * 0.5
+            offset_z = anchor_z * offset_z
+            offset_x = anchor_x * 0.005
+            edge_center = center + offset_z
+            for i in range(6):
+                obj_name = f"Blade_Edge_{i+1}"
+                mesh = bpy.data.meshes.new(obj_name)
+                obj = bpy.data.objects.new(
+                    obj_name, mesh
+                )  # type: Object # type: ignore
+                obj.show_in_front = True
+                obj.amagate_data.ent_comp_type = 1
+                data.link2coll(obj, ent_coll)
+
+                # rot = Quaternion()
+                if i != 0:
+                    rot = Matrix.Rotation(math.radians(120), 4, anchor_z)  # type: ignore
+                    offset_x = rot @ offset_x
+                    bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=rot, verts=bm.verts)  # type: ignore
+                if i == 3:
+                    offset_x = Vector((0, 0, 0))
+                    # loc = -anchor_x * edge_width * 0.5
+                    # bm.transform(Matrix.Translation(loc)) # type: ignore
+                    q1 = Quaternion(anchor_x, math.radians(180))
+                    q2 = Quaternion(anchor_y, math.radians(15))
+                    matrix = (q2 @ q1).to_matrix().to_4x4()
+                    bm.transform(matrix)
+                    # bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=matrix, verts=bm.verts)  # type: ignore
+                    # rot = Matrix.Rotation(math.radians(180), 4, anchor_x)  # type: ignore
+                    # bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=rot, verts=bm.verts)  # type: ignore
+                    # rot = Matrix.Rotation(math.radians(30), 4, anchor_y)  # type: ignore
+                    # bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=rot, verts=bm.verts)  # type: ignore
+                location = edge_center + offset_x
+                obj.location = location
+                bm.to_mesh(mesh)
+                obj.parent = active_object
+                obj.matrix_parent_inverse = object_matrix.inverted()
+
+            bm.free()
+
+        # 轨迹
+        if has_crush:
+            trail_length = anchor2end + 0.07
+            direction = -1
+        else:
+            trail_length = min(0.90, edge_length)
+            direction = 1
+        half = anchor_z * trail_length * 0.5
+        offset = (max_length / 2 - trail_length * 0.5) * anchor_z
+        bm = bmesh.new()
+        bm.verts.new(half * direction)
+        bm.verts.new(-half * direction)
+        bm.edges.new(bm.verts)
+
+        obj_name = "Blade_Trail_1"
+        mesh = bpy.data.meshes.new(obj_name)
+        obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
+        obj.show_in_front = True
+        obj.amagate_data.ent_comp_type = 3
+        data.link2coll(obj, ent_coll)
+        # bmesh.ops.rotate(bm, cent=edge_center, matrix=Matrix.Rotation(-0.24, 4, anchor_y), verts=bm.verts)  # type: ignore
+        obj.location = anchor_center + offset
+        bm.to_mesh(mesh)
+        obj.parent = active_object
+        obj.matrix_parent_inverse = object_matrix.inverted()
+
+        bm.free()
+        # 尖刺
+        if not only_trail:
+            mesh_data = mesh_dict["Blade_Spike_1"]
+            # spike_length = (anchor_z * edge_length * 0.25).length
+            spike_length = max(0.05, anchor2end - 0.3)
+            bm = bmesh.new()
+            verts = []
+            for co in mesh_data["vertices"]:
+                verts.append(bm.verts.new(co))
+            for idx in mesh_data["edges"]:
+                bm.edges.new([verts[i] for i in idx])
+            offset = (max_length / 2 - spike_length) * anchor_z
             # 调整大小
-            move_z = (spike_vector).length - 0.1
-            bmesh.ops.translate(bm, vec=(0, 0, move_z), verts=[verts[i] for i in range(1, 6)])  # type: ignore
+            move_z = spike_length - 0.1
+            bmesh.ops.translate(bm, vec=(0, 0, -move_z), verts=[verts[i] for i in range(1, 6)])  # type: ignore
             # 调整朝向
-            quat = anchor_z.to_track_quat("Z", "Y")
+            quat = anchor_z.to_track_quat("-Z", "Y")
             bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=quat.to_matrix(), verts=bm.verts)  # type: ignore
 
-            obj_name = data.get_object_name("Blade_Spike_")
+            if not has_crush:
+                obj_name = "Blade_Spike_1"
+                mesh = bpy.data.meshes.new(obj_name)
+                obj = bpy.data.objects.new(
+                    obj_name, mesh
+                )  # type: Object # type: ignore
+                obj.show_in_front = True
+                obj.amagate_data.ent_comp_type = 2
+                data.link2coll(obj, ent_coll)
+
+                obj.location = anchor_center + offset
+                bm.to_mesh(mesh)
+                obj.parent = active_object
+                obj.matrix_parent_inverse = object_matrix.inverted()
+
+            offset = -anchor_z * 0.3
+            move_z = 0.3 - spike_length
+            bmesh.ops.translate(bm, vec=anchor_z * move_z, verts=[verts[i] for i in range(1, 6)])  # type: ignore
+
+            obj_name = "Blade_Spike_2"
             mesh = bpy.data.meshes.new(obj_name)
             obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
             obj.show_in_front = True
             obj.amagate_data.ent_comp_type = 2
             data.link2coll(obj, ent_coll)
-            obj.location = pt1
+
+            obj.location = anchor_loc + offset
             bm.to_mesh(mesh)
             obj.parent = active_object
             obj.matrix_parent_inverse = object_matrix.inverted()
-
+            # if i != 0:
+            #     rot = Matrix.Rotation(math.radians(180), 4, anchor_x)  # type: ignore
+            #     offset = (max_length / 2) * anchor_z
+            #     bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=rot, verts=bm.verts)  # type: ignore
+            #
             bm.free()
 
         return ""
@@ -1347,6 +1409,7 @@ class OT_RebuildComponents(bpy.types.Operator):
         ignore_count = 0
         count = 0
         for filepath in files:
+            options = set()
             # 导入
             (
                 entity,
@@ -1377,7 +1440,9 @@ class OT_RebuildComponents(bpy.types.Operator):
                 (
                     1
                     for i in coll.all_objects
-                    if i.type == "EMPTY" and i.name.startswith("Blade_Anchor_Crush")
+                    if i.type == "EMPTY"
+                    and i.name.startswith("Blade_Anchor_Crush")
+                    and i.visible_get()
                 ),
                 0,
             )
@@ -1385,9 +1450,8 @@ class OT_RebuildComponents(bpy.types.Operator):
             spikes = [i for i in coll.all_objects if i.amagate_data.ent_comp_type == 2]
             trails = [i for i in coll.all_objects if i.amagate_data.ent_comp_type == 3]
             if edges == spikes == []:
-                # 跳过钝器
-                ignore_count += 1
-                continue
+                # 仅重建轨迹
+                options.add("only_trail")
                 # 显式定义为钝器
                 # anchor = bpy.data.objects.new("Blade_Anchor_Crush", None)
                 # anchor.empty_display_size = 0.1
@@ -1398,15 +1462,16 @@ class OT_RebuildComponents(bpy.types.Operator):
 
             for obj in edges + spikes + trails:
                 bpy.data.objects.remove(obj)
-            OT_AddComponent.auto_component(context, entity)
+            OT_AddComponent.auto_component(context, entity, options=options)
             # 导出
             out_filepath = output_path / filepath.name
             bpy.ops.amagate.export_bod("INVOKE_DEFAULT", filepath=str(out_filepath), auto=1)  # type: ignore
+            entity.select_set(False)
             context.view_layer.active_layer_collection.hide_viewport = True
             count += 1
         #
-        logger.info(f"Ignored {ignore_count} files")
-        logger.info(f"Rebuilt {count} files")
+        logger.info(f"Ignored {ignore_count} files, Rebuilt {count} files")
+        self.report({"INFO"}, f"Ignored {ignore_count} files, Rebuilt {count} files")
 
         return {"FINISHED"}
 
@@ -1578,6 +1643,7 @@ class OT_EntityNote(bpy.types.Operator):
             pgettext(
                 "The translation and rotation of the model will only take effect in the export after being applied"
             ),
+            pgettext("In the game, Trail will move towards vertex 0"),
             pgettext(
                 "The default orientation of the anchors is based on a weapon with the tip facing -Z and the blade facing X"
             ),
@@ -2111,6 +2177,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 return _final()
 
             # 边缘
+            edge_count = 0
             num = unpack("I", f)[0]
             for idx in range(num):
                 mark = unpack("I", f)[0]  # 默认0
@@ -2122,7 +2189,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 pt2 = Vector(unpack("ddd", f)) / 1000
                 pt3 = Vector(unpack("ddd", f)) / 1000
                 #
-                obj_name = data.get_object_name("Blade_Edge_")
+                edge_count += 1
+                obj_name = f"Blade_Edge_{edge_count}"
                 mesh = bpy.data.meshes.new(obj_name)
                 obj = bpy.data.objects.new(
                     obj_name, mesh
@@ -2180,6 +2248,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 return _final()
 
             # 尖刺
+            spike_count = 0
             num = unpack("I", f)[0]
             for idx in range(num):
                 mark = unpack("I", f)[0]  # 默认0
@@ -2190,7 +2259,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 pt1 = Vector(unpack("ddd", f)) / 1000
                 pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
                 #
-                obj_name = data.get_object_name("Blade_Spike_")
+                spike_count += 1
+                obj_name = f"Blade_Spike_{spike_count}"
                 mesh = bpy.data.meshes.new(obj_name)
                 obj = bpy.data.objects.new(
                     obj_name, mesh
@@ -2223,9 +2293,9 @@ class OT_ImportBOD(bpy.types.Operator):
                     bm.edges.new([verts[i] for i in idx])
                 # 调整大小
                 move_z = (pt2 - pt1).length - 0.1
-                bmesh.ops.translate(bm, vec=(0, 0, move_z), verts=[verts[i] for i in range(1, 6)])  # type: ignore
+                bmesh.ops.translate(bm, vec=(0, 0, -move_z), verts=[verts[i] for i in range(1, 6)])  # type: ignore
                 # 调整朝向
-                quat = (pt2 - pt1).normalized().to_track_quat("Z", "Y")
+                quat = (pt2 - pt1).normalized().to_track_quat("-Z", "Y")
                 bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=quat.to_matrix(), verts=bm.verts)  # type: ignore
 
                 bm.to_mesh(mesh)
@@ -2265,6 +2335,7 @@ class OT_ImportBOD(bpy.types.Operator):
                 return _final()
 
             # 轨迹
+            trail_count = 0
             num = unpack("I", f)[0]
             for idx in range(num):
                 mark = unpack("I", f)[0]  # 默认0
@@ -2274,7 +2345,8 @@ class OT_ImportBOD(bpy.types.Operator):
                 pt1 = Vector(unpack("ddd", f)) / 1000
                 pt2 = pt1 + Vector(unpack("ddd", f)) / 1000
                 #
-                obj_name = data.get_object_name("Blade_Trail_")
+                trail_count += 1
+                obj_name = f"Blade_Trail_{trail_count}"
                 mesh = bpy.data.meshes.new(obj_name)
                 obj = bpy.data.objects.new(
                     obj_name, mesh
@@ -3155,8 +3227,15 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
         if self.auto:
             return self.execute(context)
         elif not bpy.data.filepath or (not self.main and self.action == "2"):
-            if not self.filepath:
+            # 另存为...
+            if (not self.main and self.action == "2"):
+                if not self.filepath:
+                    self.filepath = f"{ent_dict['kind']}.bod"
+            elif EntityEditorData.use_internal_name:
                 self.filepath = f"{ent_dict['kind']}.bod"
+            elif not self.filepath:
+                self.filepath = f"{ent_dict['kind']}.bod"
+
             context.window_manager.fileselect_add(self)
             return {"RUNNING_MODAL"}
         else:
