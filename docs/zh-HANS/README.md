@@ -142,6 +142,10 @@ Blender 版本：4.3.0 或以上
 
 任何建议或问题，欢迎在 GitHub 上提交 [Issues](https://github.com/Sryml/Amagate/issues) 或在 [Discord](https://discord.gg/ZWdfcx2KW2) 上讨论。
 
+## 💗 贡献者
+
+[@ubaidnizamani](https://github.com/ubaidnizamani)
+
 ## 💗 参考与致谢
 
 - Rebel Act Studios 制作了出色的游戏

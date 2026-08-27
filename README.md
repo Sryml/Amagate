@@ -140,6 +140,10 @@ If anyone can provide suggestions for a more efficient map-building workflow or 
 
 Any suggestions or questions are welcome. Feel free to submit [Issues](https://github.com/Sryml/Amagate/issues) on GitHub or discuss them on [Discord](https://discord.gg/ZWdfcx2KW2).
 
+## 💗 Contributors
+
+[@ubaidnizamani](https://github.com/ubaidnizamani)
+
 ## 💗 References and Thanks
 
 - Rebel Act Studios for creating an excellent game
