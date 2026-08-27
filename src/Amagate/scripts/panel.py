@@ -462,7 +462,8 @@ class AMAGATE_PT_About(AG_Panel, bpy.types.Panel):
         layout_head.label(text="Contributors")
         # 如果展开
         if layout_body:
-            layout_body.label(text="")
+            col = layout_body.column()
+            col.label(text=f"{'':4}Ubaid Nizamani")
 
         col.separator(type="LINE")
         col.operator("wm.url_open", text="Amagate on Github", icon="URL").url = "https://github.com/Sryml/Amagate"  # type: ignore
