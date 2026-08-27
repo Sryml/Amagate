@@ -1985,7 +1985,11 @@ class AMAGATE_PT_L3D_Tools(L3D_Panel, bpy.types.Panel):
             icon="IMPORT",
         )
         op.execute_type = 0  # type: ignore
-
+        op = column.operator(
+            OP_L3D_IMP.OT_MergeMap.bl_idname,
+            icon="IMPORT",
+        )
+        
         column.separator(type="LINE")
 
         # 新建世界

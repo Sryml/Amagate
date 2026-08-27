@@ -292,6 +292,7 @@
     ("*", "Please save the file first"): "请先保存文件",
     ("*", "No visible sector found"): "未找到可见扇区",
     ("Operator", "Import Map"): "导入地图",
+    ("Operator", "Merge Map"): "合并地图",
     ("Operator", "Bake World"): "烘焙世界",
     ("Operator", "Reset Node"): "重置节点",
     ("Operator", "Export Entity"): "导出实体",

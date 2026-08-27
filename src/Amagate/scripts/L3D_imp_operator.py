@@ -6,10 +6,13 @@
 from __future__ import annotations
 
 #
+import re
 import struct
 import math
 import os
 import time
+import shutil
+import hashlib
 import contextlib
 from pathlib import Path
 
@@ -1253,6 +1256,659 @@ class OT_ImportMap(bpy.types.Operator):
         op = row.operator(OT_ImportMap.bl_idname, text="Save").execute_type = 1  # type: ignore
         row.operator(OT_ImportMap.bl_idname, text="Don't Save").execute_type = 2  # type: ignore
         row.operator(OT_ImportMap.bl_idname, text="Cancel").execute_type = 3  # type: ignore
+
+
+# =====================================================================
+# AMAGATE MAP MERGE OPERATOR BY Ubaid
+# =====================================================================
+class OT_MergeMap(bpy.types.Operator):
+    bl_idname = "amagate.mergemap"
+    bl_label = "Merge Map"
+    bl_description = (
+        "Add sectors from another .blend into the current map with strict"
+        " name-and-hash matching for textures and materials"
+    )
+    bl_options = {"INTERNAL", "UNDO"}
+
+    filepath: StringProperty(subtype="FILE_PATH")  # type: ignore
+    filter_glob: StringProperty(default="*.blend", options={"HIDDEN"})  # type: ignore
+
+    @classmethod
+    def poll(cls, context: Context):
+        return context.scene.amagate_data.is_blade
+
+    def execute(self, context: Context):
+        # 合并地图
+        filepath = Path(self.filepath)
+        source_dir = filepath.parent
+
+        if not filepath.exists() or filepath.suffix.lower() != ".blend":
+            self.report({"ERROR"}, "Invalid .blend file")
+            return {"CANCELLED"}
+
+        if filepath == Path(bpy.data.filepath):
+            self.report({"ERROR"}, "Cannot merge a file into itself")
+            return {"FINISHED"}
+
+        scene_data = context.scene.amagate_data
+        file_prefix = filepath.stem.lower()
+
+        # Create local textures directory
+        if bpy.data.filepath:
+            textures_dir = Path(bpy.data.filepath).parent / "textures"
+        else:
+            textures_dir = Path.home() / "Desktop" / "Amagate_Textures"
+
+        textures_dir.mkdir(parents=True, exist_ok=True)
+        print(f"-> Target Textures Directory: {textures_dir}")
+
+        # Robust pixel-based hash helper
+        def get_image_hash(img):
+            if img is None:
+                return ""
+            ama = getattr(img, "amagate_data", None)
+            if ama and getattr(ama, "hash", ""):
+                return ama.hash
+
+            if img.has_data:
+                try:
+                    pixels = img.pixels[:]
+                    pixel_bytes = bytes(int(max(0.0, min(1.0, p)) * 255) for p in pixels)
+                    h = hashlib.md5(pixel_bytes).hexdigest()
+                    if ama:
+                        ama.hash = h
+                    return h
+                except Exception:
+                    pass
+
+            return ""
+
+        # ==============================================================
+        # 1. LOAD DATA
+        # ==============================================================
+        objects_before = set(bpy.data.objects.keys())
+        scenes_before = set(bpy.data.scenes.keys())
+
+        with bpy.data.libraries.load(str(self.filepath), link=False) as (
+            data_from,
+            data_to,
+        ):
+            data_to.objects = list(data_from.objects)
+            data_to.images = list(data_from.images)
+            data_to.materials = list(data_from.materials)
+            data_to.scenes = list(data_from.scenes)
+
+        # ==============================================================
+        # 2. FILTER SECTORS AND ALL CHILD LIGHTS
+        # ==============================================================
+        sectors = []
+        child_lights = []
+
+        for obj in data_to.objects:
+            if obj is None:
+                continue
+            amagate_data = getattr(obj, "amagate_data", None)
+            if amagate_data and amagate_data.is_sector:
+                sectors.append(obj)
+
+        sector_set = set(sectors)
+        for obj in data_to.objects:
+            if obj and obj.type == "LIGHT":
+                if obj.parent in sector_set:
+                    child_lights.append(obj)
+
+        # ==============================================================
+        # 3. LINK SECTORS & CHILD LIGHTS TO "Sector Collection"
+        # ==============================================================
+        target_coll_name = "Sector Collection"
+        sector_coll = bpy.data.collections.get(target_coll_name)
+        if not sector_coll:
+            sector_coll = bpy.data.collections.get("Sectors") or (
+                bpy.data.collections.new(target_coll_name)
+            )
+            if sector_coll.name not in context.scene.collection.children:
+                context.scene.collection.children.link(sector_coll)
+
+        for obj in sectors + child_lights:
+            for col in list(obj.users_collection):
+                col.objects.unlink(obj)
+            if obj.name not in sector_coll.objects:
+                sector_coll.objects.link(obj)
+
+        # ==============================================================
+        # 4. RESOLVE, STRICT NAME+HASH CHECK & MERGE/PREFIX IMAGES
+        # ==============================================================
+        id_map = {}
+        image_map = {}
+        images_to_remove = []
+
+        existing_images_by_name = {}
+        for img in bpy.data.images:
+            if img in data_to.images:
+                continue
+            existing_images_by_name[img.name.lower()] = img
+
+        existing_image_ids = {
+            i.amagate_data.id
+            for i in bpy.data.images
+            if i not in data_to.images and hasattr(i, "amagate_data")
+        }
+
+        source_abs_path_map = {}
+
+        for loaded_img in data_to.images:
+            if loaded_img is None:
+                continue
+
+            old_name = loaded_img.name
+            old_id = getattr(loaded_img.amagate_data, "id", 0)
+            clean_name = re.sub(r"\.\d{3,}$", "", old_name)
+            clean_name_lower = clean_name.lower()
+
+            # Map incoming "null" textures (including null.001, null.002, etc.) to existing local null
+            if clean_name_lower == "null":
+                if "null" in existing_images_by_name:
+                    images_to_remove.append(loaded_img)
+                    image_map[loaded_img] = existing_images_by_name["null"]
+                else:
+                    loaded_img.name = "null"
+                    existing_images_by_name["null"] = loaded_img
+                    image_map[loaded_img] = loaded_img
+                    if old_id not in (0, -1):
+                        id_map[old_id] = old_id
+                    loaded_img.use_fake_user = True
+                continue
+
+            # Smart path resolution with fallback search
+            resolved_path = None
+            if loaded_img.filepath:
+                path_str = loaded_img.filepath
+                p = Path(path_str)
+
+                # Check direct or relative paths first
+                candidates_to_check = []
+                if path_str.startswith("//"):
+                    candidates_to_check.append(source_dir / path_str[2:])
+                elif p.is_absolute():
+                    candidates_to_check.append(p)
+                else:
+                    candidates_to_check.append(source_dir / p)
+                    candidates_to_check.append(source_dir / "textures" / p.name)
+
+                # Also search by filename directly in source dir and textures subfolder
+                img_filename = p.name if p.name else f"{loaded_img.name}.png"
+                candidates_to_check.extend(
+                    [
+                        source_dir / img_filename,
+                        source_dir / "textures" / img_filename,
+                        source_dir.parent / "textures" / img_filename,
+                    ]
+                )
+
+                for cand in candidates_to_check:
+                    if cand.exists():
+                        resolved_path = cand.resolve()
+                        break
+
+            if resolved_path:
+                source_abs_path_map[loaded_img] = resolved_path
+                loaded_img.filepath = str(resolved_path)
+                try:
+                    loaded_img.reload()
+                except Exception:
+                    pass
+
+            loaded_hash = get_image_hash(loaded_img)
+            resolved_img = None
+
+            # REQUIRE BOTH SAME NAME AND SAME HASH TO REUSE EXISTING IMAGE
+            if clean_name_lower in existing_images_by_name:
+                existing_img = existing_images_by_name[clean_name_lower]
+                existing_hash = get_image_hash(existing_img)
+
+                if loaded_hash and existing_hash and loaded_hash == existing_hash:
+                    resolved_img = existing_img
+                    images_to_remove.append(loaded_img)
+                else:
+                    # Same name, different hash -> Assign prefix and treat as unique new image
+                    prefixed_name = f"{file_prefix}_{clean_name}"
+                    candidate = prefixed_name
+                    counter = 2
+                    while candidate.lower() in existing_images_by_name:
+                        candidate = f"{prefixed_name}_{counter}"
+                        counter += 1
+
+                    loaded_img.name = candidate
+                    existing_images_by_name[candidate.lower()] = loaded_img
+                    resolved_img = loaded_img
+            else:
+                candidate = clean_name
+                counter = 2
+                base_cand = candidate
+                while candidate.lower() in existing_images_by_name:
+                    candidate = f"{base_cand}_{counter}"
+                    counter += 1
+
+                loaded_img.name = candidate
+                existing_images_by_name[candidate.lower()] = loaded_img
+                resolved_img = loaded_img
+
+            if resolved_img == loaded_img:
+                if old_id not in (0, -1):
+                    new_id = old_id
+                    while new_id in existing_image_ids:
+                        new_id += 1
+                    loaded_img.amagate_data.id = new_id
+                    existing_image_ids.add(new_id)
+                    id_map[old_id] = new_id
+                else:
+                    id_map[old_id] = old_id
+
+                if not loaded_img.use_fake_user:
+                    loaded_img.use_fake_user = True
+
+            if resolved_img is not None and loaded_img in images_to_remove:
+                existing_id = getattr(resolved_img.amagate_data, "id", 0)
+                if old_id not in (0, -1):
+                    id_map[old_id] = existing_id
+
+            image_map[loaded_img] = resolved_img
+
+        for loaded_mat in data_to.materials:
+            if loaded_mat and loaded_mat.node_tree:
+                for node in loaded_mat.node_tree.nodes:
+                    if node.type == "TEX_IMAGE" and node.image:
+                        mapped_img = image_map.get(node.image, node.image)
+                        if mapped_img:
+                            node.image = mapped_img
+                        else:
+                            node.image = None
+
+        for img in images_to_remove:
+            bpy.data.images.remove(img, do_unlink=True)
+
+        # ==============================================================
+        # 5. RESOLVE MATERIALS: STRICT SAME NAME + HASH MATCHING
+        # ==============================================================
+        existing_materials_by_name = {}
+        for mat in bpy.data.materials:
+            if mat in data_to.materials:
+                continue
+            existing_materials_by_name[mat.name.lower()] = mat
+
+        def get_mat_hash_and_image(mat):
+            if not mat or not mat.node_tree:
+                return "", None
+            for node in mat.node_tree.nodes:
+                if node.type == "TEX_IMAGE" and node.image:
+                    img = image_map.get(node.image, node.image)
+                    return get_image_hash(img), img
+            return "", None
+
+        # Identify existing local null material (typically AG.Mat-1 or AG.Mat1 or named 'null')
+        local_null_img = existing_images_by_name.get("null")
+        local_null_mat = None
+        for mat in bpy.data.materials:
+            if mat in data_to.materials:
+                continue
+            if mat.name.lower() == "ag.mat-1":
+                local_null_mat = mat
+                break
+            _, m_img = get_mat_hash_and_image(mat)
+            if local_null_img and m_img == local_null_img:
+                local_null_mat = mat
+                break
+
+        existing_mat_numbers = set()
+        for m in bpy.data.materials:
+            if m in data_to.materials:
+                continue
+            name = m.name
+            if name.lower().startswith("ag.mat") and name[6:].isdigit():
+                existing_mat_numbers.add(int(name[6:]))
+
+        next_mat_num = max(existing_mat_numbers) + 1 if existing_mat_numbers else 1
+
+        mat_map = {}
+        mats_to_remove = []
+
+        for loaded_mat in data_to.materials:
+            if loaded_mat is None:
+                continue
+
+            clean_mat_name = re.sub(r"\.\d{3,}$", "", loaded_mat.name)
+            clean_mat_name_lower = clean_mat_name.lower()
+
+            loaded_hash, loaded_image = get_mat_hash_and_image(loaded_mat)
+            loaded_img_name_clean = (
+                re.sub(r"\.\d{3,}$", "", getattr(loaded_image, "name", "")).lower()
+                if loaded_image
+                else ""
+            )
+
+            # Check if incoming material is null or references a null texture
+            is_null_mat = (
+                (clean_mat_name_lower == "ag.mat-1")
+                or (loaded_image is None)
+                or (loaded_img_name_clean == "null")
+            )
+            if is_null_mat:
+                if local_null_mat:
+                    mats_to_remove.append(loaded_mat)
+                    mat_map[loaded_mat] = local_null_mat
+                else:
+                    loaded_mat.name = "AG.Mat-1"
+                    existing_materials_by_name["ag.mat-1"] = loaded_mat
+                    mat_map[loaded_mat] = loaded_mat
+                    loaded_mat.use_fake_user = True
+                    local_null_mat = loaded_mat
+                continue
+
+            existing_mat = None
+
+            # ONLY USE EXISTING MATERIAL IF NAME IS SAME AND HASH VALUE IS SAME
+            if clean_mat_name_lower in existing_materials_by_name:
+                cand_mat = existing_materials_by_name[clean_mat_name_lower]
+                cand_hash, cand_image = get_mat_hash_and_image(cand_mat)
+
+                if loaded_hash and cand_hash and loaded_hash == cand_hash:
+                    existing_mat = cand_mat
+                elif not loaded_hash and not cand_hash:
+                    if loaded_image == cand_image:
+                        existing_mat = cand_mat
+
+            if existing_mat:
+                mat_map[loaded_mat] = existing_mat
+                mats_to_remove.append(loaded_mat)
+            else:
+                while next_mat_num in existing_mat_numbers:
+                    next_mat_num += 1
+                new_mat_name = f"AG.Mat{next_mat_num}"
+                existing_mat_numbers.add(next_mat_num)
+                next_mat_num += 1
+
+                loaded_mat.name = new_mat_name
+                loaded_mat.use_fake_user = True
+
+                if loaded_mat.node_tree:
+                    for node in loaded_mat.node_tree.nodes:
+                        if node.type == "TEX_IMAGE" and node.image:
+                            resolved_node_img = image_map.get(node.image, node.image)
+                            if resolved_node_img:
+                                node.image = resolved_node_img
+
+                mat_map[loaded_mat] = loaded_mat
+
+        # ==============================================================
+        # 6. SAVE UNIQUE/FINAL MERGED TEXTURES TO LOCAL TEXTURES DIRECTORY
+        # ==============================================================
+        for loaded_img in data_to.images:
+            if loaded_img is None or loaded_img in images_to_remove:
+                continue
+            clean_img_name = re.sub(r"\.\d{3,}$", "", loaded_img.name).lower()
+            if clean_img_name == "null":
+                continue
+
+            target_path = textures_dir / f"{loaded_img.name}.png"
+            saved_successfully = False
+
+            try:
+                if loaded_img.packed_file:
+                    with open(target_path, "wb") as f:
+                        f.write(loaded_img.packed_file.data)
+                    loaded_img.filepath_raw = str(target_path)
+                    saved_successfully = True
+            except Exception as e:
+                print(f"   [Error Packed] {loaded_img.name}: {e}")
+
+            if not saved_successfully and loaded_img in source_abs_path_map:
+                try:
+                    src_p = source_abs_path_map[loaded_img]
+                    if src_p.exists():
+                        shutil.copy(src_p, target_path)
+                        loaded_img.filepath_raw = str(target_path)
+                        try:
+                            loaded_img.reload()
+                        except Exception:
+                            pass
+                        saved_successfully = True
+                except Exception as e:
+                    print(f"   [Error Copy] {loaded_img.name}: {e}")
+
+            if not saved_successfully and loaded_img.has_data:
+                try:
+                    loaded_img.filepath_raw = str(target_path)
+                    loaded_img.file_format = "PNG"
+                    loaded_img.save()
+                    saved_successfully = True
+                except Exception as e:
+                    print(f"   [Error Native] {loaded_img.name}: {e}")
+
+            if not saved_successfully:
+                print(f"   [Warning] Could not extract image: {loaded_img.name}")
+
+        # ==============================================================
+        # 7. RESOLVE ATMOSPHERE / EXTERNAL LIGHT IDENTITY
+        # ==============================================================
+        src_scene = None
+        for sc in data_to.scenes:
+            if sc is not None:
+                src_scene = sc
+                break
+
+        atmo_id_map = {}
+        external_id_map = {}
+        if src_scene is not None:
+            src_scene_data = src_scene.amagate_data
+
+            for src_atmo in src_scene_data.atmospheres:
+                old_id = src_atmo.id
+                src_color = tuple(src_atmo.color)
+                dest_match = None
+                for dest_atmo in scene_data.atmospheres:
+                    if tuple(dest_atmo.color) == src_color:
+                        dest_match = dest_atmo
+                        break
+                if dest_match is not None:
+                    atmo_id_map[old_id] = dest_match.id
+                else:
+                    new_atmo = OP_L3D.OT_Scene_Atmo_Add.add(context, undo=False)
+                    new_atmo["_color"] = src_color
+                    atmo_id_map[old_id] = new_atmo.id
+
+            for src_ext in src_scene_data.externals:
+                old_id = src_ext.id
+                src_color = tuple(src_ext.color)
+                src_vector = tuple(src_ext.vector)
+                dest_match = None
+                for dest_ext in scene_data.externals:
+                    if (
+                        tuple(dest_ext.color) == src_color
+                        and tuple(dest_ext.vector) == src_vector
+                    ):
+                        dest_match = dest_ext
+                        break
+                if dest_match is not None:
+                    external_id_map[old_id] = dest_match.id
+                else:
+                    new_ext = OP_L3D.OT_Scene_External_Add.add(context, undo=False)
+                    new_ext["_color"] = src_color
+                    new_ext["_vector"] = src_vector
+                    new_ext.update_obj()
+                    external_id_map[old_id] = new_ext.id
+
+        for sc in data_to.scenes:
+            if sc is not None and sc.name not in scenes_before:
+                bpy.data.scenes.remove(sc)
+        for obj_name in list(bpy.data.objects.keys()):
+            if obj_name in objects_before:
+                continue
+            o = bpy.data.objects.get(obj_name)
+            if o is not None and o.users == 0:
+                bpy.data.objects.remove(o)
+
+        # ==============================================================
+        # 8. REMAP MATERIALS AND TEXTURE IDS
+        # ==============================================================
+        for obj in sectors:
+            if obj.type == "MESH":
+                for i, mat in enumerate(obj.data.materials):
+                    if mat in mat_map:
+                        if mat_map[mat] is not None:
+                            obj.data.materials[i] = mat_map[mat]
+
+            mesh = obj.data
+            tex_attr = mesh.attributes.get("amagate_tex_id")
+            if tex_attr:
+                for item in tex_attr.data:
+                    if item.value in id_map:
+                        item.value = id_map[item.value]
+
+        # ==============================================================
+        # 9. CLEAN DUPLICATE MATERIALS
+        # ==============================================================
+        for mat in mats_to_remove:
+            if mat and mat.name in bpy.data.materials:
+                bpy.data.materials.remove(mat, do_unlink=True)
+
+        # ==============================================================
+        # 10. RE-INDEX SECTORS & RE-LINK BULB LIGHT POINTERS
+        # ==============================================================
+        sector_map = {}
+        for obj in sectors:
+            if not obj.amagate_data.is_sector:
+                continue
+
+            sec_data = obj.amagate_data.get_sector_data()
+            old_id = sec_data.id
+
+            sec_data.init(post_copy=True)
+            new_id = sec_data.id
+            sector_map[old_id] = new_id
+
+            child_lights = [c for c in obj.children if c.type == "LIGHT"]
+
+            for idx, child in enumerate(child_lights):
+                suffix = f".{idx:03d}" if idx > 0 else ""
+                child.name = f"AG.{new_id}.Light{suffix}"
+                if child.data:
+                    child.data.name = child.name
+
+            if hasattr(sec_data, "bulb_light"):
+                for idx, item in enumerate(sec_data.bulb_light):
+                    matched_light = None
+                    if idx < len(child_lights):
+                        matched_light = child_lights[idx]
+                    elif len(child_lights) == 1:
+                        matched_light = child_lights[0]
+
+                    if matched_light:
+                        item.light_obj = matched_light
+
+        # ==============================================================
+        # 11. APPLY ATMOSPHERE/EXTERNAL IDs AND RE-LINK OBJECT POINTERS
+        # ==============================================================
+        id_to_object_map = {}
+        for o in context.scene.objects:
+            ama = getattr(o, "amagate_data", None)
+            if not ama:
+                continue
+
+            obj_id = None
+            if ama.is_sector and len(ama.SectorData) > 0:
+                obj_id = getattr(ama.SectorData[0], "id", None)
+            elif ama.is_entity and len(ama.EntityData) > 0:
+                ent = ama.EntityData[0]
+                obj_id = (
+                    getattr(ent, "id", None)
+                    or getattr(ent, "entity_id", None)
+                    or ent.get("id")
+                    or ent.get("_id")
+                )
+
+            if obj_id is not None:
+                id_to_object_map[obj_id] = o
+
+        for obj in sectors:
+            if not obj.amagate_data.is_sector:
+                continue
+
+            sec_data = obj.amagate_data.get_sector_data()
+
+            old_atmo = sec_data.get("_atmo_id", 0)
+            if old_atmo in atmo_id_map:
+                sec_data.atmo_id = atmo_id_map[old_atmo]
+
+            old_external = sec_data.get("_external_id", 0)
+            if old_external in external_id_map:
+                sec_data.external_id = external_id_map[old_external]
+
+            if sec_data.external_id in id_to_object_map:
+                sec_data.external_obj = id_to_object_map[sec_data.external_id]
+
+        # ==============================================================
+        # 12. REMAP CONNECTION IDs
+        # ==============================================================
+        for obj in sectors:
+            if not obj.amagate_data.is_sector:
+                continue
+
+            sec_data = obj.amagate_data.get_sector_data()
+            attr = obj.data.attributes.get(
+                "amagate_projected_connected"
+            ) or obj.data.attributes.get("amagate_connected")
+            if not attr:
+                continue
+
+            connect_count = 0
+            for item in attr.data:
+                new_id = sector_map.get(item.value, 0)
+                item.value = new_id
+                if new_id != 0:
+                    connect_count += 1
+
+            sec_data.connect_num = connect_count
+
+        # ==============================================================
+        # 13. RECURSIVE ORPHAN DATA PURGE
+        # =================================================<<<
+        while True:
+            res = bpy.ops.outliner.orphans_purge(
+                do_local_ids=True, do_linked_ids=True, do_recursive=True
+            )
+            if res == {"CANCELLED"}:
+                break
+
+        # ==============================================================
+        # 14. SELECT EVERYTHING MERGED
+        # ==============================================================
+        for o in list(context.selected_objects):
+            o.select_set(False)
+        for obj in sectors:
+            obj.select_set(True)
+        if sectors:
+            context.view_layer.objects.active = sectors[0]
+
+        self.report(
+            {"INFO"},
+            f"Merged {len(sectors)} sector(s): "
+            f"{len(atmo_id_map)} atmosphere(s) and "
+            f"{len(external_id_map)} external light(s) resolved.",
+        )
+
+        return {"FINISHED"}
+
+
+    def invoke(self, context: Context, event: bpy.types.Event):
+        if not bpy.data.filepath:
+            self.report(
+                {"ERROR"},
+                "Please save your current .blend file first before merging to establish a textures directory.",
+            )
+            return {"CANCELLED"}
+        #
+        context.window_manager.fileselect_add(self)
+        return {"RUNNING_MODAL"}
 
 
 ############################

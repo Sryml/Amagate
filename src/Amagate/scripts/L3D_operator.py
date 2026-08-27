@@ -2644,18 +2644,6 @@ class OT_Node_Reset(bpy.types.Operator):
                 mat.node_tree.nodes["Image Texture"].image = tex  # type: ignore
 
 
-# 合并地图
-class OT_MergeMap(bpy.types.Operator):
-    bl_idname = "amagate.mergemap"
-    bl_label = "Merge Map"
-    bl_description = ""
-    bl_options = {"INTERNAL"}
-
-    def execute(self, context: Context):
-        # TODO 合并地图
-        return {"FINISHED"}
-
-
 ############################
 ############################
 ############################
