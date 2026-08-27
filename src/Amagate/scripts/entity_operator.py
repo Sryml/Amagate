@@ -1291,7 +1291,38 @@ class OT_AddComponent(bpy.types.Operator):
                 obj.matrix_parent_inverse = object_matrix.inverted()
 
             bm.free()
+            # --------------------
+            # 把手位置的碰撞
+            # --------------------
+            bm = bmesh.new()
+            verts = []
+            for co in mesh_data["vertices"]:
+                verts.append(bm.verts.new(co))
+            for idx in mesh_data["edges"]:
+                bm.edges.new([verts[i] for i in idx])
+            scale = (1, 1, 0.1 / 0.8)
+            bmesh.ops.scale(bm, vec=scale, verts=bm.verts)  # type: ignore
+            move_x = 0.3 - 0.06
+            bmesh.ops.translate(bm, vec=(move_x, 0, 0), verts=[verts[i] for i in range(2, 8)])  # type: ignore
+            bm_matrix = Matrix((anchor_z, -anchor_y, anchor_x)).transposed()  # type: ignore
+            bmesh.ops.rotate(bm, cent=(0, 0, 0), matrix=bm_matrix, verts=bm.verts)  # type: ignore
 
+            obj_name = f"Blade_Edge_7"
+            mesh = bpy.data.meshes.new(obj_name)
+            obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
+            obj.show_in_front = True
+            obj.amagate_data.ent_comp_type = 1
+            data.link2coll(obj, ent_coll)
+
+            offset_z = -anchor_z * 0.3
+            location = anchor_loc + offset_z
+            obj.location = location
+            bm.to_mesh(mesh)
+            obj.parent = active_object
+            obj.matrix_parent_inverse = object_matrix.inverted()
+
+            bm.free()
+            # --------------------
         # 轨迹
         if has_crush:
             trail_length = anchor2end + 0.07
@@ -1352,22 +1383,25 @@ class OT_AddComponent(bpy.types.Operator):
                 bm.to_mesh(mesh)
                 obj.parent = active_object
                 obj.matrix_parent_inverse = object_matrix.inverted()
+            # --------------------
+            # 把手位置的碰撞 有Crush锚的情况下Spike仍会造成穿刺伤害而不是粉碎伤害
+            # --------------------
+            # offset = -anchor_z * 0.3
+            # move_z = 0.3 - spike_length
+            # bmesh.ops.translate(bm, vec=anchor_z * move_z, verts=[verts[i] for i in range(1, 6)])  # type: ignore
 
-            offset = -anchor_z * 0.3
-            move_z = 0.3 - spike_length
-            bmesh.ops.translate(bm, vec=anchor_z * move_z, verts=[verts[i] for i in range(1, 6)])  # type: ignore
+            # obj_name = "Blade_Spike_2"
+            # mesh = bpy.data.meshes.new(obj_name)
+            # obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
+            # obj.show_in_front = True
+            # obj.amagate_data.ent_comp_type = 2
+            # data.link2coll(obj, ent_coll)
 
-            obj_name = "Blade_Spike_2"
-            mesh = bpy.data.meshes.new(obj_name)
-            obj = bpy.data.objects.new(obj_name, mesh)  # type: Object # type: ignore
-            obj.show_in_front = True
-            obj.amagate_data.ent_comp_type = 2
-            data.link2coll(obj, ent_coll)
-
-            obj.location = anchor_loc + offset
-            bm.to_mesh(mesh)
-            obj.parent = active_object
-            obj.matrix_parent_inverse = object_matrix.inverted()
+            # obj.location = anchor_loc + offset
+            # bm.to_mesh(mesh)
+            # obj.parent = active_object
+            # obj.matrix_parent_inverse = object_matrix.inverted()
+            # --------------------
             # if i != 0:
             #     rot = Matrix.Rotation(math.radians(180), 4, anchor_x)  # type: ignore
             #     offset = (max_length / 2) * anchor_z
@@ -3228,7 +3262,7 @@ class OT_ExportBOD(bpy.types.Operator, ExportHelper):
             return self.execute(context)
         elif not bpy.data.filepath or (not self.main and self.action == "2"):
             # 另存为...
-            if (not self.main and self.action == "2"):
+            if not self.main and self.action == "2":
                 if not self.filepath:
                     self.filepath = f"{ent_dict['kind']}.bod"
             elif EntityEditorData.use_internal_name:
